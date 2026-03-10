@@ -42,9 +42,12 @@ export default function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
-          Where student<br />
-          practice becomes<br />
-          <em className="italic text-k-primary">verified{" "}
+          Where student
+          <br />
+          practice becomes
+          <br />
+          <em className="italic text-k-primary">
+            verified{" "}
             <span className="relative inline-block after:content-[''] after:absolute after:bottom-1 after:left-0 after:right-0 after:h-0.5 after:bg-k-accent">
               expertise
             </span>
@@ -58,8 +61,9 @@ export default function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.7, ease: [0.22, 1, 0.36, 1] }}
         >
-          Kosmè transforms cosmetology training into structured, evidence-backed portfolios —
-          connecting students, educators, clients, and employers in one verified ecosystem.
+          Kosmè transforms cosmetology training into structured, evidence-backed
+          portfolios — connecting students, educators, clients, and employers in
+          one verified ecosystem.
         </motion.p>
 
         {/* Buttons */}
@@ -93,9 +97,9 @@ export default function Hero() {
           transition={{ duration: 0.9, delay: 1.1, ease: [0.22, 1, 0.36, 1] }}
         >
           {[
-            { num: "4+",   label: "User Roles"        },
-            { num: "100%", label: "Verified Records"   },
-            { num: "1×",   label: "Platform"           },
+            { num: "4+", label: "User Roles" },
+            { num: "100%", label: "Verified Records" },
+            { num: "1×", label: "Platform" },
           ].map(({ num, label }) => (
             <div key={label}>
               <span className="font-serif text-[2.2rem] font-medium text-k-black tracking-tight3 leading-none block">
@@ -132,28 +136,6 @@ export default function Hero() {
             {/* ↓ Replace this with:  <Image src="/hero-person.png" fill alt="..." className="object-cover" />  */}
             <PersonPlaceholder size="lg" />
           </div>
-        </motion.div>
-
-        {/* Badge */}
-        <motion.div
-          className="absolute top-12 right-12 bg-white/15 backdrop-blur-xl border border-white/20 rounded-2xl px-5 py-4 text-white"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 1.3 }}
-        >
-          <p className="text-[0.7rem] uppercase tracking-[0.1em] opacity-70 mb-1">Portfolio Score</p>
-          <p className="font-serif text-2xl font-medium">A+ Verified</p>
-        </motion.div>
-
-        {/* Floating pill */}
-        <motion.div
-          className="absolute bottom-20 -left-6 bg-k-accent rounded-full px-5 py-3 flex items-center gap-2.5 shadow-[0_8px_32px_rgba(200,169,110,0.4)]"
-          initial={{ opacity: 0, x: -32 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8, delay: 1.5, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <span className="w-2 h-2 rounded-full bg-k-primary" />
-          <span className="text-sm font-medium text-k-black">Hair · Colour · Styling · Care</span>
         </motion.div>
       </div>
     </section>
