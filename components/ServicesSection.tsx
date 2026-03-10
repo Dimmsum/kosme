@@ -8,9 +8,9 @@ import {
   GraduationCap,
   ClipboardList,
 } from "lucide-react";
+import Image from "next/image";
 import Reveal from "./Reveal";
 import SectionTag from "./SectionTag";
-import PersonPlaceholder from "./PersonPlaceholder";
 
 const tabs = ["Students", "Educators", "Employers"];
 
@@ -51,8 +51,6 @@ const services = [
     large: false,
   },
 ];
-
-const personServices = new Set(["colour", "cuts", "scalp"]);
 
 export default function ServicesSection() {
   const [activeTab, setActiveTab] = useState(0);
@@ -124,13 +122,13 @@ export default function ServicesSection() {
                     )}
                   </span>
 
-                  {/* Person placeholder for service cards */}
-                  {personServices.has(id) && (
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] max-w-[200px] opacity-70">
-                      {/* Replace with: <Image src={`/service-${id}.jpg`} fill alt={title} className="object-cover" /> */}
-                      <PersonPlaceholder size="sm" label="" />
-                    </div>
-                  )}
+                  {/* Service image */}
+                  <Image
+                    src={`/service-${id}.jpg`}
+                    alt={title}
+                    fill
+                    className="object-cover opacity-60 group-hover:opacity-80 transition-opacity duration-300"
+                  />
                 </div>
 
                 {/* Body */}

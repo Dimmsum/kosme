@@ -1,7 +1,7 @@
 import { CheckCircle, Camera, Star, Link } from "lucide-react";
+import Image from "next/image";
 import Reveal from "./Reveal";
 import SectionTag from "./SectionTag";
-import PersonPlaceholder from "./PersonPlaceholder";
 import { type ReactNode } from "react";
 
 const features: { icon: ReactNode; text: string }[] = [
@@ -56,14 +56,13 @@ export default function ProofSection() {
 
         {/* Right */}
         <Reveal direction="right" className="relative">
-          <div className="aspect-square rounded-[32px] overflow-hidden bg-gradient-to-br from-k-primary to-[#0D2318] flex items-end justify-center">
-            {/*
-              Replace PersonPlaceholder with:
-              <Image src="/proof-person.jpg" fill alt="Student portfolio example" className="object-cover object-top" />
-            */}
-            <div className="w-[65%] opacity-75">
-              <PersonPlaceholder size="lg" label="Replace with photo" />
-            </div>
+          <div className="aspect-square rounded-[32px] overflow-hidden bg-gradient-to-br from-k-primary to-[#0D2318] relative">
+            <Image
+              src="/proof-person.jpg"
+              alt="Student portfolio example"
+              fill
+              className="object-cover object-top"
+            />
           </div>
 
           {/* Overlay card — top right */}
