@@ -1,3 +1,12 @@
+import { Twitter, Linkedin, Instagram } from "lucide-react";
+import { type ReactNode } from "react";
+
+const socialLinks: { icon: ReactNode; label: string }[] = [
+  { icon: <Twitter size={16} />, label: "Twitter" },
+  { icon: <Linkedin size={16} />, label: "LinkedIn" },
+  { icon: <Instagram size={16} />, label: "Instagram" },
+];
+
 const footerLinks = {
   Platform: ["For Students", "For Educators", "For Employers", "For Clients"],
   Product:  ["How it works", "Portfolio Builder", "Verification", "Pricing"],
@@ -44,15 +53,16 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-xs text-white/30">© 2025 Kosmè. All rights reserved.</p>
           <div className="flex gap-5">
-            {["𝕏", "in", "ig"].map(s => (
+            {socialLinks.map(({ icon, label }) => (
               <a
-                key={s}
+                key={label}
                 href="#"
+                aria-label={label}
                 className="w-9 h-9 rounded-full border border-white/20 flex items-center justify-center
-                           text-sm text-white/50 no-underline transition-all duration-200
+                           text-white/50 no-underline transition-all duration-200
                            hover:border-k-accent hover:text-k-accent"
               >
-                {s}
+                {icon}
               </a>
             ))}
           </div>

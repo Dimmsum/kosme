@@ -1,12 +1,14 @@
+import { CheckCircle, Camera, Star, Link } from "lucide-react";
 import Reveal from "./Reveal";
 import SectionTag from "./SectionTag";
 import PersonPlaceholder from "./PersonPlaceholder";
+import { type ReactNode } from "react";
 
-const features = [
-  { icon: "✓",  text: "Every session verified by a qualified educator"   },
-  { icon: "📸", text: "Before & after documentation for every treatment"  },
-  { icon: "⭐", text: "Authentic client ratings and feedback"             },
-  { icon: "🔗", text: "Shareable link for job applications and interviews" },
+const features: { icon: ReactNode; text: string }[] = [
+  { icon: <CheckCircle size={18} />,  text: "Every session verified by a qualified educator"   },
+  { icon: <Camera size={18} />,       text: "Before & after documentation for every treatment"  },
+  { icon: <Star size={18} />,         text: "Authentic client ratings and feedback"             },
+  { icon: <Link size={18} />,         text: "Shareable link for job applications and interviews" },
 ];
 
 export default function ProofSection() {
@@ -30,7 +32,7 @@ export default function ProofSection() {
           <div className="flex flex-col gap-4">
             {features.map(({ icon, text }) => (
               <div key={text} className="flex items-center gap-3.5 text-sm text-k-gray-600 font-light">
-                <div className="w-9 h-9 min-w-[36px] rounded-lg bg-k-primary flex items-center justify-center text-base">
+                <div className="w-9 h-9 min-w-[36px] rounded-lg bg-k-primary flex items-center justify-center text-k-white">
                   {icon}
                 </div>
                 {text}

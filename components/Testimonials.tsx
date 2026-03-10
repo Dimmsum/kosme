@@ -38,7 +38,7 @@ export default function Testimonials() {
           {testimonials.map(({ quote, name, role, initial }, i) => (
             <Reveal key={name} delay={i * 0.1}>
               <div
-                className="group bg-white/5 border border-white/8 rounded-3xl p-9 cursor-none h-full
+                className="group bg-white/5 border border-white/8 rounded-3xl p-9 h-full
                            transition-all duration-300 hover:border-k-accent/40 hover:bg-white/8"
               >
                 <p className="font-serif text-xl font-light text-k-white leading-[1.6] mb-7 before:content-['\201C'] before:text-k-accent before:text-3xl before:leading-[0] before:align-[-0.5rem] before:mr-1">

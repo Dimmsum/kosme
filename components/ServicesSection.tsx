@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Paintbrush, Scissors, Sparkles, GraduationCap, ClipboardList } from "lucide-react";
 import Reveal from "./Reveal";
 import SectionTag from "./SectionTag";
 import PersonPlaceholder from "./PersonPlaceholder";
@@ -39,7 +40,7 @@ export default function ServicesSection() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(i)}
-                className={`px-5 py-2 rounded-full text-sm font-normal transition-all duration-200 cursor-none ${
+                className={`px-5 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
                   activeTab === i
                     ? "bg-k-primary text-k-white"
                     : "text-k-gray-400 hover:text-k-black"
@@ -60,7 +61,7 @@ export default function ServicesSection() {
               className={large ? "row-span-2" : ""}
             >
               <div
-                className="group relative bg-k-white rounded-2xl overflow-hidden cursor-none
+                className="group relative bg-k-white rounded-2xl overflow-hidden
                            transition-transform duration-300 hover:scale-[1.02] h-full"
               >
                 {/* Image area */}
@@ -69,8 +70,8 @@ export default function ServicesSection() {
                     large ? "aspect-[3/4]" : "aspect-[16/9]"
                   } flex items-center justify-center`}
                 >
-                  <span className="text-[4rem] opacity-15 select-none">
-                    {id === "colour" ? "💇" : id === "cuts" ? "✂️" : id === "scalp" ? "💆" : id === "verify" ? "🎓" : "📋"}
+                  <span className="opacity-15 select-none">
+                    {id === "colour" ? <Paintbrush size={64} /> : id === "cuts" ? <Scissors size={64} /> : id === "scalp" ? <Sparkles size={64} /> : id === "verify" ? <GraduationCap size={64} /> : <ClipboardList size={64} />}
                   </span>
 
                   {/* Person placeholder for service cards */}

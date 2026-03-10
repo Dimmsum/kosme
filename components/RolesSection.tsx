@@ -1,27 +1,29 @@
+import { Scissors, GraduationCap, Heart, Building2 } from "lucide-react";
 import Reveal from "./Reveal";
 import SectionTag from "./SectionTag";
+import { type ReactNode } from "react";
 
-const roles = [
+const roles: { icon: ReactNode; num: string; title: string; body: string }[] = [
   {
-    icon: "✂️",
+    icon: <Scissors size={22} />,
     num: "01",
     title: "Students",
     body: "Document every session, build a verified portfolio, and graduate with proof of your skills that employers can actually assess.",
   },
   {
-    icon: "🎓",
+    icon: <GraduationCap size={22} />,
     num: "02",
     title: "Educators",
     body: "Guide, review, and verify student work through structured workflows. Track cohort progress and maintain academic standards with ease.",
   },
   {
-    icon: "💆",
+    icon: <Heart size={22} />,
     num: "03",
     title: "Volunteer Clients",
     body: "Receive professional-quality services from supervised students, contribute to education, and provide structured feedback that powers growth.",
   },
   {
-    icon: "🏢",
+    icon: <Building2 size={22} />,
     num: "04",
     title: "Employers",
     body: "Access verified graduate portfolios and make confident hiring decisions based on structured evidence — not just interviews and references.",
@@ -59,14 +61,14 @@ export default function RolesSection() {
           {roles.map(({ icon, num, title, body }, i) => (
             <Reveal key={num} delay={i * 0.1}>
               <div
-                className="group relative bg-white/[0.06] p-10 cursor-none h-full
+                className="group relative bg-white/[0.06] p-10 h-full
                            transition-colors duration-300 hover:bg-white/[0.11]
                            after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
                            after:h-[3px] after:bg-k-accent after:scale-x-0
                            after:transition-transform after:duration-400
                            hover:after:scale-x-100"
               >
-                <div className="w-12 h-12 rounded-xl bg-k-accent/15 flex items-center justify-center text-2xl mb-6">
+                <div className="w-12 h-12 rounded-xl bg-k-accent/15 flex items-center justify-center text-k-accent mb-6">
                   {icon}
                 </div>
                 <span className="absolute top-7 right-7 font-serif text-sm text-white/20">{num}</span>

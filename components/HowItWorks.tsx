@@ -42,7 +42,7 @@ export default function HowItWorks() {
         {steps.map(({ num, title, body }, i) => (
           <Reveal key={num} delay={i * 0.12}>
             <div
-              className="group bg-k-gray-100 rounded-3xl px-9 py-11 cursor-none relative
+              className="group bg-k-gray-100 rounded-3xl px-9 py-11 relative
                          transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_24px_60px_rgba(0,0,0,0.08)]"
             >
               <div

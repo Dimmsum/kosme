@@ -1,39 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { motion, useMotionValue, useSpring } from "framer-motion";
-import PersonPlaceholder from "./PersonPlaceholder";
+import { useRef } from "react";
+import { motion } from "framer-motion";
+import Image from "next/image";
 
 export default function Hero() {
   const heroImageRef = useRef<HTMLDivElement>(null);
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const springX = useSpring(mouseX, { stiffness: 60, damping: 20 });
-  const springY = useSpring(mouseY, { stiffness: 60, damping: 20 });
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      mouseX.set((e.clientX / window.innerWidth - 0.5) * 10);
-      mouseY.set((e.clientY / window.innerHeight - 0.5) * 10);
-    };
-    window.addEventListener("mousemove", handler);
-    return () => window.removeEventListener("mousemove", handler);
-  }, [mouseX, mouseY]);
 
   return (
     <section className="min-h-screen grid grid-cols-1 md:grid-cols-2 overflow-hidden">
       {/* ── LEFT ── */}
       <div className="flex flex-col justify-center px-12 pt-36 pb-20 relative z-10">
         {/* Tag */}
-        <motion.div
-          className="animate-fade-up delay-300 inline-flex items-center gap-2 text-xs font-medium tracking-[0.12em] uppercase text-k-accent mb-7"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-k-accent" />
-          Beauty Education Platform
-        </motion.div>
 
         {/* Headline */}
         <motion.h1
@@ -123,19 +101,21 @@ export default function Hero() {
           transition={{ duration: 1, delay: 0.2 }}
         />
 
-        {/* Person placeholder — swap this with next/image */}
+        {/* Hero image */}
         <motion.div
           ref={heroImageRef}
-          className="absolute inset-0 flex items-end justify-center animate-float"
-          style={{ x: springX, y: springY }}
+          className="absolute inset-0"
           initial={{ opacity: 0, y: 60 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="w-3/4 max-w-[420px]">
-            {/* ↓ Replace this with:  <Image src="/hero-person.png" fill alt="..." className="object-cover" />  */}
-            <PersonPlaceholder size="lg" />
-          </div>
+          <Image
+            src="/hero-person.jpg"
+            alt="Cosmetology student styling hair in a salon"
+            fill
+            className="object-cover"
+            priority
+          />
         </motion.div>
       </div>
     </section>

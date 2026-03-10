@@ -1,6 +1,6 @@
 import Reveal from "./Reveal";
 import SectionTag from "./SectionTag";
-import PersonPlaceholder from "./PersonPlaceholder";
+import Image from "next/image";
 
 const cards = [
   {
@@ -43,7 +43,7 @@ export default function WhySection() {
               <Reveal key={num} delay={i * 0.1 + 0.1}>
                 <div
                   className="group border border-k-gray-200 rounded-2xl px-8 py-7 bg-k-white
-                             cursor-none grid grid-cols-[auto_1fr] gap-5 items-start
+                             grid grid-cols-[auto_1fr] gap-5 items-start
                              transition-all duration-300
                              hover:border-k-accent hover:translate-x-2 hover:shadow-[0_8px_40px_rgba(0,0,0,0.06)]"
                 >
@@ -60,14 +60,13 @@ export default function WhySection() {
 
         {/* Right — image */}
         <Reveal direction="right" className="relative">
-          <div className="aspect-[4/5] rounded-[28px] overflow-hidden relative flex items-end justify-center bg-gradient-to-br from-k-primary to-[#0D2318]">
-            {/*
-              ↓ Replace PersonPlaceholder with:
-                <Image src="/why-person.jpg" fill alt="Cosmetology student" className="object-cover object-top" />
-            */}
-            <div className="w-[70%] opacity-80">
-              <PersonPlaceholder size="lg" label="Replace with photo" />
-            </div>
+          <div className="aspect-[4/5] rounded-[28px] overflow-hidden relative bg-gradient-to-br from-k-primary to-[#0D2318]">
+            <Image
+              src="/cosmetology-student.jpg"
+              alt="Cosmetology student in a salon"
+              fill
+              className="object-cover object-top"
+            />
 
             {/* Caption overlay */}
             <div className="absolute bottom-7 left-7 right-7 bg-white/10 backdrop-blur-xl border border-white/15 rounded-2xl px-5 py-[18px] text-k-white">
