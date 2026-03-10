@@ -3,19 +3,22 @@ import SectionTag from "./SectionTag";
 
 const testimonials = [
   {
-    quote: "Kosmè gave me something no certificate could — a portfolio that shows every real client I've worked on, with my educator's signature on each one.",
+    quote:
+      "Kosmè gave me something no certificate could — a portfolio that shows every real client I've worked on, with my educator's signature on each one.",
     name: "Amara T.",
     role: "Cosmetology Student, Year 2",
     initial: "A",
   },
   {
-    quote: "As an educator, the verification tools save me hours every week. I can review student work, leave precise feedback, and sign off — all from one dashboard.",
+    quote:
+      "As an educator, the verification tools save me hours every week. I can review student work, leave precise feedback, and sign off — all from one dashboard.",
     name: "Marcus J.",
     role: "Senior Hair Educator",
     initial: "M",
   },
   {
-    quote: "We hired our last three stylists directly from Kosmè portfolios. The verified session logs tell you far more than a CV ever could.",
+    quote:
+      "We hired our last three stylists directly from Kosmè portfolios. The verified session logs tell you far more than a CV ever could.",
     name: "Sophia R.",
     role: "Studio Owner & Employer",
     initial: "S",
@@ -29,7 +32,8 @@ export default function Testimonials() {
         <Reveal className="text-center mb-16">
           <SectionTag center>What they say</SectionTag>
           <h2 className="font-serif text-[clamp(2.5rem,4vw,3.5rem)] font-light text-k-white tracking-tight3 leading-[1.1]">
-            Voices from the<br />
+            Voices from the
+            <br />
             <em className="italic text-k-accent">Kosmè community</em>
           </h2>
         </Reveal>

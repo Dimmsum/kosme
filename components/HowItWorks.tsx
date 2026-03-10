@@ -28,7 +28,8 @@ export default function HowItWorks() {
           How Kosmè <em className="italic text-k-primary">works</em>
         </h2>
         <p className="text-base text-k-gray-600 font-light max-w-[480px] mx-auto leading-[1.7]">
-          A simple, repeatable workflow that turns every client session into verified career evidence.
+          A simple, repeatable workflow that turns every client session into
+          verified career evidence.
         </p>
       </Reveal>
 
@@ -36,7 +37,10 @@ export default function HowItWorks() {
         {/* Connecting line (desktop only) */}
         <div
           className="hidden md:block absolute top-[80px] left-[calc(16.66%+32px)] right-[calc(16.66%+32px)] h-px pointer-events-none"
-          style={{ background: "linear-gradient(90deg, #C8A96E, #1D3A2F, #C8A96E)", opacity: 0.35 }}
+          style={{
+            background: "linear-gradient(90deg, #C8A96E, #1D3A2F, #C8A96E)",
+            opacity: 0.35,
+          }}
         />
 
         {steps.map(({ num, title, body }, i) => (
@@ -53,8 +57,12 @@ export default function HowItWorks() {
               >
                 {num}
               </div>
-              <h3 className="font-serif text-2xl font-normal mb-3.5">{title}</h3>
-              <p className="text-sm text-k-gray-600 leading-[1.7] font-light">{body}</p>
+              <h3 className="font-serif text-2xl font-normal mb-3.5">
+                {title}
+              </h3>
+              <p className="text-sm text-k-gray-600 leading-[1.7] font-light">
+                {body}
+              </p>
             </div>
           </Reveal>
         ))}

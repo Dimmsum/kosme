@@ -32,11 +32,18 @@ const roles: { icon: ReactNode; num: string; title: string; body: string }[] = [
 
 export default function RolesSection() {
   return (
-    <section id="roles" className="py-[120px] px-12 bg-k-primary overflow-hidden relative">
+    <section
+      id="roles"
+      className="py-[120px] px-12 bg-k-primary overflow-hidden relative"
+    >
       {/* Watermark */}
       <span
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-serif text-[18vw] font-light pointer-events-none select-none"
-        style={{ color: "rgba(255,255,255,0.03)", letterSpacing: "-0.05em", whiteSpace: "nowrap" }}
+        style={{
+          color: "rgba(255,255,255,0.03)",
+          letterSpacing: "-0.05em",
+          whiteSpace: "nowrap",
+        }}
       >
         Kosmè
       </span>
@@ -47,12 +54,14 @@ export default function RolesSection() {
           <div>
             <SectionTag light>Built for everyone</SectionTag>
             <h2 className="font-serif text-[clamp(2.5rem,4vw,3.5rem)] font-light leading-[1.1] text-k-white tracking-tight3">
-              Four roles,<br />
+              Four roles,
+              <br />
               <em className="italic text-k-accent">one platform</em>
             </h2>
           </div>
           <p className="text-sm text-white/50 max-w-[280px] leading-relaxed text-right">
-            Kosmè works because it connects every person in the education journey — not just the student.
+            Kosmè works because it connects every person in the education
+            journey — not just the student.
           </p>
         </Reveal>
 
@@ -71,11 +80,15 @@ export default function RolesSection() {
                 <div className="w-12 h-12 rounded-xl bg-k-accent/15 flex items-center justify-center text-k-accent mb-6">
                   {icon}
                 </div>
-                <span className="absolute top-7 right-7 font-serif text-sm text-white/20">{num}</span>
+                <span className="absolute top-7 right-7 font-serif text-sm text-white/20">
+                  {num}
+                </span>
                 <h3 className="font-serif text-2xl font-normal text-k-white mb-3.5 tracking-tight">
                   {title}
                 </h3>
-                <p className="text-sm text-white/50 leading-[1.7] font-light">{body}</p>
+                <p className="text-sm text-white/50 leading-[1.7] font-light">
+                  {body}
+                </p>
               </div>
             </Reveal>
           ))}

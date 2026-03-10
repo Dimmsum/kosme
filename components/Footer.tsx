@@ -9,8 +9,8 @@ const socialLinks: { icon: ReactNode; label: string }[] = [
 
 const footerLinks = {
   Platform: ["For Students", "For Educators", "For Employers", "For Clients"],
-  Product:  ["How it works", "Portfolio Builder", "Verification", "Pricing"],
-  Company:  ["About", "Blog", "Careers", "Contact"],
+  Product: ["How it works", "Portfolio Builder", "Verification", "Pricing"],
+  Company: ["About", "Blog", "Careers", "Contact"],
 };
 
 export default function Footer() {
@@ -25,16 +25,19 @@ export default function Footer() {
               Kosm<span className="text-k-accent">è</span>
             </p>
             <p className="text-sm text-white/50 leading-[1.65] max-w-[260px] font-light">
-              Transforming cosmetology student practice into verified evidence and professional portfolios.
+              Transforming cosmetology student practice into verified evidence
+              and professional portfolios.
             </p>
           </div>
 
           {/* Link columns */}
           {Object.entries(footerLinks).map(([heading, links]) => (
             <div key={heading}>
-              <h4 className="font-serif text-sm font-medium text-white/80 mb-5 tracking-wide">{heading}</h4>
+              <h4 className="font-serif text-sm font-medium text-white/80 mb-5 tracking-wide">
+                {heading}
+              </h4>
               <ul className="flex flex-col gap-2.5 list-none">
-                {links.map(link => (
+                {links.map((link) => (
                   <li key={link}>
                     <a
                       href="#"
@@ -51,7 +54,9 @@ export default function Footer() {
 
         {/* Bottom */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-white/30">© 2025 Kosmè. All rights reserved.</p>
+          <p className="text-xs text-white/30">
+            © 2025 Kosmè. All rights reserved.
+          </p>
           <div className="flex gap-5">
             {socialLinks.map(({ icon, label }) => (
               <a

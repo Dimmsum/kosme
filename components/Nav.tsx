@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 const links = [
-  { href: "#how",      label: "How it works" },
-  { href: "#roles",    label: "For who"       },
-  { href: "#features", label: "Features"      },
-  { href: "#proof",    label: "Portfolio"     },
+  { href: "#how", label: "How it works" },
+  { href: "#roles", label: "For who" },
+  { href: "#features", label: "Features" },
+  { href: "#proof", label: "Portfolio" },
 ];
 
 export default function Nav() {
@@ -25,7 +25,10 @@ export default function Nav() {
         scrolled ? "border-b border-k-gray-200" : ""
       }`}
     >
-      <Link href="/" className="font-serif text-2xl font-semibold tracking-tight2 text-k-black">
+      <Link
+        href="/"
+        className="font-serif text-2xl font-semibold tracking-tight2 text-k-black"
+      >
         Kosm<span className="text-k-accent">è</span>
       </Link>
 

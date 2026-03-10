@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Paintbrush, Scissors, Sparkles, GraduationCap, ClipboardList } from "lucide-react";
+import {
+  Paintbrush,
+  Scissors,
+  Sparkles,
+  GraduationCap,
+  ClipboardList,
+} from "lucide-react";
 import Reveal from "./Reveal";
 import SectionTag from "./SectionTag";
 import PersonPlaceholder from "./PersonPlaceholder";
@@ -9,11 +15,41 @@ import PersonPlaceholder from "./PersonPlaceholder";
 const tabs = ["Students", "Educators", "Employers"];
 
 const services = [
-  { id: "colour",    title: "Hair Colour & Highlights", desc: "Full-spectrum colour work tracked and verified",   gradient: "from-[#C8A96E22] to-k-primary",        large: true },
-  { id: "cuts",      title: "Cuts & Styling",           desc: "Precision cuts and creative styles on real clients", gradient: "from-k-primary-light to-k-primary",    large: false },
-  { id: "scalp",     title: "Scalp & Hair Treatments",  desc: "Restorative care documented from prep to aftercare", gradient: "from-[#C8A96E33] to-[#3D6B55]",       large: false },
-  { id: "verify",    title: "Educator Verification",    desc: "In-platform sign-off that creates genuine credentials", gradient: "from-k-primary to-k-primary-light", large: false },
-  { id: "portfolio", title: "Portfolio Builder",        desc: "Auto-assembled from sessions, employer-shareable", gradient: "from-[#3D6B55] to-[#C8A96E44]",         large: false },
+  {
+    id: "colour",
+    title: "Hair Colour & Highlights",
+    desc: "Full-spectrum colour work tracked and verified",
+    gradient: "from-[#C8A96E22] to-k-primary",
+    large: true,
+  },
+  {
+    id: "cuts",
+    title: "Cuts & Styling",
+    desc: "Precision cuts and creative styles on real clients",
+    gradient: "from-k-primary-light to-k-primary",
+    large: false,
+  },
+  {
+    id: "scalp",
+    title: "Scalp & Hair Treatments",
+    desc: "Restorative care documented from prep to aftercare",
+    gradient: "from-[#C8A96E33] to-[#3D6B55]",
+    large: false,
+  },
+  {
+    id: "verify",
+    title: "Educator Verification",
+    desc: "In-platform sign-off that creates genuine credentials",
+    gradient: "from-k-primary to-k-primary-light",
+    large: false,
+  },
+  {
+    id: "portfolio",
+    title: "Portfolio Builder",
+    desc: "Auto-assembled from sessions, employer-shareable",
+    gradient: "from-[#3D6B55] to-[#C8A96E44]",
+    large: false,
+  },
 ];
 
 const personServices = new Set(["colour", "cuts", "scalp"]);
@@ -29,7 +65,8 @@ export default function ServicesSection() {
           <div>
             <SectionTag>Platform Features</SectionTag>
             <h2 className="font-serif text-[clamp(2.5rem,4vw,3.5rem)] font-light tracking-tight3 leading-[1.1]">
-              Everything hair,<br />
+              Everything hair,
+              <br />
               <em className="italic text-k-primary">all in one place</em>
             </h2>
           </div>
@@ -53,7 +90,10 @@ export default function ServicesSection() {
         </Reveal>
 
         {/* Grid */}
-        <div className="grid grid-cols-3 gap-4" style={{ gridTemplateRows: "auto" }}>
+        <div
+          className="grid grid-cols-3 gap-4"
+          style={{ gridTemplateRows: "auto" }}
+        >
           {services.map(({ id, title, desc, gradient, large }, i) => (
             <Reveal
               key={id}
@@ -71,7 +111,17 @@ export default function ServicesSection() {
                   } flex items-center justify-center`}
                 >
                   <span className="opacity-15 select-none">
-                    {id === "colour" ? <Paintbrush size={64} /> : id === "cuts" ? <Scissors size={64} /> : id === "scalp" ? <Sparkles size={64} /> : id === "verify" ? <GraduationCap size={64} /> : <ClipboardList size={64} />}
+                    {id === "colour" ? (
+                      <Paintbrush size={64} />
+                    ) : id === "cuts" ? (
+                      <Scissors size={64} />
+                    ) : id === "scalp" ? (
+                      <Sparkles size={64} />
+                    ) : id === "verify" ? (
+                      <GraduationCap size={64} />
+                    ) : (
+                      <ClipboardList size={64} />
+                    )}
                   </span>
 
                   {/* Person placeholder for service cards */}
@@ -85,7 +135,9 @@ export default function ServicesSection() {
 
                 {/* Body */}
                 <div className="px-6 py-5 relative">
-                  <h3 className="font-serif text-lg font-medium mb-1.5">{title}</h3>
+                  <h3 className="font-serif text-lg font-medium mb-1.5">
+                    {title}
+                  </h3>
                   <p className="text-xs text-k-gray-600 font-light">{desc}</p>
                 </div>
 
