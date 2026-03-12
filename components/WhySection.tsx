@@ -69,7 +69,7 @@ export default function WhySection() {
 
         {/* Right — image */}
         <Reveal direction="right" className="relative">
-          <div className="aspect-[4/5] rounded-[28px] overflow-hidden relative bg-gradient-to-br from-k-primary to-[#0D2318]">
+          <div className="aspect-[4/5] rounded-[28px] overflow-hidden relative bg-gradient-to-br from-k-primary to-[#200818]">
             <Image
               src="/cosmetology-student.jpg"
               alt="Cosmetology student in a salon"

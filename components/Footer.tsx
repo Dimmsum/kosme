@@ -1,5 +1,6 @@
 import { Twitter, Linkedin, Instagram } from "lucide-react";
 import { type ReactNode } from "react";
+import Image from "next/image";
 
 const socialLinks: { icon: ReactNode; label: string }[] = [
   { icon: <Twitter size={16} />, label: "Twitter" },
@@ -21,9 +22,13 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr] gap-16 pb-12 border-b border-white/10 mb-9">
           {/* Brand */}
           <div>
-            <p className="font-serif text-2xl font-semibold tracking-tight2 mb-4">
-              Kosm<span className="text-k-accent">è</span>
-            </p>
+            <Image
+              src="/Logo Text Only.png"
+              alt="proKosmé"
+              width={140}
+              height={36}
+              className="h-8 w-auto mb-4 brightness-0 invert"
+            />
             <p className="text-sm text-white/50 leading-[1.65] max-w-[260px] font-light">
               Transforming cosmetology student practice into verified evidence
               and professional portfolios.

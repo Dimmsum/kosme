@@ -54,8 +54,8 @@ export default function Hero() {
           <a
             href="#cta"
             className="bg-k-primary text-k-white text-sm font-medium px-8 py-3.5 rounded-full tracking-wide no-underline
-                       shadow-[0_4px_20px_rgba(29,58,47,0.25)] transition-all duration-200
-                       hover:bg-k-primary-light hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(29,58,47,0.3)]"
+                       shadow-[0_4px_20px_rgba(59,10,42,0.25)] transition-all duration-200
+                       hover:bg-k-primary-light hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(59,10,42,0.3)]"
           >
             Start for free
           </a>
@@ -95,7 +95,7 @@ export default function Hero() {
       <div className="relative overflow-hidden bg-k-gray-100 hidden md:block">
         {/* Gradient bg */}
         <motion.div
-          className="absolute inset-0 bg-gradient-to-br from-k-primary via-k-primary-light to-[#3D6B55]"
+          className="absolute inset-0 bg-gradient-to-br from-k-primary via-k-primary-light to-[#7A2058]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1, delay: 0.2 }}

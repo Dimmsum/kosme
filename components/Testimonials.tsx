@@ -50,7 +50,7 @@ export default function Testimonials() {
                 </p>
                 <div className="flex items-center gap-3.5">
                   {/* Avatar — replace SVG with Image when you have photos */}
-                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-k-primary to-[#3D6B55] flex items-center justify-center font-serif text-lg text-k-accent font-medium">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-k-primary to-[#7A2058] flex items-center justify-center font-serif text-lg text-k-accent font-medium">
                     {initial}
                   </div>
                   <div>

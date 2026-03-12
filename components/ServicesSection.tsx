@@ -19,7 +19,7 @@ const services = [
     id: "colour",
     title: "Hair Colour & Highlights",
     desc: "Full-spectrum colour work tracked and verified",
-    gradient: "from-[#C8A96E22] to-k-primary",
+    gradient: "from-[#E5007D22] to-k-primary",
     large: true,
   },
   {
@@ -33,7 +33,7 @@ const services = [
     id: "scalp",
     title: "Scalp & Hair Treatments",
     desc: "Restorative care documented from prep to aftercare",
-    gradient: "from-[#C8A96E33] to-[#3D6B55]",
+    gradient: "from-[#E5007D33] to-[#7A2058]",
     large: false,
   },
   {
@@ -47,7 +47,7 @@ const services = [
     id: "portfolio",
     title: "Portfolio Builder",
     desc: "Auto-assembled from sessions, employer-shareable",
-    gradient: "from-[#3D6B55] to-[#C8A96E44]",
+    gradient: "from-[#7A2058] to-[#E5007D44]",
     large: false,
   },
 ];

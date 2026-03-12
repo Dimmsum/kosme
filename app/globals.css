@@ -58,13 +58,13 @@
 /* ── PULSE RING ── */
 @keyframes pulse-ring {
   0% {
-    box-shadow: 0 0 0 0 rgba(200, 169, 110, 0.45);
+    box-shadow: 0 0 0 0 rgba(229, 0, 125, 0.45);
   }
   70% {
-    box-shadow: 0 0 0 20px rgba(200, 169, 110, 0);
+    box-shadow: 0 0 0 20px rgba(229, 0, 125, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(200, 169, 110, 0);
+    box-shadow: 0 0 0 0 rgba(229, 0, 125, 0);
   }
 }
 .animate-pulse-ring {
@@ -110,6 +110,6 @@
   background: #f2f0ec;
 }
 ::-webkit-scrollbar-thumb {
-  background: #c8a96e;
+  background: #e5007d;
   border-radius: 3px;
 }

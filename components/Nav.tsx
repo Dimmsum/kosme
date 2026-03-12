@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 const links = [
   { href: "#how", label: "How it works" },
@@ -25,11 +26,15 @@ export default function Nav() {
         scrolled ? "border-b border-k-gray-200" : ""
       }`}
     >
-      <Link
-        href="/"
-        className="font-serif text-2xl font-semibold tracking-tight2 text-k-black"
-      >
-        Kosm<span className="text-k-accent">è</span>
+      <Link href="/" className="block">
+        <Image
+          src="/Logo Text Only.png"
+          alt="proKosmé"
+          width={140}
+          height={36}
+          className="h-8 w-auto"
+          priority
+        />
       </Link>
 
       <ul className="hidden md:flex items-center gap-9 list-none">
