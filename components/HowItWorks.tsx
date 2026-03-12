@@ -38,7 +38,7 @@ export default function HowItWorks() {
         <div
           className="hidden md:block absolute top-[80px] left-[calc(16.66%+32px)] right-[calc(16.66%+32px)] h-px pointer-events-none"
           style={{
-            background: "linear-gradient(90deg, #E5007D, #3B0A2A, #E5007D)",
+            background: "linear-gradient(90deg, #ee0384, #3B0A2A, #ee0384)",
             opacity: 0.35,
           }}
         />

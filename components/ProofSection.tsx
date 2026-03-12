@@ -76,7 +76,7 @@ export default function ProofSection() {
           </div>
 
           {/* Overlay card — bottom left */}
-          <div className="absolute bottom-8 -left-6 bg-k-accent rounded-2xl px-6 py-5 shadow-[0_20px_60px_rgba(229,0,125,0.35)]">
+          <div className="absolute bottom-8 -left-6 bg-k-accent rounded-2xl px-6 py-5 shadow-[0_20px_60px_rgba(238,3,132,0.35)]">
             <p className="text-[0.7rem] uppercase tracking-[0.1em] text-black/50 mb-2">
               Portfolio Grade
             </p>

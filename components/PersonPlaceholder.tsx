@@ -40,8 +40,8 @@ export default function PersonPlaceholder({
         cy={cx * 0.52}
         rx={headR}
         ry={headR * 1.15}
-        fill="rgba(229,0,125,0.22)"
-        stroke="rgba(229,0,125,0.5)"
+        fill="rgba(238,3,132,0.22)"
+        stroke="rgba(238,3,132,0.5)"
         strokeWidth="1.5"
       />
       {/* Hair */}
@@ -53,7 +53,7 @@ export default function PersonPlaceholder({
             C${cx + headR * 0.2} ${cx * 0.52 - headR * 2.0}
              ${cx + headR * 1.1} ${cx * 0.52 - headR * 1.6}
              ${cx + headR * 1.0} ${cx * 0.52 - headR * 0.7}`}
-        stroke="rgba(229,0,125,0.55)"
+        stroke="rgba(238,3,132,0.55)"
         strokeWidth="2"
         fill="none"
         strokeLinecap="round"
@@ -64,8 +64,8 @@ export default function PersonPlaceholder({
             C${cx - d * 0.36} ${bodyY + d * 0.28}
              ${cx + d * 0.36} ${bodyY + d * 0.28}
              ${cx + d * 0.36} ${d * 1.3}`}
-        fill="rgba(229,0,125,0.16)"
-        stroke="rgba(229,0,125,0.38)"
+        fill="rgba(238,3,132,0.16)"
+        stroke="rgba(238,3,132,0.38)"
         strokeWidth="1.5"
       />
       {/* Label */}
@@ -73,7 +73,7 @@ export default function PersonPlaceholder({
         x={cx}
         y={d * 1.22}
         textAnchor="middle"
-        fill="rgba(229,0,125,0.35)"
+        fill="rgba(238,3,132,0.35)"
         fontSize={d * 0.033}
         fontFamily="DM Sans, sans-serif"
         letterSpacing="2"
