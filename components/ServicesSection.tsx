@@ -56,13 +56,16 @@ export default function ServicesSection() {
   const [activeTab, setActiveTab] = useState(0);
 
   return (
-    <section id="features" className="py-[120px] px-12 bg-k-gray-100">
+    <section
+      id="features"
+      className="bg-k-gray-100 px-4 py-20 sm:px-6 sm:py-24 md:px-12 md:py-[120px]"
+    >
       <div className="max-w-[1400px] mx-auto">
         {/* Header */}
-        <Reveal className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-14">
+        <Reveal className="mb-12 flex flex-col gap-6 md:mb-14 md:flex-row md:items-end md:justify-between md:gap-8">
           <div>
             <SectionTag>Platform Features</SectionTag>
-            <h2 className="font-serif text-[clamp(2.5rem,4vw,3.5rem)] font-light tracking-tight3 leading-[1.1]">
+            <h2 className="font-serif text-[clamp(2.3rem,10vw,3.5rem)] font-light leading-[1.05] tracking-tight3">
               Everything hair,
               <br />
               <em className="italic text-k-primary">all in one place</em>
@@ -70,12 +73,12 @@ export default function ServicesSection() {
           </div>
 
           {/* Tab toggle */}
-          <div className="flex gap-1 bg-k-white rounded-full p-1 self-start md:self-auto">
+          <div className="flex w-full flex-wrap gap-1 rounded-[1.25rem] bg-k-white p-1 sm:w-auto sm:rounded-full self-start md:self-auto">
             {tabs.map((tab, i) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(i)}
-                className={`px-5 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
+                className={`flex-1 rounded-full px-4 py-2 text-sm font-normal transition-all duration-200 sm:flex-none sm:px-5 ${
                   activeTab === i
                     ? "bg-k-primary text-k-white"
                     : "text-k-gray-400 hover:text-k-black"
@@ -89,14 +92,14 @@ export default function ServicesSection() {
 
         {/* Grid */}
         <div
-          className="grid grid-cols-3 gap-4"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
           style={{ gridTemplateRows: "auto" }}
         >
           {services.map(({ id, title, desc, gradient, large }, i) => (
             <Reveal
               key={id}
               delay={i * 0.08}
-              className={large ? "row-span-2" : ""}
+              className={large ? "lg:row-span-2" : ""}
             >
               <div
                 className="group relative bg-k-white rounded-2xl overflow-hidden
@@ -132,7 +135,7 @@ export default function ServicesSection() {
                 </div>
 
                 {/* Body */}
-                <div className="px-6 py-5 relative">
+                <div className="relative px-5 py-5 sm:px-6">
                   <h3 className="font-serif text-lg font-medium mb-1.5">
                     {title}
                   </h3>
@@ -141,8 +144,8 @@ export default function ServicesSection() {
 
                 {/* Arrow button — appears on hover */}
                 <div
-                  className="absolute bottom-5 right-5 w-9 h-9 rounded-full bg-k-primary flex items-center justify-center
-                             text-k-white opacity-0 translate-y-1 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0"
+                  className="absolute bottom-5 right-5 flex h-9 w-9 items-center justify-center rounded-full bg-k-primary
+                             text-k-white opacity-100 transition-all duration-300 sm:translate-y-1 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100"
                 >
                   →
                 </div>

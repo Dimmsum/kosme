@@ -27,25 +27,25 @@ const testimonials = [
 
 export default function Testimonials() {
   return (
-    <section className="py-[120px] px-12 bg-k-black overflow-hidden">
+    <section className="overflow-hidden bg-k-black px-4 py-20 sm:px-6 sm:py-24 md:px-12 md:py-[120px]">
       <div className="max-w-[1400px] mx-auto">
-        <Reveal className="text-center mb-16">
+        <Reveal className="mb-12 text-center sm:mb-16">
           <SectionTag center>What they say</SectionTag>
-          <h2 className="font-serif text-[clamp(2.5rem,4vw,3.5rem)] font-light text-k-white tracking-tight3 leading-[1.1]">
+          <h2 className="font-serif text-[clamp(2.3rem,10vw,3.5rem)] font-light leading-[1.05] tracking-tight3 text-k-white">
             Voices from the
             <br />
             <em className="italic text-k-accent">Kosmè community</em>
           </h2>
         </Reveal>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
           {testimonials.map(({ quote, name, role, initial }, i) => (
             <Reveal key={name} delay={i * 0.1}>
               <div
-                className="group bg-white/5 border border-white/8 rounded-3xl p-9 h-full
+                className="group h-full rounded-3xl border border-white/8 bg-white/5 p-6 sm:p-8 md:p-9
                            transition-all duration-300 hover:border-k-accent/40 hover:bg-white/8"
               >
-                <p className="font-serif text-xl font-light text-k-white leading-[1.6] mb-7 before:content-['\201C'] before:text-k-accent before:text-3xl before:leading-[0] before:align-[-0.5rem] before:mr-1">
+                <p className="mb-6 font-serif text-lg font-light leading-[1.7] text-k-white before:mr-1 before:text-3xl before:leading-[0] before:text-k-accent before:content-['\201C'] sm:mb-7 sm:text-xl">
                   {quote}
                 </p>
                 <div className="flex items-center gap-3.5">

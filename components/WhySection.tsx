@@ -22,19 +22,19 @@ const cards = [
 
 export default function WhySection() {
   return (
-    <section className="py-[120px] px-12">
-      <div className="max-w-[1400px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-20 items-start">
+    <section className="px-4 py-20 sm:px-6 sm:py-24 md:px-12 md:py-[120px]">
+      <div className="mx-auto grid max-w-[1400px] grid-cols-1 items-start gap-12 md:grid-cols-2 md:gap-20">
         {/* Left */}
         <Reveal>
           <SectionTag>Why Kosmè</SectionTag>
-          <h2 className="font-serif text-[clamp(2.5rem,4.5vw,4rem)] font-light leading-[1.1] tracking-tight3 mb-7">
+          <h2 className="mb-6 font-serif text-[clamp(2.3rem,10vw,4rem)] font-light leading-[1.05] tracking-tight3 sm:mb-7">
             The gap between
             <br />
             <em className="italic text-k-primary">training and trust</em>
             <br />
             ends here
           </h2>
-          <p className="text-base leading-[1.75] text-k-gray-600 max-w-[440px] font-light mb-12">
+          <p className="mb-10 max-w-[440px] text-sm font-light leading-[1.8] text-k-gray-600 sm:mb-12 sm:text-base">
             Cosmetology students spend hundreds of hours perfecting their craft
             — yet have no structured way to prove it. Kosmè bridges that gap
             with a platform that documents every session, verifies every skill,
@@ -45,10 +45,10 @@ export default function WhySection() {
             {cards.map(({ num, title, body }, i) => (
               <Reveal key={num} delay={i * 0.1 + 0.1}>
                 <div
-                  className="group border border-k-gray-200 rounded-2xl px-8 py-7 bg-k-white
-                             grid grid-cols-[auto_1fr] gap-5 items-start
+                  className="group grid items-start gap-4 rounded-2xl border border-k-gray-200 bg-k-white px-5 py-6
+                             sm:grid-cols-[auto_1fr] sm:gap-5 sm:px-8 sm:py-7
                              transition-all duration-300
-                             hover:border-k-accent hover:translate-x-2 hover:shadow-[0_8px_40px_rgba(0,0,0,0.06)]"
+                             hover:border-k-accent sm:hover:translate-x-2 hover:shadow-[0_8px_40px_rgba(0,0,0,0.06)]"
                 >
                   <span className="font-serif text-lg text-k-accent font-medium pt-0.5">
                     {num}
@@ -69,7 +69,7 @@ export default function WhySection() {
 
         {/* Right — image */}
         <Reveal direction="right" className="relative">
-          <div className="aspect-[4/5] rounded-[28px] overflow-hidden relative bg-gradient-to-br from-k-primary to-[#200818]">
+          <div className="relative aspect-[4/5] overflow-hidden rounded-[24px] bg-gradient-to-br from-k-primary to-[#200818] sm:rounded-[28px]">
             <Image
               src="/cosmetology-student.jpg"
               alt="Cosmetology student in a salon"
@@ -78,19 +78,19 @@ export default function WhySection() {
             />
 
             {/* Caption overlay */}
-            <div className="absolute bottom-7 left-7 right-7 bg-white/10 backdrop-blur-xl border border-white/15 rounded-2xl px-5 py-[18px] text-k-white">
-              <strong className="font-serif text-xl font-normal block mb-1">
+            <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-k-white backdrop-blur-xl sm:bottom-7 sm:left-7 sm:right-7 sm:px-5 sm:py-[18px]">
+              <strong className="mb-1 block font-serif text-lg font-normal sm:text-xl">
                 Your Kosmè Portfolio
               </strong>
-              <span className="text-[0.78rem] opacity-60">
+              <span className="text-[0.72rem] opacity-60 sm:text-[0.78rem]">
                 Verified · Structured · Professional
               </span>
             </div>
           </div>
 
           {/* Decorative rings */}
-          <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full border border-k-accent opacity-40 pointer-events-none" />
-          <div className="absolute -top-3 -right-3 w-14 h-14 rounded-full border border-k-accent opacity-20 pointer-events-none" />
+          <div className="pointer-events-none absolute -right-4 -top-4 hidden h-16 w-16 rounded-full border border-k-accent opacity-40 sm:block md:h-20 md:w-20" />
+          <div className="pointer-events-none absolute -right-2 -top-2 hidden h-10 w-10 rounded-full border border-k-accent opacity-20 sm:block md:h-14 md:w-14" />
         </Reveal>
       </div>
     </section>

@@ -21,19 +21,19 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <section id="how" className="py-[120px] px-12 max-w-[1400px] mx-auto">
-      <Reveal className="text-center mb-20">
+    <section id="how" className="mx-auto max-w-[1400px] px-4 py-20 sm:px-6 sm:py-24 md:px-12 md:py-[120px]">
+      <Reveal className="mb-14 text-center sm:mb-20">
         <SectionTag center>The Process</SectionTag>
-        <h2 className="font-serif text-[clamp(2.5rem,4vw,3.5rem)] font-light tracking-tight3 leading-[1.1] mb-5">
+        <h2 className="mb-5 font-serif text-[clamp(2.3rem,10vw,3.5rem)] font-light leading-[1.05] tracking-tight3">
           How Kosmè <em className="italic text-k-primary">works</em>
         </h2>
-        <p className="text-base text-k-gray-600 font-light max-w-[480px] mx-auto leading-[1.7]">
+        <p className="mx-auto max-w-[480px] text-sm font-light leading-[1.75] text-k-gray-600 sm:text-base">
           A simple, repeatable workflow that turns every client session into
           verified career evidence.
         </p>
       </Reveal>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+      <div className="relative grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-3 md:gap-8">
         {/* Connecting line (desktop only) */}
         <div
           className="hidden md:block absolute top-[80px] left-[calc(16.66%+32px)] right-[calc(16.66%+32px)] h-px pointer-events-none"
@@ -46,18 +46,18 @@ export default function HowItWorks() {
         {steps.map(({ num, title, body }, i) => (
           <Reveal key={num} delay={i * 0.12}>
             <div
-              className="group bg-k-gray-100 rounded-3xl px-9 py-11 relative
+              className="group relative rounded-3xl bg-k-gray-100 px-6 py-8 sm:px-8 sm:py-10 md:px-9 md:py-11
                          transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_24px_60px_rgba(0,0,0,0.08)]"
             >
               <div
-                className="w-[60px] h-[60px] rounded-full bg-k-white border-2 border-k-gray-200
-                           flex items-center justify-center font-serif text-2xl font-medium text-k-primary mb-7
+                className="mb-6 flex h-[56px] w-[56px] items-center justify-center rounded-full border-2 border-k-gray-200 bg-k-white font-serif text-xl font-medium text-k-primary
+                           sm:mb-7 sm:h-[60px] sm:w-[60px] sm:text-2xl
                            relative z-10 transition-all duration-300
                            group-hover:bg-k-accent group-hover:border-k-accent group-hover:text-k-white"
               >
                 {num}
               </div>
-              <h3 className="font-serif text-2xl font-normal mb-3.5">
+              <h3 className="mb-3 font-serif text-[1.7rem] font-normal sm:mb-3.5 sm:text-2xl">
                 {title}
               </h3>
               <p className="text-sm text-k-gray-600 leading-[1.7] font-light">

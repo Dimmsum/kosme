@@ -16,12 +16,12 @@ const footerLinks = {
 
 export default function Footer() {
   return (
-    <footer className="bg-k-primary text-k-white px-12 pt-16 pb-10">
+    <footer className="bg-k-primary px-4 pb-10 pt-14 text-k-white sm:px-6 sm:pt-16 md:px-12">
       <div className="max-w-[1400px] mx-auto">
         {/* Top */}
-        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr] gap-16 pb-12 border-b border-white/10 mb-9">
+        <div className="mb-9 grid grid-cols-1 gap-10 border-b border-white/10 pb-12 sm:grid-cols-2 sm:gap-12 lg:grid-cols-[2fr_1fr_1fr_1fr] lg:gap-16">
           {/* Brand */}
-          <div>
+          <div className="sm:col-span-2 lg:col-span-1">
             <Image
               src="/Logo Text Only.png"
               alt="proKosmé"
@@ -58,7 +58,7 @@ export default function Footer() {
         </div>
 
         {/* Bottom */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <p className="text-xs text-white/30">
             © 2025 Kosmè. All rights reserved.
           </p>
