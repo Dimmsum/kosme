@@ -21,7 +21,10 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <section id="how" className="mx-auto max-w-[1400px] px-4 py-20 sm:px-6 sm:py-24 md:px-12 md:py-[120px]">
+    <section
+      id="how"
+      className="mx-auto max-w-[1400px] px-4 py-20 sm:px-6 sm:py-24 md:px-12 md:py-[120px]"
+    >
       <Reveal className="mb-14 text-center sm:mb-20">
         <SectionTag center>The Process</SectionTag>
         <h2 className="mb-5 font-serif text-[clamp(2.3rem,10vw,3.5rem)] font-light leading-[1.05] tracking-tight3">

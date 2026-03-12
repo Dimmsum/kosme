@@ -22,7 +22,10 @@ const features: { icon: ReactNode; text: string }[] = [
 
 export default function ProofSection() {
   return (
-    <section id="proof" className="px-4 py-20 sm:px-6 sm:py-24 md:px-12 md:py-[120px]">
+    <section
+      id="proof"
+      className="px-4 py-20 sm:px-6 sm:py-24 md:px-12 md:py-[120px]"
+    >
       <div className="mx-auto grid max-w-[1400px] grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-20">
         {/* Left */}
         <Reveal direction="left">

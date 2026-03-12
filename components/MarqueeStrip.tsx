@@ -22,7 +22,9 @@ export default function MarqueeStrip() {
             className="flex items-center gap-3 whitespace-nowrap font-serif text-base font-light tracking-wide text-k-gray-400 sm:gap-4 sm:text-lg"
           >
             {item}
-            <span className="text-xl leading-none text-k-accent sm:text-2xl">✦</span>
+            <span className="text-xl leading-none text-k-accent sm:text-2xl">
+              ✦
+            </span>
           </div>
         ))}
       </div>
