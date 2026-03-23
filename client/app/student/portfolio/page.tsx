@@ -1,0 +1,272 @@
+"use client";
+
+import { useState } from "react";
+import { CheckCircle2, Eye, EyeOff, Share2, Grid, List, ExternalLink } from "lucide-react";
+
+const verifiedServices = [
+  {
+    id: 1,
+    name: "Full Colour Application",
+    category: "Colour",
+    client: "Sarah J.",
+    date: "18 Mar 2026",
+    educator: "Ms. Williams",
+  },
+  {
+    id: 4,
+    name: "Cut & Finish",
+    category: "Haircuts",
+    client: "Amina R.",
+    date: "10 Mar 2026",
+    educator: "Ms. Williams",
+  },
+  {
+    id: 5,
+    name: "Highlights (Full Head)",
+    category: "Colour",
+    client: "Jade P.",
+    date: "7 Mar 2026",
+    educator: "Mr. Chen",
+  },
+  {
+    id: 7,
+    name: "Updo / Occasion Style",
+    category: "Styling",
+    client: "Emma W.",
+    date: "2 Mar 2026",
+    educator: "Ms. Williams",
+  },
+  {
+    id: 8,
+    name: "Root Touch-up",
+    category: "Colour",
+    client: "Fatima B.",
+    date: "28 Feb 2026",
+    educator: "Mr. Chen",
+  },
+  {
+    id: 9,
+    name: "Layered Cut",
+    category: "Haircuts",
+    client: "Grace T.",
+    date: "24 Feb 2026",
+    educator: "Ms. Williams",
+  },
+];
+
+const categories = ["All", ...Array.from(new Set(verifiedServices.map((s) => s.category)))];
+
+export default function PortfolioPage() {
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [selectedService, setSelectedService] = useState<number | null>(null);
+
+  const filtered =
+    activeCategory === "All"
+      ? verifiedServices
+      : verifiedServices.filter((s) => s.category === activeCategory);
+
+  const selected = verifiedServices.find((s) => s.id === selectedService);
+
+  return (
+    <div className="px-4 py-6 sm:px-6 md:px-8 md:py-8">
+      {/* Header */}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-serif text-2xl font-light text-k-black sm:text-3xl">
+            My Portfolio
+          </h1>
+          <p className="mt-1 text-sm text-k-gray-400">
+            {verifiedServices.length} verified services &middot; Only verified work is visible
+          </p>
+        </div>
+        <button className="inline-flex items-center justify-center gap-2 rounded-full border border-k-gray-200 bg-k-white px-5 py-2.5 text-sm font-medium text-k-black transition-colors hover:bg-k-gray-100">
+          <Share2 size={14} />
+          Share Portfolio
+        </button>
+      </div>
+
+      {/* Portfolio stats */}
+      <div className="mb-6 grid grid-cols-3 gap-3">
+        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
+          <p className="font-serif text-2xl text-k-primary">{verifiedServices.length}</p>
+          <p className="text-xs text-k-gray-400 mt-1">Verified</p>
+        </div>
+        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
+          <p className="font-serif text-2xl text-k-black">
+            {new Set(verifiedServices.map((s) => s.category)).size}
+          </p>
+          <p className="text-xs text-k-gray-400 mt-1">Categories</p>
+        </div>
+        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
+          <p className="font-serif text-2xl text-k-black">2</p>
+          <p className="text-xs text-k-gray-400 mt-1">Educators</p>
+        </div>
+      </div>
+
+      {/* Filters + view toggle */}
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                activeCategory === cat
+                  ? "bg-k-primary text-k-white"
+                  : "bg-k-white border border-k-gray-200 text-k-gray-600 hover:bg-k-gray-100"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => setViewMode("grid")}
+            className={`rounded-lg p-2 transition-colors ${
+              viewMode === "grid" ? "bg-k-primary/10 text-k-primary" : "text-k-gray-400 hover:text-k-black"
+            }`}
+          >
+            <Grid size={16} />
+          </button>
+          <button
+            onClick={() => setViewMode("list")}
+            className={`rounded-lg p-2 transition-colors ${
+              viewMode === "list" ? "bg-k-primary/10 text-k-primary" : "text-k-gray-400 hover:text-k-black"
+            }`}
+          >
+            <List size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Portfolio grid / list */}
+      {viewMode === "grid" ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {filtered.map((service) => (
+            <button
+              key={service.id}
+              onClick={() => setSelectedService(service.id)}
+              className="group flex flex-col overflow-hidden rounded-2xl border border-k-gray-200 bg-k-white text-left transition-all hover:border-k-primary/20 hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
+            >
+              {/* Photo placeholder — before/after */}
+              <div className="relative aspect-[4/3] bg-gradient-to-br from-k-primary/5 to-k-accent/5">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="flex gap-1">
+                    <div className="h-12 w-12 rounded-lg bg-k-primary/10 flex items-center justify-center">
+                      <span className="text-[8px] font-medium text-k-primary/50">Before</span>
+                    </div>
+                    <div className="h-12 w-12 rounded-lg bg-k-accent/10 flex items-center justify-center">
+                      <span className="text-[8px] font-medium text-k-accent/50">After</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="absolute top-2 right-2">
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500">
+                    <CheckCircle2 size={12} className="text-white" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3">
+                <p className="text-sm font-medium text-k-black truncate">{service.name}</p>
+                <p className="text-xs text-k-gray-400 mt-0.5">{service.date}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map((service) => (
+            <button
+              key={service.id}
+              onClick={() => setSelectedService(service.id)}
+              className="group flex items-center gap-4 rounded-2xl border border-k-gray-200 bg-k-white px-5 py-4 text-left transition-all hover:border-k-primary/20"
+            >
+              {/* Thumbnail placeholder */}
+              <div className="h-14 w-20 shrink-0 rounded-xl bg-gradient-to-br from-k-primary/5 to-k-accent/5 flex items-center justify-center">
+                <div className="flex gap-0.5">
+                  <div className="h-6 w-6 rounded bg-k-primary/10" />
+                  <div className="h-6 w-6 rounded bg-k-accent/10" />
+                </div>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-k-black">{service.name}</p>
+                <p className="text-xs text-k-gray-400 mt-0.5">
+                  {service.category} &middot; {service.client} &middot; {service.date}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
+                  <CheckCircle2 size={12} /> Verified
+                </span>
+                <Eye size={16} className="text-k-gray-400 group-hover:text-k-primary transition-colors" />
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Detail modal */}
+      {selected && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setSelectedService(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl bg-k-white p-6 sm:p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between">
+              <div>
+                <h2 className="font-serif text-xl text-k-black">{selected.name}</h2>
+                <p className="text-xs text-k-gray-400 mt-0.5">
+                  {selected.category} &middot; {selected.date}
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
+                <CheckCircle2 size={12} /> Verified
+              </span>
+            </div>
+
+            {/* Before / After comparison */}
+            <div className="mb-5 grid grid-cols-2 gap-3">
+              <div className="aspect-[4/3] rounded-xl bg-gradient-to-br from-k-primary/5 to-k-primary/10 flex flex-col items-center justify-center">
+                <div className="h-16 w-16 rounded-xl bg-k-primary/10 mb-2" />
+                <span className="text-xs text-k-gray-400">Before</span>
+              </div>
+              <div className="aspect-[4/3] rounded-xl bg-gradient-to-br from-k-accent/5 to-k-accent/10 flex flex-col items-center justify-center">
+                <div className="h-16 w-16 rounded-xl bg-k-accent/10 mb-2" />
+                <span className="text-xs text-k-gray-400">After</span>
+              </div>
+            </div>
+
+            {/* Details */}
+            <div className="mb-6 grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-k-gray-100 px-4 py-3">
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Client</p>
+                <p className="text-sm text-k-black mt-0.5">{selected.client}</p>
+              </div>
+              <div className="rounded-xl bg-k-gray-100 px-4 py-3">
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Verified by</p>
+                <p className="text-sm text-k-black mt-0.5">{selected.educator}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setSelectedService(null)}
+                className="flex-1 rounded-full border border-k-gray-200 py-2.5 text-sm font-medium text-k-black hover:bg-k-gray-100"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
