@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { GraduationCap, BookOpen, Heart, Briefcase, ChevronLeft, Mail } from "lucide-react";
+import { GraduationCap, BookOpen, Heart, Briefcase, ChevronLeft, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import { supabase } from "@/lib/supabase";
+import { ROLE_DASHBOARD, type UserRole } from "@/lib/auth-context";
 
 type Role = "student" | "educator" | "client" | "employer";
 
@@ -56,11 +59,15 @@ const roleLabels: Record<Role, string> = {
 };
 
 export default function SignupPage() {
+  const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [institution, setInstitution] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -71,21 +78,42 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email || !name || !selectedRole) return;
+    if (!email || !name || !password || !selectedRole) return;
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-      await fetch(`${apiBase}/api/waitlist`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name, role: selectedRole }),
-      });
-    } catch {
-      // Show success even if API is unreachable during preview
+    const { data, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { role: selectedRole, full_name: name },
+      },
+    });
+
+    if (authError) {
+      setError(authError.message);
+      setLoading(false);
+      return;
     }
 
+    // If session exists, the user is confirmed (no email verification required)
+    if (data.session) {
+      const destination = ROLE_DASHBOARD[selectedRole as UserRole];
+      router.push(destination);
+      return;
+    }
+
+    // Otherwise show "check your email" confirmation
     setLoading(false);
     setSuccess(true);
   };
@@ -175,7 +203,7 @@ export default function SignupPage() {
               </>
             )}
 
-            {/* ── STEP 2 — Details form ── */}
+            {/* ── STEP 2 — Account details ── */}
             {step === 2 && !success && (
               <>
                 {/* Back */}
@@ -198,10 +226,10 @@ export default function SignupPage() {
                 )}
 
                 <h2 className="mb-1.5 font-serif text-3xl font-light tracking-tight3 text-k-black sm:text-4xl">
-                  Get started
+                  Create account
                 </h2>
                 <p className="mb-8 text-sm font-light text-k-gray-600">
-                  Join the waitlist and be first to know when Kosmè launches.
+                  Set up your Kosmè account to get started.
                 </p>
 
                 {error && (
@@ -251,57 +279,94 @@ export default function SignupPage() {
                     />
                   </div>
 
-                  {/* Institution (optional) */}
+                  {/* Password */}
                   <div className="flex flex-col gap-1.5">
                     <label
-                      htmlFor="institution"
+                      htmlFor="signup-password"
                       className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600"
                     >
-                      Institution{" "}
-                      <span className="normal-case tracking-normal text-k-gray-400 font-light">
-                        (optional)
-                      </span>
+                      Password
                     </label>
-                    <input
-                      id="institution"
-                      type="text"
-                      autoComplete="organization"
-                      placeholder="Your school or salon"
-                      value={institution}
-                      onChange={(e) => setInstitution(e.target.value)}
-                      className="w-full rounded-full border border-k-gray-200 bg-k-white px-5 py-3.5 text-sm text-k-black placeholder:text-k-gray-400 outline-none transition-all duration-200 focus:border-k-primary focus:shadow-[0_0_0_3px_rgba(59,10,42,0.08)]"
-                    />
+                    <div className="relative">
+                      <input
+                        id="signup-password"
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        required
+                        placeholder="Min. 6 characters"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full rounded-full border border-k-gray-200 bg-k-white px-5 py-3.5 pr-12 text-sm text-k-black placeholder:text-k-gray-400 outline-none transition-all duration-200 focus:border-k-primary focus:shadow-[0_0_0_3px_rgba(59,10,42,0.08)]"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-k-gray-400 transition-colors duration-200 hover:text-k-black"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Confirm Password */}
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      htmlFor="confirm-password"
+                      className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600"
+                    >
+                      Confirm password
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="confirm-password"
+                        type={showConfirm ? "text" : "password"}
+                        autoComplete="new-password"
+                        required
+                        placeholder="Re-enter your password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full rounded-full border border-k-gray-200 bg-k-white px-5 py-3.5 pr-12 text-sm text-k-black placeholder:text-k-gray-400 outline-none transition-all duration-200 focus:border-k-primary focus:shadow-[0_0_0_3px_rgba(59,10,42,0.08)]"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showConfirm ? "Hide password" : "Show password"}
+                        onClick={() => setShowConfirm((v) => !v)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-k-gray-400 transition-colors duration-200 hover:text-k-black"
+                      >
+                        {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
 
                   <button
                     type="submit"
-                    disabled={loading || !email || !name}
+                    disabled={loading || !email || !name || !password || !confirmPassword}
                     className="mt-1 w-full rounded-full bg-k-primary px-8 py-3.5 text-sm font-medium tracking-wide text-k-white shadow-[0_4px_20px_rgba(59,10,42,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-k-primary-light hover:shadow-[0_8px_28px_rgba(59,10,42,0.28)] disabled:cursor-not-allowed disabled:opacity-50 disabled:translate-y-0 disabled:shadow-none"
                   >
-                    {loading ? "Joining..." : "Join waitlist"}
+                    {loading ? "Creating account..." : "Create account"}
                   </button>
                 </form>
               </>
             )}
 
-            {/* ── SUCCESS state ── */}
+            {/* ── SUCCESS — email confirmation ── */}
             {step === 2 && success && (
               <div className="flex flex-col items-center py-8 text-center">
                 <div className="mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-k-primary/10">
-                  <Mail size={28} className="text-k-primary" aria-hidden="true" />
+                  <CheckCircle2 size={28} className="text-k-primary" aria-hidden="true" />
                 </div>
                 <h2 className="mb-2 font-serif text-2xl font-light tracking-tight3 text-k-black sm:text-3xl">
-                  You&apos;re on the list!
+                  Check your email
                 </h2>
                 <p className="max-w-[300px] text-sm font-light leading-7 text-k-gray-600">
-                  We&apos;ll be in touch as soon as Kosmè is ready for your
-                  role. Keep an eye on your inbox.
+                  We&apos;ve sent a confirmation link to <strong>{email}</strong>. Click it to activate your account, then log in.
                 </p>
                 <Link
-                  href="/"
-                  className="mt-8 inline-flex items-center justify-center rounded-full border border-k-gray-200 px-7 py-3 text-sm font-medium text-k-black no-underline transition-all duration-200 hover:border-k-primary hover:text-k-primary"
+                  href="/login"
+                  className="mt-8 inline-flex items-center justify-center rounded-full bg-k-primary px-7 py-3 text-sm font-medium text-k-white no-underline shadow-[0_4px_20px_rgba(59,10,42,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-k-primary-light"
                 >
-                  Back to home
+                  Go to login
                 </Link>
               </div>
             )}

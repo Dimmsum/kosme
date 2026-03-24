@@ -1,6 +1,8 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import waitlistRouter from "./routes/waitlist";
+import authRouter from "./routes/auth";
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -19,7 +21,7 @@ app.use(
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error("Not allowed by CORS"));
     },
-    methods: ["GET", "POST", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
@@ -31,6 +33,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/waitlist", waitlistRouter);
+app.use("/api/auth", authRouter);
 
 app.listen(PORT, () => {
   console.log(`Kosmee API running on http://localhost:${PORT}`);

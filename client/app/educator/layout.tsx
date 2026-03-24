@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -8,7 +10,9 @@ import {
   Users,
   ClipboardCheck,
   User,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 const navItems = [
   { href: "/educator/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -23,6 +27,31 @@ export default function EducatorLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, role, loading, signOut } = useAuth();
+
+  useEffect(() => {
+    if (!loading && (!user || role !== "educator")) {
+      router.replace("/login");
+    }
+  }, [user, role, loading, router]);
+
+  if (loading || !user || role !== "educator") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-k-white">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-k-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  const initials = (user.user_metadata?.full_name as string | undefined)
+    ?.split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() ?? "ED";
+
+  const displayName = (user.user_metadata?.full_name as string | undefined) ?? user.email ?? "Educator";
 
   return (
     <div className="flex min-h-screen bg-k-gray-100">
@@ -65,12 +94,19 @@ export default function EducatorLayout({
         <div className="border-t border-k-gray-200 px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-full bg-k-primary/10 flex items-center justify-center">
-              <span className="text-sm font-semibold text-k-primary">CW</span>
+              <span className="text-sm font-semibold text-k-primary">{initials}</span>
             </div>
-            <div>
-              <p className="text-sm font-medium text-k-black leading-tight">Claire Williams</p>
-              <p className="text-xs text-k-gray-400">Senior Educator</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-k-black leading-tight">{displayName}</p>
+              <p className="text-xs text-k-gray-400">Educator</p>
             </div>
+            <button
+              onClick={signOut}
+              aria-label="Sign out"
+              className="shrink-0 text-k-gray-400 transition-colors duration-150 hover:text-k-primary"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>
