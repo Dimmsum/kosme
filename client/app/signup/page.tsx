@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -10,58 +10,24 @@ import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
 import { ROLE_DASHBOARD, type UserRole } from "@/lib/auth-context";
 
-type Role = "student" | "educator" | "client" | "employer";
-
-interface RoleCard {
-  id: Role;
-  icon: React.ElementType;
-  label: string;
-  sublabel: string;
-  description: string;
-}
-
-const roleCards: RoleCard[] = [
-  {
-    id: "student",
-    icon: GraduationCap,
-    label: "Student",
-    sublabel: "",
-    description: "Track your practicals and build a verified portfolio",
-  },
-  {
-    id: "educator",
-    icon: BookOpen,
-    label: "Educator",
-    sublabel: "/ Lecturer",
-    description: "Verify student competence efficiently",
-  },
-  {
-    id: "client",
-    icon: Heart,
-    label: "Volunteer Client",
-    sublabel: "",
-    description: "Support student practice sessions",
-  },
-  {
-    id: "employer",
-    icon: Briefcase,
-    label: "Employer",
-    sublabel: "/ Salon Owner",
-    description: "Browse verified student portfolios",
-  },
-];
-
-const roleLabels: Record<Role, string> = {
-  student: "Student",
-  educator: "Educator / Lecturer",
-  client: "Volunteer Client",
-  employer: "Employer / Salon Owner",
+// Icon mapping lives client-side — icons are UI components, not data
+const ROLE_ICONS: Record<string, React.ElementType> = {
+  student: GraduationCap,
+  educator: BookOpen,
+  client: Heart,
+  employer: Briefcase,
 };
+
+interface RoleRow {
+  id: string;
+  label: string;
+}
 
 export default function SignupPage() {
   const router = useRouter();
+  const [roles, setRoles] = useState<RoleRow[]>([]);
   const [step, setStep] = useState<1 | 2>(1);
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -71,6 +37,16 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  // Fetch available roles from the database
+  useEffect(() => {
+    supabase
+      .from("roles")
+      .select("id, label")
+      .then(({ data }) => {
+        if (data) setRoles(data as RoleRow[]);
+      });
+  }, []);
 
   const handleContinue = () => {
     if (selectedRole) setStep(2);
@@ -106,9 +82,9 @@ export default function SignupPage() {
       return;
     }
 
-    // If session exists, the user is confirmed (no email verification required)
+    // If session exists the user is auto-confirmed — redirect to their dashboard
     if (data.session) {
-      const destination = ROLE_DASHBOARD[selectedRole as UserRole];
+      const destination = ROLE_DASHBOARD[selectedRole as UserRole] ?? "/";
       router.push(destination);
       return;
     }
@@ -117,6 +93,8 @@ export default function SignupPage() {
     setLoading(false);
     setSuccess(true);
   };
+
+  const selectedRoleLabel = roles.find((r) => r.id === selectedRole)?.label ?? "";
 
   return (
     <>
@@ -154,7 +132,8 @@ export default function SignupPage() {
 
                 {/* Role grid */}
                 <div className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {roleCards.map(({ id, icon: Icon, label, sublabel, description }) => {
+                  {roles.map(({ id, label }) => {
+                    const Icon = ROLE_ICONS[id] ?? GraduationCap;
                     const isSelected = selectedRole === id;
                     return (
                       <button
@@ -178,14 +157,8 @@ export default function SignupPage() {
                             className={isSelected ? "text-k-primary" : "text-k-gray-600"}
                           />
                         </div>
-                        <p className="mb-1 text-sm font-medium text-k-black">
+                        <p className="text-sm font-medium text-k-black">
                           {label}
-                          {sublabel && (
-                            <span className="font-light text-k-gray-600">{sublabel}</span>
-                          )}
-                        </p>
-                        <p className="text-xs font-light leading-5 text-k-gray-400">
-                          {description}
                         </p>
                       </button>
                     );
@@ -220,7 +193,7 @@ export default function SignupPage() {
                 {selectedRole && (
                   <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-k-primary/20 bg-k-primary/8 px-4 py-1.5">
                     <span className="text-xs font-medium text-k-primary">
-                      {roleLabels[selectedRole]}
+                      {selectedRoleLabel}
                     </span>
                   </div>
                 )}

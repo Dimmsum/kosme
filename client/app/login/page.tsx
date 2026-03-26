@@ -10,6 +10,16 @@ import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
 import { ROLE_DASHBOARD, type UserRole } from "@/lib/auth-context";
 
+function normalizeRole(raw: string | null | undefined): UserRole | null {
+  if (!raw) return null;
+  const role = raw.toLowerCase();
+  if (role === "volunteer") return "client";
+  if (role === "student" || role === "educator" || role === "client" || role === "employer") {
+    return role;
+  }
+  return null;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -35,8 +45,24 @@ export default function LoginPage() {
       return;
     }
 
-    const role = data.user?.user_metadata?.role as UserRole | undefined;
-    const destination = role ? ROLE_DASHBOARD[role] : "/";
+    // Fetch the authoritative role from user_profiles (migration 0005).
+    const { data: roleRow, error: roleError } = await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .single();
+
+    const dbRole = normalizeRole(roleRow?.role as string | undefined);
+    const fallbackRole = normalizeRole(data.user.user_metadata?.role as string | undefined);
+    const role = roleError ? fallbackRole : (dbRole ?? fallbackRole);
+
+    if (!role) {
+      setError("Your account has no valid role assigned yet. Please contact support.");
+      setLoading(false);
+      return;
+    }
+
+    const destination = ROLE_DASHBOARD[role];
     router.push(destination);
   };
 
@@ -75,7 +101,11 @@ export default function LoginPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+            <form
+              onSubmit={handleSubmit}
+              className="flex flex-col gap-4"
+              noValidate
+            >
               {/* Email */}
               <div className="flex flex-col gap-1.5">
                 <label
@@ -126,7 +156,9 @@ export default function LoginPage() {
                   />
                   <button
                     type="button"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                     onClick={() => setShowPassword((v) => !v)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-k-gray-400 transition-colors duration-200 hover:text-k-black"
                   >

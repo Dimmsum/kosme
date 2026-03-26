@@ -1,101 +1,118 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Heart, CheckCircle2, SlidersHorizontal } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Search, Heart, CheckCircle2 } from "lucide-react";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
 
 const specialisations = ["All", "Colour", "Haircuts", "Styling", "Scalp"];
-const institutions = ["All Institutions", "London College of Beauty", "Manchester Beauty Academy", "Birmingham Institute of Hair", "Leeds School of Cosmetology"];
 
-const students = [
-  {
-    id: 1,
-    name: "Maya Thompson",
-    initials: "MT",
-    institution: "London College of Beauty",
-    specialisations: ["Colour", "Styling"],
-    verifiedCount: 29,
-  },
-  {
-    id: 2,
-    name: "Priya Sharma",
-    initials: "PS",
-    institution: "Manchester Beauty Academy",
-    specialisations: ["Styling", "Haircuts"],
-    verifiedCount: 34,
-  },
-  {
-    id: 3,
-    name: "Jade Williams",
-    initials: "JW",
-    institution: "London College of Beauty",
-    specialisations: ["Haircuts"],
-    verifiedCount: 22,
-  },
-  {
-    id: 4,
-    name: "Amina Osei",
-    initials: "AO",
-    institution: "Birmingham Institute of Hair",
-    specialisations: ["Scalp", "Colour"],
-    verifiedCount: 18,
-  },
-  {
-    id: 5,
-    name: "Chloe Bennett",
-    initials: "CB",
-    institution: "Leeds School of Cosmetology",
-    specialisations: ["Colour"],
-    verifiedCount: 26,
-  },
-  {
-    id: 6,
-    name: "Fatima Al-Rashid",
-    initials: "FA",
-    institution: "Manchester Beauty Academy",
-    specialisations: ["Styling", "Scalp"],
-    verifiedCount: 31,
-  },
-  {
-    id: 7,
-    name: "Grace Okafor",
-    initials: "GO",
-    institution: "London College of Beauty",
-    specialisations: ["Haircuts", "Colour"],
-    verifiedCount: 20,
-  },
-  {
-    id: 8,
-    name: "Sophie Chen",
-    initials: "SC",
-    institution: "Birmingham Institute of Hair",
-    specialisations: ["Styling"],
-    verifiedCount: 27,
-  },
-];
+interface Graduate {
+  id: string;
+  full_name: string | null;
+  institution_name: string | null;
+  verified_count: number;
+  specialisations: string[];
+}
+
+function initialsFromName(name: string | null): string {
+  const safe = (name ?? "Graduate").trim();
+  return safe
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
 export default function BrowsePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSpecialisation, setActiveSpecialisation] = useState("All");
-  const [activeInstitution, setActiveInstitution] = useState("All Institutions");
-  const [shortlisted, setShortlisted] = useState<number[]>([]);
+  const [activeInstitution, setActiveInstitution] =
+    useState("All Institutions");
+  const [graduates, setGraduates] = useState<Graduate[]>([]);
+  const [shortlisted, setShortlisted] = useState<Set<string>>(new Set());
+  const [pendingShortlistIds, setPendingShortlistIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const toggleShortlist = (id: number) => {
-    setShortlisted((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+  const institutions = useMemo(() => {
+    const unique = new Set<string>();
+    graduates.forEach((g) => {
+      if (g.institution_name) unique.add(g.institution_name);
+    });
+    return ["All Institutions", ...Array.from(unique).sort()];
+  }, [graduates]);
+
+  useEffect(() => {
+    Promise.all([
+      apiGet<{ graduates: Graduate[] }>("/api/portfolio/browse"),
+      apiGet<{ shortlist: Array<{ student: { id: string } }> }>(
+        "/api/shortlist",
+      ),
+    ])
+      .then(([browseRes, shortlistRes]) => {
+        setGraduates(browseRes.graduates ?? []);
+        setShortlisted(
+          new Set(shortlistRes.shortlist.map((item) => item.student.id)),
+        );
+      })
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Failed to load graduates.";
+        setError(message);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggleShortlist = async (studentId: string) => {
+    if (pendingShortlistIds.has(studentId)) return;
+
+    setPendingShortlistIds((prev) => new Set(prev).add(studentId));
+    const isSaved = shortlisted.has(studentId);
+
+    try {
+      if (isSaved) {
+        await apiDelete(`/api/shortlist/${encodeURIComponent(studentId)}`);
+        setShortlisted((prev) => {
+          const next = new Set(prev);
+          next.delete(studentId);
+          return next;
+        });
+      } else {
+        await apiPost<{ entry: { id: string } }>("/api/shortlist", {
+          studentId,
+        });
+        setShortlisted((prev) => new Set(prev).add(studentId));
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update shortlist.";
+      setError(message);
+    } finally {
+      setPendingShortlistIds((prev) => {
+        const next = new Set(prev);
+        next.delete(studentId);
+        return next;
+      });
+    }
   };
 
-  const filtered = students.filter((s) => {
+  const filtered = graduates.filter((s) => {
     const matchesSearch =
       searchQuery === "" ||
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.institution.toLowerCase().includes(searchQuery.toLowerCase());
+      (s.full_name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.institution_name ?? "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
     const matchesSpec =
       activeSpecialisation === "All" ||
       s.specialisations.includes(activeSpecialisation);
     const matchesInst =
       activeInstitution === "All Institutions" ||
-      s.institution === activeInstitution;
+      s.institution_name === activeInstitution;
     return matchesSearch && matchesSpec && matchesInst;
   });
 
@@ -109,6 +126,7 @@ export default function BrowsePage() {
         <p className="mt-1 text-sm text-k-gray-400">
           Discover verified graduates ready to join your team
         </p>
+        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       </div>
 
       {/* Search bar */}
@@ -160,73 +178,89 @@ export default function BrowsePage() {
 
       {/* Results count */}
       <p className="mb-4 text-xs text-k-gray-400">
-        {filtered.length} {filtered.length === 1 ? "graduate" : "graduates"} found
+        {filtered.length} {filtered.length === 1 ? "graduate" : "graduates"}{" "}
+        found
       </p>
 
+      {loading && (
+        <div className="mb-4 rounded-3xl border border-k-gray-200 bg-k-white px-6 py-12 text-center">
+          <p className="text-sm text-k-gray-400">Loading graduates...</p>
+        </div>
+      )}
+
       {/* Student cards grid */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filtered.map((student) => (
-          <div
-            key={student.id}
-            className="group flex flex-col rounded-2xl border border-k-gray-200 bg-k-white p-5 transition-all hover:border-k-primary/20 hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
-          >
-            <div className="mb-4 flex items-start justify-between">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-k-primary to-k-primary-light flex items-center justify-center">
-                <span className="text-sm font-semibold text-white">
-                  {student.initials}
+      {!loading && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filtered.map((student) => (
+            <div
+              key={student.id}
+              className="group flex flex-col rounded-2xl border border-k-gray-200 bg-k-white p-5 transition-all hover:border-k-primary/20 hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
+            >
+              <div className="mb-4 flex items-start justify-between">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-k-primary to-k-primary-light flex items-center justify-center">
+                  <span className="text-sm font-semibold text-white">
+                    {initialsFromName(student.full_name)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => toggleShortlist(student.id)}
+                  disabled={pendingShortlistIds.has(student.id)}
+                  className="rounded-full p-2 transition-colors hover:bg-k-gray-100"
+                  aria-label={
+                    shortlisted.has(student.id)
+                      ? `Remove ${student.full_name ?? "graduate"} from shortlist`
+                      : `Add ${student.full_name ?? "graduate"} to shortlist`
+                  }
+                >
+                  <Heart
+                    size={18}
+                    className={
+                      shortlisted.has(student.id)
+                        ? "fill-k-accent text-k-accent"
+                        : "text-k-gray-400"
+                    }
+                  />
+                </button>
+              </div>
+
+              <h3 className="text-sm font-medium text-k-black">
+                {student.full_name ?? "Unnamed Graduate"}
+              </h3>
+              <p className="text-xs text-k-gray-400 mt-0.5">
+                {student.institution_name ?? "No institution listed"}
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {student.specialisations.map((spec) => (
+                  <span
+                    key={spec}
+                    className="rounded-full bg-k-primary/10 px-2.5 py-0.5 text-[10px] font-medium text-k-primary"
+                  >
+                    {spec}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-4 flex items-center gap-1.5 pt-3 border-t border-k-gray-200">
+                <CheckCircle2 size={14} className="text-emerald-600" />
+                <span className="text-xs font-medium text-k-gray-600">
+                  {student.verified_count} verified services
                 </span>
               </div>
-              <button
-                onClick={() => toggleShortlist(student.id)}
-                className="rounded-full p-2 transition-colors hover:bg-k-gray-100"
-                aria-label={
-                  shortlisted.includes(student.id)
-                    ? `Remove ${student.name} from shortlist`
-                    : `Add ${student.name} to shortlist`
-                }
-              >
-                <Heart
-                  size={18}
-                  className={
-                    shortlisted.includes(student.id)
-                      ? "fill-k-accent text-k-accent"
-                      : "text-k-gray-400"
-                  }
-                />
-              </button>
             </div>
-
-            <h3 className="text-sm font-medium text-k-black">{student.name}</h3>
-            <p className="text-xs text-k-gray-400 mt-0.5">{student.institution}</p>
-
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {student.specialisations.map((spec) => (
-                <span
-                  key={spec}
-                  className="rounded-full bg-k-primary/10 px-2.5 py-0.5 text-[10px] font-medium text-k-primary"
-                >
-                  {spec}
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-4 flex items-center gap-1.5 pt-3 border-t border-k-gray-200">
-              <CheckCircle2 size={14} className="text-emerald-600" />
-              <span className="text-xs font-medium text-k-gray-600">
-                {student.verifiedCount} verified services
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Empty state */}
-      {filtered.length === 0 && (
+      {!loading && filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-3xl border border-k-gray-200 bg-k-white py-16 px-6 text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-k-gray-100">
             <Search size={24} className="text-k-gray-400" />
           </div>
-          <h3 className="font-serif text-lg text-k-black">No graduates found</h3>
+          <h3 className="font-serif text-lg text-k-black">
+            No graduates found
+          </h3>
           <p className="mt-1 text-sm text-k-gray-400 max-w-xs">
             Try adjusting your search or filters to find more talent.
           </p>

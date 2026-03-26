@@ -1,76 +1,155 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, AlertTriangle, ClipboardCheck } from "lucide-react";
+import { apiGet, apiPost } from "@/lib/api";
 
 type ConfirmationStatus = "pending" | "confirmed" | "disputed";
 
 interface Confirmation {
-  id: number;
+  id: string;
+  serviceId: string;
   service: string;
-  student: string;
+  student: string | null;
   date: string;
-  description: string;
-  notes: string;
+  description: string | null;
+  notes: string | null;
   status: ConfirmationStatus;
 }
 
-const initialConfirmations: Confirmation[] = [
-  {
-    id: 1,
-    service: "Full Colour Application",
-    student: "Maya Thompson",
-    date: "20 Mar 2026",
-    description: "Full head permanent colour application using Wella Koleston.",
-    notes: "Warm auburn tones, strand test completed prior to service.",
-    status: "pending",
-  },
-  {
-    id: 2,
-    service: "Blow-dry & Style",
-    student: "Priya Mehta",
-    date: "18 Mar 2026",
-    description: "Blow-dry with round brush technique for volume and movement.",
-    notes: "Loose waves finishing style, heat protectant applied.",
-    status: "pending",
-  },
-  {
-    id: 3,
-    service: "Scalp Treatment",
-    student: "Jade Patterson",
-    date: "15 Mar 2026",
-    description: "Scalp analysis and exfoliating treatment followed by deep conditioning.",
-    notes: "Dry scalp condition noted, recommended follow-up in 4 weeks.",
-    status: "pending",
-  },
-  {
-    id: 4,
-    service: "Cut & Finish",
-    student: "Amina Rahman",
-    date: "12 Mar 2026",
-    description: "Layered haircut with texturising, blow-dry and straighten finish.",
-    notes: "Removed approximately 2 inches of length, point-cut layers.",
-    status: "pending",
-  },
-];
+interface PendingResponse {
+  confirmations: Array<{
+    id: string;
+    name: string;
+    notes: string | null;
+    created_at: string;
+    student: { full_name: string | null } | null;
+  }>;
+}
+
+interface HistoryResponse {
+  history: Array<{
+    id: string;
+    status: ConfirmationStatus;
+    created_at: string;
+    service: {
+      id: string;
+      name: string;
+      student: { full_name: string | null } | null;
+    };
+  }>;
+}
 
 export default function ConfirmationsPage() {
-  const [confirmations, setConfirmations] = useState<Confirmation[]>(initialConfirmations);
+  const [confirmations, setConfirmations] = useState<Confirmation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingActionIds, setPendingActionIds] = useState<Set<string>>(
+    new Set(),
+  );
 
-  const handleConfirm = (id: number) => {
-    setConfirmations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: "confirmed" } : c))
-    );
+  useEffect(() => {
+    Promise.all([
+      apiGet<PendingResponse>("/api/confirmations/pending"),
+      apiGet<HistoryResponse>("/api/confirmations/history"),
+    ])
+      .then(([pendingRes, historyRes]) => {
+        const pendingItems: Confirmation[] = (
+          pendingRes.confirmations ?? []
+        ).map((item) => ({
+          id: `pending-${item.id}`,
+          serviceId: item.id,
+          service: item.name,
+          student: item.student?.full_name ?? null,
+          date: item.created_at,
+          description: null,
+          notes: item.notes,
+          status: "pending",
+        }));
+
+        const historyItems: Confirmation[] = (historyRes.history ?? [])
+          .filter((item) => item.status !== "pending")
+          .map((item) => ({
+            id: `history-${item.id}`,
+            serviceId: item.service.id,
+            service: item.service.name,
+            student: item.service.student?.full_name ?? null,
+            date: item.created_at,
+            description: null,
+            notes: null,
+            status: item.status,
+          }));
+
+        setConfirmations([...pendingItems, ...historyItems]);
+      })
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Failed to load confirmations.";
+        setError(message);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleConfirm = async (serviceId: string) => {
+    if (pendingActionIds.has(serviceId)) return;
+    setPendingActionIds((prev) => new Set(prev).add(serviceId));
+
+    try {
+      await apiPost(
+        `/api/confirmations/${encodeURIComponent(serviceId)}/confirm`,
+      );
+      setConfirmations((prev) =>
+        prev.map((c) =>
+          c.serviceId === serviceId ? { ...c, status: "confirmed" } : c,
+        ),
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to confirm service.";
+      setError(message);
+    } finally {
+      setPendingActionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(serviceId);
+        return next;
+      });
+    }
   };
 
-  const handleDispute = (id: number) => {
-    setConfirmations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: "disputed" } : c))
-    );
+  const handleDispute = async (serviceId: string) => {
+    if (pendingActionIds.has(serviceId)) return;
+    setPendingActionIds((prev) => new Set(prev).add(serviceId));
+
+    try {
+      await apiPost(
+        `/api/confirmations/${encodeURIComponent(serviceId)}/dispute`,
+      );
+      setConfirmations((prev) =>
+        prev.map((c) =>
+          c.serviceId === serviceId ? { ...c, status: "disputed" } : c,
+        ),
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to dispute service.";
+      setError(message);
+    } finally {
+      setPendingActionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(serviceId);
+        return next;
+      });
+    }
   };
 
-  const pending = confirmations.filter((c) => c.status === "pending");
-  const resolved = confirmations.filter((c) => c.status !== "pending");
+  const pending = useMemo(
+    () => confirmations.filter((c) => c.status === "pending"),
+    [confirmations],
+  );
+  const resolved = useMemo(
+    () => confirmations.filter((c) => c.status !== "pending"),
+    [confirmations],
+  );
 
   return (
     <div className="px-4 py-6 sm:px-6 md:px-8 md:py-8">
@@ -82,16 +161,23 @@ export default function ConfirmationsPage() {
         <p className="mt-1 text-sm text-k-gray-400">
           Please confirm or dispute services performed by students.
         </p>
+        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       </div>
 
       {/* Pending items */}
-      {pending.length === 0 && resolved.length > 0 ? (
+      {loading ? (
+        <div className="mb-8 rounded-3xl border border-k-gray-200 bg-k-white px-6 py-16 text-center">
+          <p className="text-sm text-k-gray-400">Loading confirmations...</p>
+        </div>
+      ) : pending.length === 0 && resolved.length > 0 ? (
         <div className="mb-8 rounded-3xl border border-k-gray-200 bg-k-white px-6 py-16 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
             <CheckCircle2 size={24} className="text-emerald-600" />
           </div>
           <p className="text-sm font-medium text-k-black">All caught up!</p>
-          <p className="mt-1 text-xs text-k-gray-400">No pending confirmations right now.</p>
+          <p className="mt-1 text-xs text-k-gray-400">
+            No pending confirmations right now.
+          </p>
         </div>
       ) : (
         <div className="mb-8 flex flex-col gap-4">
@@ -102,9 +188,16 @@ export default function ConfirmationsPage() {
             >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-k-black">{item.service}</h3>
+                  <h3 className="text-sm font-medium text-k-black">
+                    {item.service}
+                  </h3>
                   <p className="text-xs text-k-gray-400 mt-0.5">
-                    {item.student} &middot; {item.date}
+                    {item.student ?? "Unknown student"} &middot;{" "}
+                    {new Date(item.date).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
                   </p>
                 </div>
                 <span className="shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
@@ -116,23 +209,29 @@ export default function ConfirmationsPage() {
                 <p className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-400 mb-1">
                   Service Description
                 </p>
-                <p className="text-sm text-k-black">{item.description}</p>
+                <p className="text-sm text-k-black">
+                  {item.description ?? "No description provided."}
+                </p>
                 <p className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-400 mt-3 mb-1">
                   Notes
                 </p>
-                <p className="text-sm text-k-gray-600">{item.notes}</p>
+                <p className="text-sm text-k-gray-600">
+                  {item.notes ?? "No notes provided."}
+                </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleConfirm(item.id)}
+                  onClick={() => handleConfirm(item.serviceId)}
+                  disabled={pendingActionIds.has(item.serviceId)}
                   className="inline-flex items-center gap-1.5 rounded-full bg-k-primary px-6 py-2.5 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-px"
                 >
                   <CheckCircle2 size={16} />
                   Confirm Service
                 </button>
                 <button
-                  onClick={() => handleDispute(item.id)}
+                  onClick={() => handleDispute(item.serviceId)}
+                  disabled={pendingActionIds.has(item.serviceId)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-k-gray-200 bg-k-white px-6 py-2.5 text-sm font-medium text-k-gray-600 transition-colors hover:bg-k-gray-100"
                 >
                   <AlertTriangle size={16} />
@@ -147,7 +246,9 @@ export default function ConfirmationsPage() {
       {/* Resolved items */}
       {resolved.length > 0 && (
         <div>
-          <h2 className="font-serif text-lg text-k-black mb-4">Recently Resolved</h2>
+          <h2 className="font-serif text-lg text-k-black mb-4">
+            Recently Resolved
+          </h2>
           <div className="flex flex-col gap-3">
             {resolved.map((item) => (
               <div
@@ -157,7 +258,9 @@ export default function ConfirmationsPage() {
                 <div className="flex items-center gap-3">
                   <div
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                      item.status === "confirmed" ? "bg-emerald-100" : "bg-red-100"
+                      item.status === "confirmed"
+                        ? "bg-emerald-100"
+                        : "bg-red-100"
                     }`}
                   >
                     {item.status === "confirmed" ? (
@@ -167,9 +270,16 @@ export default function ConfirmationsPage() {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-k-black">{item.service}</p>
+                    <p className="text-sm font-medium text-k-black">
+                      {item.service}
+                    </p>
                     <p className="text-xs text-k-gray-400 mt-0.5">
-                      {item.student} &middot; {item.date}
+                      {item.student ?? "Unknown student"} &middot;{" "}
+                      {new Date(item.date).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
                     </p>
                   </div>
                 </div>

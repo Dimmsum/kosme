@@ -1,11 +1,7 @@
 import { Router, Request, Response } from "express";
-import { supabase } from "../lib/supabase";
+import { supabase, supabaseAdmin } from "../lib/supabase";
 
 const router = Router();
-
-type Role = "student" | "educator" | "client" | "employer";
-
-const VALID_ROLES: Role[] = ["student", "educator", "client", "employer"];
 
 // POST /api/auth/register
 router.post("/register", async (req: Request, res: Response) => {
@@ -15,8 +11,18 @@ router.post("/register", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "email, password, role, and full_name are required" });
   }
 
-  if (!VALID_ROLES.includes(role)) {
-    return res.status(400).json({ error: "Invalid role" });
+  // Fetch valid roles from the database — no hardcoded list
+  const { data: validRoles, error: rolesError } = await supabaseAdmin
+    .from("roles")
+    .select("id");
+
+  if (rolesError) {
+    return res.status(500).json({ error: "Could not fetch valid roles" });
+  }
+
+  const validRoleIds = (validRoles ?? []).map((r: { id: string }) => r.id);
+  if (!validRoleIds.includes(role)) {
+    return res.status(400).json({ error: `Invalid role. Valid roles: ${validRoleIds.join(", ")}` });
   }
 
   const { data, error } = await supabase.auth.signUp({
@@ -35,7 +41,7 @@ router.post("/register", async (req: Request, res: Response) => {
     user: {
       id: data.user?.id,
       email: data.user?.email,
-      role: data.user?.user_metadata?.role,
+      role,
     },
     session: data.session,
   });
@@ -58,11 +64,18 @@ router.post("/login", async (req: Request, res: Response) => {
     return res.status(401).json({ error: error.message });
   }
 
+  // Fetch the authoritative role from user_profiles (merged in migration 0005)
+  const { data: profileRow } = await supabaseAdmin
+    .from("user_profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .single();
+
   return res.json({
     user: {
       id: data.user.id,
       email: data.user.email,
-      role: data.user.user_metadata?.role,
+      role: profileRow?.role ?? null,
     },
     session: data.session,
   });

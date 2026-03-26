@@ -1,65 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Eye, EyeOff, Share2, Grid, List, ExternalLink } from "lucide-react";
+import { apiGet } from "@/lib/api";
 
-const verifiedServices = [
-  {
-    id: 1,
-    name: "Full Colour Application",
-    category: "Colour",
-    client: "Sarah J.",
-    date: "18 Mar 2026",
-    educator: "Ms. Williams",
-  },
-  {
-    id: 4,
-    name: "Cut & Finish",
-    category: "Haircuts",
-    client: "Amina R.",
-    date: "10 Mar 2026",
-    educator: "Ms. Williams",
-  },
-  {
-    id: 5,
-    name: "Highlights (Full Head)",
-    category: "Colour",
-    client: "Jade P.",
-    date: "7 Mar 2026",
-    educator: "Mr. Chen",
-  },
-  {
-    id: 7,
-    name: "Updo / Occasion Style",
-    category: "Styling",
-    client: "Emma W.",
-    date: "2 Mar 2026",
-    educator: "Ms. Williams",
-  },
-  {
-    id: 8,
-    name: "Root Touch-up",
-    category: "Colour",
-    client: "Fatima B.",
-    date: "28 Feb 2026",
-    educator: "Mr. Chen",
-  },
-  {
-    id: 9,
-    name: "Layered Cut",
-    category: "Haircuts",
-    client: "Grace T.",
-    date: "24 Feb 2026",
-    educator: "Ms. Williams",
-  },
-];
+type PortfolioApiRow = {
+  id: string;
+  name: string;
+  category_id: string;
+  created_at: string;
+  verifications?: Array<{
+    educator?: {
+      full_name?: string | null;
+    } | null;
+  }>;
+};
 
-const categories = ["All", ...Array.from(new Set(verifiedServices.map((s) => s.category)))];
+type PortfolioApiResponse = {
+  portfolio: PortfolioApiRow[];
+};
+
+type PortfolioItem = {
+  id: string;
+  name: string;
+  category: string;
+  date: string;
+  educator: string;
+};
 
 export default function PortfolioPage() {
+  const [verifiedServices, setVerifiedServices] = useState<PortfolioItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [selectedService, setSelectedService] = useState<number | null>(null);
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadPortfolio = async () => {
+      try {
+        const data = await apiGet<PortfolioApiResponse>("/api/portfolio");
+        if (!mounted) return;
+
+        const mapped = data.portfolio.map((service) => ({
+          id: service.id,
+          name: service.name,
+          category: service.category_id,
+          date: new Date(service.created_at).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          }),
+          educator: service.verifications?.[0]?.educator?.full_name ?? "Educator",
+        }));
+
+        setVerifiedServices(mapped);
+        setError(null);
+      } catch (err) {
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : "Failed to load portfolio");
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
+      }
+    };
+
+    loadPortfolio();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const categories = useMemo(
+    () => ["All", ...Array.from(new Set(verifiedServices.map((s) => s.category)))],
+    [verifiedServices]
+  );
 
   const filtered =
     activeCategory === "All"
@@ -67,6 +84,22 @@ export default function PortfolioPage() {
       : verifiedServices.filter((s) => s.category === activeCategory);
 
   const selected = verifiedServices.find((s) => s.id === selectedService);
+
+  if (loading) {
+    return (
+      <div className="px-4 py-6 sm:px-6 md:px-8 md:py-8">
+        <p className="text-sm text-k-gray-400">Loading portfolio...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="px-4 py-6 sm:px-6 md:px-8 md:py-8">
+        <p className="text-sm text-red-600">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-6 sm:px-6 md:px-8 md:py-8">

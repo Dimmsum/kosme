@@ -1,97 +1,119 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Filter,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  ImageIcon,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Filter, CheckCircle2, XCircle } from "lucide-react";
+import { apiGet, apiPost } from "@/lib/api";
 
 type VerifyStatus = "All" | "Awaiting Review" | "Verified";
 
 interface VerificationItem {
-  id: number;
+  id: string;
+  serviceId: string;
   service: string;
   category: string;
-  student: string;
-  client: string;
+  student: string | null;
+  client: string | null;
   dateSubmitted: string;
   status: "Awaiting Review" | "Verified" | "Rejected";
   statusColor: string;
+  notes: string | null;
 }
-
-const initialItems: VerificationItem[] = [
-  {
-    id: 1,
-    service: "Blow-dry & Style",
-    category: "Styling",
-    student: "Aisha Patel",
-    client: "Rebecca N.",
-    dateSubmitted: "20 Mar 2026",
-    status: "Awaiting Review",
-    statusColor: "bg-amber-100 text-amber-700",
-  },
-  {
-    id: 2,
-    service: "Men's Cut",
-    category: "Haircuts",
-    student: "Jade Foster",
-    client: "David L.",
-    dateSubmitted: "19 Mar 2026",
-    status: "Awaiting Review",
-    statusColor: "bg-amber-100 text-amber-700",
-  },
-  {
-    id: 3,
-    service: "Root Touch-up",
-    category: "Colour",
-    student: "Lena Kim",
-    client: "Sandra M.",
-    dateSubmitted: "18 Mar 2026",
-    status: "Awaiting Review",
-    statusColor: "bg-amber-100 text-amber-700",
-  },
-  {
-    id: 4,
-    service: "Scalp Treatment",
-    category: "Scalp",
-    student: "Sophie Clarke",
-    client: "Hannah W.",
-    dateSubmitted: "17 Mar 2026",
-    status: "Awaiting Review",
-    statusColor: "bg-amber-100 text-amber-700",
-  },
-  {
-    id: 5,
-    service: "Full Colour Application",
-    category: "Colour",
-    student: "Maya Thompson",
-    client: "Sarah J.",
-    dateSubmitted: "16 Mar 2026",
-    status: "Verified",
-    statusColor: "bg-emerald-100 text-emerald-700",
-  },
-  {
-    id: 6,
-    service: "Updo / Occasion Style",
-    category: "Styling",
-    student: "Priya Mehta",
-    client: "Emma W.",
-    dateSubmitted: "15 Mar 2026",
-    status: "Awaiting Review",
-    statusColor: "bg-amber-100 text-amber-700",
-  },
-];
 
 const filters: VerifyStatus[] = ["All", "Awaiting Review", "Verified"];
 
+function statusColor(status: VerificationItem["status"]): string {
+  if (status === "Verified") return "bg-emerald-100 text-emerald-700";
+  if (status === "Rejected") return "bg-red-100 text-red-700";
+  return "bg-amber-100 text-amber-700";
+}
+
+interface PendingResponse {
+  pending: Array<{
+    id: string;
+    name: string;
+    category_id: string;
+    notes: string | null;
+    created_at: string;
+    student: { full_name: string | null } | null;
+    client: { full_name: string | null } | null;
+  }>;
+}
+
+interface HistoryResponse {
+  history: Array<{
+    status: "verified" | "rejected";
+    service: {
+      id: string;
+      name: string;
+      category_id: string;
+      created_at: string;
+      student: { full_name: string | null } | null;
+    };
+  }>;
+}
+
 export default function VerifyPage() {
   const [activeFilter, setActiveFilter] = useState<VerifyStatus>("All");
-  const [items, setItems] = useState<VerificationItem[]>(initialItems);
+  const [items, setItems] = useState<VerificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingActionIds, setPendingActionIds] = useState<Set<string>>(
+    new Set(),
+  );
 
-  const pendingCount = items.filter((i) => i.status === "Awaiting Review").length;
+  useEffect(() => {
+    Promise.all([
+      apiGet<PendingResponse>("/api/verifications/pending"),
+      apiGet<HistoryResponse>("/api/verifications/history"),
+    ])
+      .then(([pendingRes, historyRes]) => {
+        const pendingItems: VerificationItem[] = (pendingRes.pending ?? []).map(
+          (item) => ({
+            id: `pending-${item.id}`,
+            serviceId: item.id,
+            service: item.name,
+            category: item.category_id,
+            student: item.student?.full_name ?? null,
+            client: item.client?.full_name ?? null,
+            dateSubmitted: item.created_at,
+            status: "Awaiting Review",
+            statusColor: statusColor("Awaiting Review"),
+            notes: item.notes,
+          }),
+        );
+
+        const historyItems: VerificationItem[] = (historyRes.history ?? []).map(
+          (item) => {
+            const label = item.status === "verified" ? "Verified" : "Rejected";
+            return {
+              id: `history-${item.service.id}`,
+              serviceId: item.service.id,
+              service: item.service.name,
+              category: item.service.category_id,
+              student: item.service.student?.full_name ?? null,
+              client: null,
+              dateSubmitted: item.service.created_at,
+              status: label,
+              statusColor: statusColor(label),
+              notes: null,
+            };
+          },
+        );
+
+        setItems([...pendingItems, ...historyItems]);
+      })
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Failed to load verifications.";
+        setError(message);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const pendingCount = useMemo(
+    () => items.filter((i) => i.status === "Awaiting Review").length,
+    [items],
+  );
 
   const filtered = items.filter((item) => {
     if (activeFilter === "All") return true;
@@ -99,32 +121,68 @@ export default function VerifyPage() {
     return item.status === "Awaiting Review";
   });
 
-  function handleVerify(id: number) {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: "Verified" as const,
-              statusColor: "bg-emerald-100 text-emerald-700",
-            }
-          : item
-      )
-    );
+  async function handleVerify(serviceId: string) {
+    if (pendingActionIds.has(serviceId)) return;
+    setPendingActionIds((prev) => new Set(prev).add(serviceId));
+
+    try {
+      await apiPost(
+        `/api/verifications/${encodeURIComponent(serviceId)}/verify`,
+      );
+      setItems((prev) =>
+        prev.map((item) =>
+          item.serviceId === serviceId
+            ? {
+                ...item,
+                status: "Verified",
+                statusColor: statusColor("Verified"),
+              }
+            : item,
+        ),
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to verify service.";
+      setError(message);
+    } finally {
+      setPendingActionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(serviceId);
+        return next;
+      });
+    }
   }
 
-  function handleReject(id: number) {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: "Rejected" as const,
-              statusColor: "bg-red-100 text-red-700",
-            }
-          : item
-      )
-    );
+  async function handleReject(serviceId: string) {
+    if (pendingActionIds.has(serviceId)) return;
+    setPendingActionIds((prev) => new Set(prev).add(serviceId));
+
+    try {
+      await apiPost(
+        `/api/verifications/${encodeURIComponent(serviceId)}/reject`,
+      );
+      setItems((prev) =>
+        prev.map((item) =>
+          item.serviceId === serviceId
+            ? {
+                ...item,
+                status: "Rejected",
+                statusColor: statusColor("Rejected"),
+              }
+            : item,
+        ),
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to reject service.";
+      setError(message);
+    } finally {
+      setPendingActionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(serviceId);
+        return next;
+      });
+    }
   }
 
   return (
@@ -142,6 +200,7 @@ export default function VerifyPage() {
         <p className="mt-1 text-sm text-k-gray-400">
           Review and verify student service submissions.
         </p>
+        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       </div>
 
       {/* Filters */}
@@ -164,9 +223,17 @@ export default function VerifyPage() {
 
       {/* Verification items */}
       <div className="flex flex-col gap-4">
-        {filtered.length === 0 ? (
+        {loading ? (
           <div className="rounded-3xl border border-k-gray-200 bg-k-white px-6 py-16 text-center">
-            <p className="text-sm text-k-gray-400">No items match this filter.</p>
+            <p className="text-sm text-k-gray-400">
+              Loading verification queue...
+            </p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="rounded-3xl border border-k-gray-200 bg-k-white px-6 py-16 text-center">
+            <p className="text-sm text-k-gray-400">
+              No items match this filter.
+            </p>
           </div>
         ) : (
           filtered.map((item) => (
@@ -181,7 +248,12 @@ export default function VerifyPage() {
                     {item.service}
                   </p>
                   <p className="text-xs text-k-gray-400 mt-0.5">
-                    {item.category} &middot; Submitted {item.dateSubmitted}
+                    {item.category} &middot; Submitted{" "}
+                    {new Date(item.dateSubmitted).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
                   </p>
                 </div>
                 <span
@@ -196,7 +268,7 @@ export default function VerifyPage() {
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-k-primary/10">
                     <span className="text-[10px] font-semibold text-k-primary">
-                      {item.student
+                      {(item.student ?? "Student")
                         .split(" ")
                         .map((n) => n[0])
                         .join("")}
@@ -206,13 +278,15 @@ export default function VerifyPage() {
                     <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
                       Student
                     </p>
-                    <p className="text-xs text-k-black">{item.student}</p>
+                    <p className="text-xs text-k-black">
+                      {item.student ?? "Unknown student"}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-k-gray-100">
                     <span className="text-[10px] font-semibold text-k-gray-600">
-                      {item.client
+                      {(item.client ?? "Client")
                         .split(" ")
                         .map((n) => n[0])
                         .join("")}
@@ -222,39 +296,36 @@ export default function VerifyPage() {
                     <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
                       Client
                     </p>
-                    <p className="text-xs text-k-black">{item.client}</p>
+                    <p className="text-xs text-k-black">
+                      {item.client ?? "Not assigned"}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Before/After photo placeholders */}
-              <div className="mb-4 grid grid-cols-2 gap-3">
-                <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-k-gray-200 bg-k-gray-100">
-                  <div className="flex flex-col items-center gap-1 text-k-gray-400">
-                    <ImageIcon size={20} />
-                    <span className="text-[10px] font-medium">Before</span>
-                  </div>
-                </div>
-                <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-k-gray-200 bg-k-gray-100">
-                  <div className="flex flex-col items-center gap-1 text-k-gray-400">
-                    <ImageIcon size={20} />
-                    <span className="text-[10px] font-medium">After</span>
-                  </div>
-                </div>
+              <div className="mb-4 rounded-2xl border border-k-gray-200 bg-k-gray-100 px-4 py-3">
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Notes
+                </p>
+                <p className="mt-1 text-sm text-k-gray-600">
+                  {item.notes ?? "No notes provided."}
+                </p>
               </div>
 
               {/* Action buttons */}
               {item.status === "Awaiting Review" && (
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => handleVerify(item.id)}
+                    onClick={() => handleVerify(item.serviceId)}
+                    disabled={pendingActionIds.has(item.serviceId)}
                     className="inline-flex items-center gap-2 rounded-full bg-k-primary px-6 py-2.5 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-px"
                   >
                     <CheckCircle2 size={16} />
                     Verify
                   </button>
                   <button
-                    onClick={() => handleReject(item.id)}
+                    onClick={() => handleReject(item.serviceId)}
+                    disabled={pendingActionIds.has(item.serviceId)}
                     className="inline-flex items-center gap-2 rounded-full border border-k-gray-200 bg-k-white px-6 py-2.5 text-sm font-medium text-k-gray-600 transition-colors hover:bg-red-50 hover:border-red-200 hover:text-red-600"
                   >
                     <XCircle size={16} />

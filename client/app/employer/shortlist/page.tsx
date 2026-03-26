@@ -1,62 +1,92 @@
 "use client";
 
-import { useState } from "react";
-import { Heart, CheckCircle2, X, MessageCircle, HeartOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CheckCircle2, X, MessageCircle, HeartOff } from "lucide-react";
+import { apiDelete, apiGet } from "@/lib/api";
 
 interface ShortlistedStudent {
-  id: number;
-  name: string;
-  initials: string;
-  institution: string;
+  id: string;
+  name: string | null;
+  institution: string | null;
   specialisations: string[];
   verifiedCount: number;
   dateAdded: string;
 }
 
-const initialShortlist: ShortlistedStudent[] = [
-  {
-    id: 1,
-    name: "Maya Thompson",
-    initials: "MT",
-    institution: "London College of Beauty",
-    specialisations: ["Colour", "Styling"],
-    verifiedCount: 29,
-    dateAdded: "20 Mar 2026",
-  },
-  {
-    id: 2,
-    name: "Priya Sharma",
-    initials: "PS",
-    institution: "Manchester Beauty Academy",
-    specialisations: ["Styling", "Haircuts"],
-    verifiedCount: 34,
-    dateAdded: "18 Mar 2026",
-  },
-  {
-    id: 6,
-    name: "Fatima Al-Rashid",
-    initials: "FA",
-    institution: "Manchester Beauty Academy",
-    specialisations: ["Styling", "Scalp"],
-    verifiedCount: 31,
-    dateAdded: "15 Mar 2026",
-  },
-  {
-    id: 8,
-    name: "Sophie Chen",
-    initials: "SC",
-    institution: "Birmingham Institute of Hair",
-    specialisations: ["Styling"],
-    verifiedCount: 27,
-    dateAdded: "12 Mar 2026",
-  },
-];
+interface ShortlistResponse {
+  shortlist: Array<{
+    shortlist_id: string;
+    date_added: string;
+    student: {
+      id: string;
+      full_name: string | null;
+      institution_name: string | null;
+      verified_count: number;
+      specialisations: string[];
+    };
+  }>;
+}
+
+function initialsFromName(name: string | null): string {
+  const safe = (name ?? "Graduate").trim();
+  return safe
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
 export default function ShortlistPage() {
-  const [shortlist, setShortlist] = useState<ShortlistedStudent[]>(initialShortlist);
+  const [shortlist, setShortlist] = useState<ShortlistedStudent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingRemoveIds, setPendingRemoveIds] = useState<Set<string>>(
+    new Set(),
+  );
 
-  const removeFromShortlist = (id: number) => {
-    setShortlist((prev) => prev.filter((s) => s.id !== id));
+  useEffect(() => {
+    apiGet<ShortlistResponse>("/api/shortlist")
+      .then((res) => {
+        const mapped = (res.shortlist ?? []).map((item) => ({
+          id: item.student.id,
+          name: item.student.full_name,
+          institution: item.student.institution_name,
+          specialisations: item.student.specialisations,
+          verifiedCount: item.student.verified_count,
+          dateAdded: item.date_added,
+        }));
+        setShortlist(mapped);
+      })
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Failed to load shortlist.";
+        setError(message);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const removeFromShortlist = async (studentId: string) => {
+    if (pendingRemoveIds.has(studentId)) return;
+
+    setPendingRemoveIds((prev) => new Set(prev).add(studentId));
+    try {
+      await apiDelete(`/api/shortlist/${encodeURIComponent(studentId)}`);
+      setShortlist((prev) => prev.filter((s) => s.id !== studentId));
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to remove graduate from shortlist.";
+      setError(message);
+    } finally {
+      setPendingRemoveIds((prev) => {
+        const next = new Set(prev);
+        next.delete(studentId);
+        return next;
+      });
+    }
   };
 
   return (
@@ -67,12 +97,18 @@ export default function ShortlistPage() {
           My Shortlist
         </h1>
         <p className="mt-1 text-sm text-k-gray-400">
-          {shortlist.length} {shortlist.length === 1 ? "graduate" : "graduates"} saved
+          {shortlist.length} {shortlist.length === 1 ? "graduate" : "graduates"}{" "}
+          saved
         </p>
+        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       </div>
 
       {/* Shortlisted students */}
-      {shortlist.length > 0 ? (
+      {loading ? (
+        <div className="rounded-3xl border border-k-gray-200 bg-k-white px-6 py-16 text-center">
+          <p className="text-sm text-k-gray-400">Loading shortlist...</p>
+        </div>
+      ) : shortlist.length > 0 ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {shortlist.map((student) => (
             <div
@@ -83,22 +119,23 @@ export default function ShortlistPage() {
                 <div className="flex items-center gap-3">
                   <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-br from-k-primary to-k-primary-light flex items-center justify-center">
                     <span className="text-sm font-semibold text-white">
-                      {student.initials}
+                      {initialsFromName(student.name)}
                     </span>
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-sm font-medium text-k-black truncate">
-                      {student.name}
+                      {student.name ?? "Unnamed Graduate"}
                     </h3>
                     <p className="text-xs text-k-gray-400 mt-0.5 truncate">
-                      {student.institution}
+                      {student.institution ?? "No institution listed"}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => removeFromShortlist(student.id)}
+                  disabled={pendingRemoveIds.has(student.id)}
                   className="shrink-0 rounded-full p-1.5 text-k-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
-                  aria-label={`Remove ${student.name} from shortlist`}
+                  aria-label={`Remove ${student.name ?? "graduate"} from shortlist`}
                 >
                   <X size={16} />
                 </button>
@@ -123,7 +160,12 @@ export default function ShortlistPage() {
               </div>
 
               <p className="mt-2 text-[10px] text-k-gray-400">
-                Added {student.dateAdded}
+                Added{" "}
+                {new Date(student.dateAdded).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
               </p>
 
               <div className="mt-4 flex gap-2 pt-3 border-t border-k-gray-200">
@@ -133,6 +175,7 @@ export default function ShortlistPage() {
                 </button>
                 <button
                   onClick={() => removeFromShortlist(student.id)}
+                  disabled={pendingRemoveIds.has(student.id)}
                   className="inline-flex items-center justify-center gap-1.5 rounded-full border border-k-gray-200 px-4 py-2.5 text-xs font-medium text-k-gray-600 transition-colors hover:bg-k-gray-100"
                 >
                   Remove
@@ -147,7 +190,9 @@ export default function ShortlistPage() {
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-k-gray-100">
             <HeartOff size={24} className="text-k-gray-400" />
           </div>
-          <h3 className="font-serif text-lg text-k-black">No shortlisted graduates</h3>
+          <h3 className="font-serif text-lg text-k-black">
+            No shortlisted graduates
+          </h3>
           <p className="mt-1 text-sm text-k-gray-400 max-w-xs">
             Browse talent and save graduates you are interested in hiring.
           </p>
