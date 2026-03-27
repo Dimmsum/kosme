@@ -155,7 +155,9 @@ export default function PortfolioPage() {
 
   const handleRemoveCurrentPhoto = async () => {
     if (!selected || selectedPhotos.length === 0) return;
-    const nextPhotos = selectedPhotos.filter((_, index) => index !== selectedPhotoIndex);
+    const nextPhotos = selectedPhotos.filter(
+      (_, index) => index !== selectedPhotoIndex,
+    );
     await updateServicePhotos(selected.id, nextPhotos);
   };
 
@@ -494,7 +496,9 @@ export default function PortfolioPage() {
               </div>
             </div>
 
-            {photoError && <p className="mb-4 text-xs text-red-600">{photoError}</p>}
+            {photoError && (
+              <p className="mb-4 text-xs text-red-600">{photoError}</p>
+            )}
 
             <div className="flex gap-3">
               <button
