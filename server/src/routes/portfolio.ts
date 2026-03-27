@@ -24,6 +24,68 @@ router.get("/", requireRole("student"), async (req: AuthRequest, res: Response) 
   return res.json({ portfolio: data });
 });
 
+// PATCH /api/portfolio/:serviceId/photos — student updates photos for one service
+router.patch("/:serviceId/photos", requireRole("student"), async (req: AuthRequest, res: Response) => {
+  const { serviceId } = req.params;
+  const { photos } = req.body as { photos?: unknown };
+
+  if (!Array.isArray(photos) || !photos.every((photo) => typeof photo === "string")) {
+    return res.status(400).json({ error: "photos must be an array of URLs" });
+  }
+
+  const sanitizedPhotos = photos.map((photo) => photo.trim()).filter((photo) => photo.length > 0);
+
+  if (sanitizedPhotos.length > 20) {
+    return res.status(400).json({ error: "A maximum of 20 photos is allowed" });
+  }
+
+  const invalidPhoto = sanitizedPhotos.find((photo) => !/^https?:\/\//i.test(photo));
+  if (invalidPhoto) {
+    return res.status(400).json({ error: "All photos must be valid http(s) URLs" });
+  }
+
+  const { data: service, error: serviceError } = await supabaseAdmin
+    .from("services")
+    .select("id")
+    .eq("id", serviceId)
+    .eq("student_id", req.userId!)
+    .single();
+
+  if (serviceError || !service) {
+    return res.status(404).json({ error: "Service not found" });
+  }
+
+  const { error: deleteError } = await supabaseAdmin
+    .from("service_photos")
+    .delete()
+    .eq("service_id", serviceId);
+
+  if (deleteError) {
+    return res.status(500).json({ error: deleteError.message });
+  }
+
+  if (sanitizedPhotos.length === 0) {
+    return res.json({ photos: [] });
+  }
+
+  const rows = sanitizedPhotos.map((url, index) => ({
+    service_id: serviceId,
+    type: index % 2 === 0 ? "before" : "after",
+    url,
+  }));
+
+  const { data: inserted, error: insertError } = await supabaseAdmin
+    .from("service_photos")
+    .insert(rows)
+    .select("id, type, url");
+
+  if (insertError) {
+    return res.status(500).json({ error: insertError.message });
+  }
+
+  return res.json({ photos: inserted ?? [] });
+});
+
 // GET /api/portfolio/browse — employer talent search
 // Supports ?specialisation=Colour&institution_id=<uuid>
 router.get("/browse", requireRole("employer"), async (req: AuthRequest, res: Response) => {

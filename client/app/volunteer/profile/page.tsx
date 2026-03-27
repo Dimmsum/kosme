@@ -41,10 +41,13 @@ export default function VolunteerProfilePage() {
       .then((res) => {
         setName(res.profile.full_name ?? "");
         setPhone(res.profile.phone ?? "");
-        setInstitution(res.profile.institutions?.name ?? "No institution listed");
+        setInstitution(
+          res.profile.institutions?.name ?? "No institution listed",
+        );
       })
       .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : "Failed to load profile.";
+        const message =
+          err instanceof Error ? err.message : "Failed to load profile.";
         setError(message);
       })
       .finally(() => setLoading(false));
@@ -65,7 +68,8 @@ export default function VolunteerProfilePage() {
       });
       setEditing(false);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to save profile.";
+      const message =
+        err instanceof Error ? err.message : "Failed to save profile.";
       setError(message);
     } finally {
       setSaving(false);
@@ -112,7 +116,9 @@ export default function VolunteerProfilePage() {
             </button>
           </div>
           <div className="flex-1">
-            <h2 className="font-serif text-xl text-k-black">{name || "Volunteer"}</h2>
+            <h2 className="font-serif text-xl text-k-black">
+              {name || "Volunteer"}
+            </h2>
             <p className="text-sm text-k-gray-400 mt-0.5">{institution}</p>
             <div className="mt-2 flex items-center gap-2">
               <span className="rounded-full bg-k-primary/10 px-3 py-0.5 text-xs font-medium text-k-primary">
@@ -124,7 +130,9 @@ export default function VolunteerProfilePage() {
 
         <div className="mb-6 rounded-3xl border border-k-gray-200 bg-k-white p-6">
           <div className="mb-5 flex items-center justify-between">
-            <h3 className="font-serif text-lg text-k-black">Personal Information</h3>
+            <h3 className="font-serif text-lg text-k-black">
+              Personal Information
+            </h3>
             <button
               onClick={handleEditOrSave}
               disabled={saving}
@@ -141,7 +149,9 @@ export default function VolunteerProfilePage() {
                 <User size={16} className="text-k-gray-600" />
               </div>
               <div className="flex-1">
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Full Name</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Full Name
+                </p>
                 {editing ? (
                   <input
                     value={name}
@@ -159,8 +169,12 @@ export default function VolunteerProfilePage() {
                 <Mail size={16} className="text-k-gray-600" />
               </div>
               <div className="flex-1">
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Email</p>
-                <p className="text-sm text-k-black">{user?.email ?? "No email"}</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Email
+                </p>
+                <p className="text-sm text-k-black">
+                  {user?.email ?? "No email"}
+                </p>
               </div>
             </div>
 
@@ -169,7 +183,9 @@ export default function VolunteerProfilePage() {
                 <Phone size={16} className="text-k-gray-600" />
               </div>
               <div className="flex-1">
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Phone</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Phone
+                </p>
                 {editing ? (
                   <input
                     value={phone}
@@ -186,7 +202,9 @@ export default function VolunteerProfilePage() {
 
         <div className="mb-6 rounded-3xl border border-k-gray-200 bg-k-white p-6">
           <div className="mb-5">
-            <h3 className="font-serif text-lg text-k-black">Volunteer Details</h3>
+            <h3 className="font-serif text-lg text-k-black">
+              Volunteer Details
+            </h3>
             <p className="text-xs text-k-gray-400 mt-0.5">
               These details are managed by the institution and cannot be edited.
             </p>
@@ -198,7 +216,9 @@ export default function VolunteerProfilePage() {
                 <Calendar size={16} className="text-k-gray-600" />
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Volunteer Since</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Volunteer Since
+                </p>
                 <p className="text-sm text-k-black">Since account creation</p>
               </div>
             </div>
@@ -208,7 +228,9 @@ export default function VolunteerProfilePage() {
                 <Building2 size={16} className="text-k-gray-600" />
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Institution</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Institution
+                </p>
                 <p className="text-sm text-k-black">{institution}</p>
               </div>
             </div>
@@ -218,7 +240,9 @@ export default function VolunteerProfilePage() {
                 <Heart size={16} className="text-k-gray-600" />
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Services Received</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Services Received
+                </p>
                 <p className="text-sm text-k-black">Available on dashboard</p>
               </div>
             </div>
@@ -232,7 +256,10 @@ export default function VolunteerProfilePage() {
               <Shield size={16} />
               Change Password
             </button>
-            <button onClick={handleSignOut} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-red-500 transition-colors hover:bg-red-50">
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-red-500 transition-colors hover:bg-red-50"
+            >
               <LogOut size={16} />
               Sign Out
             </button>

@@ -39,7 +39,12 @@ function normalizeRole(raw: string | null | undefined): UserRole | null {
   if (!raw) return null;
   const role = raw.toLowerCase();
   if (role === "volunteer") return "client";
-  if (role === "student" || role === "educator" || role === "client" || role === "employer") {
+  if (
+    role === "student" ||
+    role === "educator" ||
+    role === "client" ||
+    role === "employer"
+  ) {
     return role;
   }
   return null;
@@ -76,7 +81,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (newUser) {
           const dbRole = await fetchRoleFromDb(newUser.id);
-          const metadataRole = normalizeRole(newUser.user_metadata?.role as string | undefined);
+          const metadataRole = normalizeRole(
+            newUser.user_metadata?.role as string | undefined,
+          );
           const r = dbRole ?? metadataRole;
           setRole(r);
         } else {
@@ -84,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         setLoading(false);
-      }
+      },
     );
 
     return () => listener.subscription.unsubscribe();

@@ -14,7 +14,12 @@ function normalizeRole(raw: string | null | undefined): UserRole | null {
   if (!raw) return null;
   const role = raw.toLowerCase();
   if (role === "volunteer") return "client";
-  if (role === "student" || role === "educator" || role === "client" || role === "employer") {
+  if (
+    role === "student" ||
+    role === "educator" ||
+    role === "client" ||
+    role === "employer"
+  ) {
     return role;
   }
   return null;
@@ -53,11 +58,15 @@ export default function LoginPage() {
       .single();
 
     const dbRole = normalizeRole(roleRow?.role as string | undefined);
-    const fallbackRole = normalizeRole(data.user.user_metadata?.role as string | undefined);
+    const fallbackRole = normalizeRole(
+      data.user.user_metadata?.role as string | undefined,
+    );
     const role = roleError ? fallbackRole : (dbRole ?? fallbackRole);
 
     if (!role) {
-      setError("Your account has no valid role assigned yet. Please contact support.");
+      setError(
+        "Your account has no valid role assigned yet. Please contact support.",
+      );
       setLoading(false);
       return;
     }

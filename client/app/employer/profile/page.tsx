@@ -45,7 +45,8 @@ export default function EmployerProfilePage() {
         setBusiness(res.profile.institutions?.name ?? "No organisation listed");
       })
       .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : "Failed to load profile.";
+        const message =
+          err instanceof Error ? err.message : "Failed to load profile.";
         setError(message);
       })
       .finally(() => setLoading(false));
@@ -66,7 +67,8 @@ export default function EmployerProfilePage() {
       });
       setEditing(false);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to save profile.";
+      const message =
+        err instanceof Error ? err.message : "Failed to save profile.";
       setError(message);
     } finally {
       setSaving(false);
@@ -115,7 +117,9 @@ export default function EmployerProfilePage() {
             </button>
           </div>
           <div className="flex-1">
-            <h2 className="font-serif text-xl text-k-black">{name || "Employer"}</h2>
+            <h2 className="font-serif text-xl text-k-black">
+              {name || "Employer"}
+            </h2>
             <p className="text-sm text-k-gray-400 mt-0.5">{business}</p>
             <div className="mt-2 flex items-center gap-2">
               <span className="rounded-full bg-k-primary/10 px-3 py-0.5 text-xs font-medium text-k-primary">
@@ -128,7 +132,9 @@ export default function EmployerProfilePage() {
         {/* Personal information */}
         <div className="mb-6 rounded-3xl border border-k-gray-200 bg-k-white p-6">
           <div className="mb-5 flex items-center justify-between">
-            <h3 className="font-serif text-lg text-k-black">Personal Information</h3>
+            <h3 className="font-serif text-lg text-k-black">
+              Personal Information
+            </h3>
             <button
               onClick={handleEditOrSave}
               disabled={saving}
@@ -145,7 +151,9 @@ export default function EmployerProfilePage() {
                 <User size={16} className="text-k-gray-600" />
               </div>
               <div className="flex-1">
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Full Name</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Full Name
+                </p>
                 {editing ? (
                   <input
                     value={name}
@@ -163,8 +171,12 @@ export default function EmployerProfilePage() {
                 <Mail size={16} className="text-k-gray-600" />
               </div>
               <div className="flex-1">
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Email</p>
-                <p className="text-sm text-k-black">{user?.email ?? "No email"}</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Email
+                </p>
+                <p className="text-sm text-k-black">
+                  {user?.email ?? "No email"}
+                </p>
               </div>
             </div>
 
@@ -173,7 +185,9 @@ export default function EmployerProfilePage() {
                 <Phone size={16} className="text-k-gray-600" />
               </div>
               <div className="flex-1">
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Phone</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Phone
+                </p>
                 {editing ? (
                   <input
                     value={phone}
@@ -191,9 +205,12 @@ export default function EmployerProfilePage() {
         {/* Business details (read-only) */}
         <div className="mb-6 rounded-3xl border border-k-gray-200 bg-k-white p-6">
           <div className="mb-5">
-            <h3 className="font-serif text-lg text-k-black">Business Details</h3>
+            <h3 className="font-serif text-lg text-k-black">
+              Business Details
+            </h3>
             <p className="text-xs text-k-gray-400 mt-0.5">
-              These details are managed by your organisation and cannot be edited.
+              These details are managed by your organisation and cannot be
+              edited.
             </p>
           </div>
 
@@ -203,7 +220,9 @@ export default function EmployerProfilePage() {
                 <Building2 size={16} className="text-k-gray-600" />
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Business Name</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Business Name
+                </p>
                 <p className="text-sm text-k-black">{business}</p>
               </div>
             </div>
@@ -213,8 +232,12 @@ export default function EmployerProfilePage() {
                 <MapPin size={16} className="text-k-gray-600" />
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Location</p>
-                <p className="text-sm text-k-black">Managed in organisation settings</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Location
+                </p>
+                <p className="text-sm text-k-black">
+                  Managed in organisation settings
+                </p>
               </div>
             </div>
 
@@ -223,7 +246,9 @@ export default function EmployerProfilePage() {
                 <Briefcase size={16} className="text-k-gray-600" />
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Role</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Role
+                </p>
                 <p className="text-sm text-k-black">Employer</p>
               </div>
             </div>
@@ -233,8 +258,12 @@ export default function EmployerProfilePage() {
                 <Store size={16} className="text-k-gray-600" />
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Locations</p>
-                <p className="text-sm text-k-black">Available in organisation settings</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Locations
+                </p>
+                <p className="text-sm text-k-black">
+                  Available in organisation settings
+                </p>
               </div>
             </div>
           </div>
@@ -248,7 +277,10 @@ export default function EmployerProfilePage() {
               <Shield size={16} />
               Change Password
             </button>
-            <button onClick={handleSignOut} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-red-500 transition-colors hover:bg-red-50">
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-red-500 transition-colors hover:bg-red-50"
+            >
               <LogOut size={16} />
               Sign Out
             </button>

@@ -45,6 +45,38 @@ router.get("/students", requireRole("educator"), async (req: AuthRequest, res: R
   return res.json({ students });
 });
 
+// GET /api/verifications/students/:studentId — educator view of a student's service history
+router.get("/students/:studentId", requireRole("educator"), async (req: AuthRequest, res: Response) => {
+  const { studentId } = req.params;
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("user_profiles")
+    .select("id, full_name, institution_id, institutions ( name )")
+    .eq("id", studentId)
+    .eq("role", "student")
+    .single();
+
+  if (profileError || !profile) {
+    return res.status(404).json({ error: "Student not found" });
+  }
+
+  const { data: services, error: servicesError } = await supabaseAdmin
+    .from("services")
+    .select(`
+      id, name, category_id, status, created_at,
+      client:client_id ( id, full_name ),
+      verifications ( id, status, created_at, notes )
+    `)
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false });
+
+  if (servicesError) {
+    return res.status(500).json({ error: servicesError.message });
+  }
+
+  return res.json({ student: profile, services: services ?? [] });
+});
+
 // GET /api/verifications/pending — services awaiting educator review
 router.get("/pending", requireRole("educator"), async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabaseAdmin

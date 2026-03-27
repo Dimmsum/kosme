@@ -1,14 +1,29 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Eye, EyeOff, Share2, Grid, List, ExternalLink } from "lucide-react";
-import { apiGet } from "@/lib/api";
+import {
+  CheckCircle2,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  ImagePlus,
+  Share2,
+  Grid,
+  List,
+  Trash2,
+} from "lucide-react";
+import { apiGet, apiPatch } from "@/lib/api";
 
 type PortfolioApiRow = {
   id: string;
   name: string;
   category_id: string;
   created_at: string;
+  service_photos?: Array<{
+    id: string;
+    type: "before" | "after";
+    url: string;
+  }>;
   verifications?: Array<{
     educator?: {
       full_name?: string | null;
@@ -26,6 +41,7 @@ type PortfolioItem = {
   category: string;
   date: string;
   educator: string;
+  photos: string[];
 };
 
 export default function PortfolioPage() {
@@ -35,6 +51,10 @@ export default function PortfolioPage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const [newPhotoUrl, setNewPhotoUrl] = useState("");
+  const [savingPhotos, setSavingPhotos] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -53,14 +73,18 @@ export default function PortfolioPage() {
             month: "short",
             year: "numeric",
           }),
-          educator: service.verifications?.[0]?.educator?.full_name ?? "Educator",
+          educator:
+            service.verifications?.[0]?.educator?.full_name ?? "Educator",
+          photos: (service.service_photos ?? []).map((photo) => photo.url),
         }));
 
         setVerifiedServices(mapped);
         setError(null);
       } catch (err) {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Failed to load portfolio");
+        setError(
+          err instanceof Error ? err.message : "Failed to load portfolio",
+        );
       } finally {
         if (!mounted) return;
         setLoading(false);
@@ -74,8 +98,11 @@ export default function PortfolioPage() {
   }, []);
 
   const categories = useMemo(
-    () => ["All", ...Array.from(new Set(verifiedServices.map((s) => s.category)))],
-    [verifiedServices]
+    () => [
+      "All",
+      ...Array.from(new Set(verifiedServices.map((s) => s.category))),
+    ],
+    [verifiedServices],
   );
 
   const filtered =
@@ -84,6 +111,67 @@ export default function PortfolioPage() {
       : verifiedServices.filter((s) => s.category === activeCategory);
 
   const selected = verifiedServices.find((s) => s.id === selectedService);
+  const selectedPhotos = selected?.photos ?? [];
+  const activePhoto =
+    selectedPhotos.length > 0
+      ? selectedPhotos[Math.min(selectedPhotoIndex, selectedPhotos.length - 1)]
+      : null;
+
+  const updateServicePhotos = async (serviceId: string, photos: string[]) => {
+    setSavingPhotos(true);
+    setPhotoError(null);
+    try {
+      await apiPatch(`/api/portfolio/${serviceId}/photos`, { photos });
+      setVerifiedServices((prev) =>
+        prev.map((service) =>
+          service.id === serviceId ? { ...service, photos } : service,
+        ),
+      );
+      setSelectedPhotoIndex(0);
+      setNewPhotoUrl("");
+    } catch (err) {
+      setPhotoError(
+        err instanceof Error ? err.message : "Failed to update photos",
+      );
+    } finally {
+      setSavingPhotos(false);
+    }
+  };
+
+  const handleAddPhoto = async () => {
+    if (!selected) return;
+    const trimmed = newPhotoUrl.trim();
+    if (!trimmed) {
+      setPhotoError("Enter a photo URL first.");
+      return;
+    }
+    const isValidUrl = /^https?:\/\//i.test(trimmed);
+    if (!isValidUrl) {
+      setPhotoError("Photo URL must start with http:// or https://");
+      return;
+    }
+    await updateServicePhotos(selected.id, [...selectedPhotos, trimmed]);
+  };
+
+  const handleRemoveCurrentPhoto = async () => {
+    if (!selected || selectedPhotos.length === 0) return;
+    const nextPhotos = selectedPhotos.filter((_, index) => index !== selectedPhotoIndex);
+    await updateServicePhotos(selected.id, nextPhotos);
+  };
+
+  const handlePrevPhoto = () => {
+    if (selectedPhotos.length <= 1) return;
+    setSelectedPhotoIndex((prev) =>
+      prev === 0 ? selectedPhotos.length - 1 : prev - 1,
+    );
+  };
+
+  const handleNextPhoto = () => {
+    if (selectedPhotos.length <= 1) return;
+    setSelectedPhotoIndex((prev) =>
+      prev === selectedPhotos.length - 1 ? 0 : prev + 1,
+    );
+  };
 
   if (loading) {
     return (
@@ -110,7 +198,8 @@ export default function PortfolioPage() {
             My Portfolio
           </h1>
           <p className="mt-1 text-sm text-k-gray-400">
-            {verifiedServices.length} verified services &middot; Only verified work is visible
+            {verifiedServices.length} verified services &middot; Only verified
+            work is visible
           </p>
         </div>
         <button className="inline-flex items-center justify-center gap-2 rounded-full border border-k-gray-200 bg-k-white px-5 py-2.5 text-sm font-medium text-k-black transition-colors hover:bg-k-gray-100">
@@ -122,7 +211,9 @@ export default function PortfolioPage() {
       {/* Portfolio stats */}
       <div className="mb-6 grid grid-cols-3 gap-3">
         <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
-          <p className="font-serif text-2xl text-k-primary">{verifiedServices.length}</p>
+          <p className="font-serif text-2xl text-k-primary">
+            {verifiedServices.length}
+          </p>
           <p className="text-xs text-k-gray-400 mt-1">Verified</p>
         </div>
         <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
@@ -158,7 +249,9 @@ export default function PortfolioPage() {
           <button
             onClick={() => setViewMode("grid")}
             className={`rounded-lg p-2 transition-colors ${
-              viewMode === "grid" ? "bg-k-primary/10 text-k-primary" : "text-k-gray-400 hover:text-k-black"
+              viewMode === "grid"
+                ? "bg-k-primary/10 text-k-primary"
+                : "text-k-gray-400 hover:text-k-black"
             }`}
           >
             <Grid size={16} />
@@ -166,7 +259,9 @@ export default function PortfolioPage() {
           <button
             onClick={() => setViewMode("list")}
             className={`rounded-lg p-2 transition-colors ${
-              viewMode === "list" ? "bg-k-primary/10 text-k-primary" : "text-k-gray-400 hover:text-k-black"
+              viewMode === "list"
+                ? "bg-k-primary/10 text-k-primary"
+                : "text-k-gray-400 hover:text-k-black"
             }`}
           >
             <List size={16} />
@@ -180,30 +275,39 @@ export default function PortfolioPage() {
           {filtered.map((service) => (
             <button
               key={service.id}
-              onClick={() => setSelectedService(service.id)}
+              onClick={() => {
+                setSelectedService(service.id);
+                setSelectedPhotoIndex(0);
+                setPhotoError(null);
+              }}
               className="group flex flex-col overflow-hidden rounded-2xl border border-k-gray-200 bg-k-white text-left transition-all hover:border-k-primary/20 hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
             >
-              {/* Photo placeholder — before/after */}
               <div className="relative aspect-[4/3] bg-gradient-to-br from-k-primary/5 to-k-accent/5">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="flex gap-1">
-                    <div className="h-12 w-12 rounded-lg bg-k-primary/10 flex items-center justify-center">
-                      <span className="text-[8px] font-medium text-k-primary/50">Before</span>
-                    </div>
-                    <div className="h-12 w-12 rounded-lg bg-k-accent/10 flex items-center justify-center">
-                      <span className="text-[8px] font-medium text-k-accent/50">After</span>
-                    </div>
+                {service.photos[0] ? (
+                  <img
+                    src={service.photos[0]}
+                    alt={`${service.name} photo`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-k-gray-400">
+                    No photos yet
                   </div>
-                </div>
+                )}
                 <div className="absolute top-2 right-2">
                   <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500">
                     <CheckCircle2 size={12} className="text-white" />
                   </div>
                 </div>
+                <div className="absolute bottom-2 left-2 rounded-full bg-k-white/90 px-2 py-0.5 text-[10px] font-medium text-k-gray-600">
+                  {service.photos.length} photos
+                </div>
               </div>
 
               <div className="p-3">
-                <p className="text-sm font-medium text-k-black truncate">{service.name}</p>
+                <p className="text-sm font-medium text-k-black truncate">
+                  {service.name}
+                </p>
                 <p className="text-xs text-k-gray-400 mt-0.5">{service.date}</p>
               </div>
             </button>
@@ -214,21 +318,32 @@ export default function PortfolioPage() {
           {filtered.map((service) => (
             <button
               key={service.id}
-              onClick={() => setSelectedService(service.id)}
+              onClick={() => {
+                setSelectedService(service.id);
+                setSelectedPhotoIndex(0);
+                setPhotoError(null);
+              }}
               className="group flex items-center gap-4 rounded-2xl border border-k-gray-200 bg-k-white px-5 py-4 text-left transition-all hover:border-k-primary/20"
             >
-              {/* Thumbnail placeholder */}
-              <div className="h-14 w-20 shrink-0 rounded-xl bg-gradient-to-br from-k-primary/5 to-k-accent/5 flex items-center justify-center">
-                <div className="flex gap-0.5">
-                  <div className="h-6 w-6 rounded bg-k-primary/10" />
-                  <div className="h-6 w-6 rounded bg-k-accent/10" />
-                </div>
+              <div className="h-14 w-20 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-k-primary/5 to-k-accent/5 flex items-center justify-center">
+                {service.photos[0] ? (
+                  <img
+                    src={service.photos[0]}
+                    alt={`${service.name} thumbnail`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[10px] text-k-gray-400">No photo</span>
+                )}
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-k-black">{service.name}</p>
+                <p className="text-sm font-medium text-k-black">
+                  {service.name}
+                </p>
                 <p className="text-xs text-k-gray-400 mt-0.5">
-                  {service.category} &middot; {service.client} &middot; {service.date}
+                  {service.category} &middot; {service.photos.length} photos
+                  &middot; {service.date}
                 </p>
               </div>
 
@@ -236,7 +351,10 @@ export default function PortfolioPage() {
                 <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
                   <CheckCircle2 size={12} /> Verified
                 </span>
-                <Eye size={16} className="text-k-gray-400 group-hover:text-k-primary transition-colors" />
+                <Eye
+                  size={16}
+                  className="text-k-gray-400 group-hover:text-k-primary transition-colors"
+                />
               </div>
             </button>
           ))}
@@ -255,7 +373,9 @@ export default function PortfolioPage() {
           >
             <div className="mb-5 flex items-start justify-between">
               <div>
-                <h2 className="font-serif text-xl text-k-black">{selected.name}</h2>
+                <h2 className="font-serif text-xl text-k-black">
+                  {selected.name}
+                </h2>
                 <p className="text-xs text-k-gray-400 mt-0.5">
                   {selected.category} &middot; {selected.date}
                 </p>
@@ -265,29 +385,116 @@ export default function PortfolioPage() {
               </span>
             </div>
 
-            {/* Before / After comparison */}
-            <div className="mb-5 grid grid-cols-2 gap-3">
-              <div className="aspect-[4/3] rounded-xl bg-gradient-to-br from-k-primary/5 to-k-primary/10 flex flex-col items-center justify-center">
-                <div className="h-16 w-16 rounded-xl bg-k-primary/10 mb-2" />
-                <span className="text-xs text-k-gray-400">Before</span>
+            <div className="mb-5">
+              <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-xl bg-gradient-to-br from-k-primary/5 to-k-accent/5">
+                {activePhoto ? (
+                  <img
+                    src={activePhoto}
+                    alt={`${selected.name} photo ${selectedPhotoIndex + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-k-gray-400">
+                    <ImagePlus size={22} />
+                    <span className="mt-1 text-xs">No photos added</span>
+                  </div>
+                )}
+
+                {selectedPhotos.length > 1 && (
+                  <>
+                    <button
+                      onClick={handlePrevPhoto}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-k-white/90 p-1.5 text-k-black hover:bg-k-white"
+                      aria-label="Previous photo"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+                    <button
+                      onClick={handleNextPhoto}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-k-white/90 p-1.5 text-k-black hover:bg-k-white"
+                      aria-label="Next photo"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                  </>
+                )}
+
+                <div className="absolute bottom-2 right-2 rounded-full bg-k-white/90 px-2 py-0.5 text-[10px] font-medium text-k-gray-600">
+                  {selectedPhotos.length === 0
+                    ? "0 / 0"
+                    : `${selectedPhotoIndex + 1} / ${selectedPhotos.length}`}
+                </div>
               </div>
-              <div className="aspect-[4/3] rounded-xl bg-gradient-to-br from-k-accent/5 to-k-accent/10 flex flex-col items-center justify-center">
-                <div className="h-16 w-16 rounded-xl bg-k-accent/10 mb-2" />
-                <span className="text-xs text-k-gray-400">After</span>
+
+              {selectedPhotos.length > 0 && (
+                <div className="mb-3 flex gap-2 overflow-x-auto">
+                  {selectedPhotos.map((photo, index) => (
+                    <button
+                      key={`${photo}-${index}`}
+                      onClick={() => setSelectedPhotoIndex(index)}
+                      className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border ${
+                        index === selectedPhotoIndex
+                          ? "border-k-primary"
+                          : "border-k-gray-200"
+                      }`}
+                    >
+                      <img
+                        src={photo}
+                        alt={`Thumbnail ${index + 1}`}
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <input
+                  value={newPhotoUrl}
+                  onChange={(e) => setNewPhotoUrl(e.target.value)}
+                  placeholder="https://example.com/photo.jpg"
+                  className="flex-1 rounded-full border border-k-gray-200 px-4 py-2 text-xs text-k-black outline-none transition-colors focus:border-k-primary"
+                />
+                <button
+                  onClick={handleAddPhoto}
+                  disabled={savingPhotos}
+                  className="inline-flex items-center gap-1 rounded-full border border-k-gray-200 px-3 py-2 text-xs font-medium text-k-black hover:bg-k-gray-100 disabled:opacity-50"
+                >
+                  <ImagePlus size={12} />
+                  Add
+                </button>
+                <button
+                  onClick={handleRemoveCurrentPhoto}
+                  disabled={savingPhotos || selectedPhotos.length === 0}
+                  className="inline-flex items-center gap-1 rounded-full border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  <Trash2 size={12} />
+                  Remove
+                </button>
               </div>
             </div>
 
             {/* Details */}
-            <div className="mb-6 grid grid-cols-2 gap-3">
+            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="rounded-xl bg-k-gray-100 px-4 py-3">
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Client</p>
-                <p className="text-sm text-k-black mt-0.5">{selected.client}</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Verified by
+                </p>
+                <p className="text-sm text-k-black mt-0.5">
+                  {selected.educator}
+                </p>
               </div>
               <div className="rounded-xl bg-k-gray-100 px-4 py-3">
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">Verified by</p>
-                <p className="text-sm text-k-black mt-0.5">{selected.educator}</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                  Photos
+                </p>
+                <p className="text-sm text-k-black mt-0.5">
+                  {selectedPhotos.length} in carousel
+                </p>
               </div>
             </div>
+
+            {photoError && <p className="mb-4 text-xs text-red-600">{photoError}</p>}
 
             <div className="flex gap-3">
               <button
