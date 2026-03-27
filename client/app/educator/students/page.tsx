@@ -47,9 +47,13 @@ export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(
+    null,
+  );
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
-  const [studentDetails, setStudentDetails] = useState<Record<string, StudentDetailService[]>>({});
+  const [studentDetails, setStudentDetails] = useState<
+    Record<string, StudentDetailService[]>
+  >({});
 
   useEffect(() => {
     apiGet<{ students: Student[] }>("/api/verifications/students")
@@ -80,10 +84,16 @@ export default function StudentsPage() {
 
     setDetailLoadingId(studentId);
     try {
-      const detail = await apiGet<StudentDetailResponse>(`/api/verifications/students/${studentId}`);
-      setStudentDetails((prev) => ({ ...prev, [studentId]: detail.services ?? [] }));
+      const detail = await apiGet<StudentDetailResponse>(
+        `/api/verifications/students/${studentId}`,
+      );
+      setStudentDetails((prev) => ({
+        ...prev,
+        [studentId]: detail.services ?? [],
+      }));
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to load student details.";
+      const message =
+        err instanceof Error ? err.message : "Failed to load student details.";
       setError(message);
     } finally {
       setDetailLoadingId(null);
@@ -138,7 +148,10 @@ export default function StudentsPage() {
             const services = studentDetails[student.id] ?? [];
 
             return (
-              <div key={student.id} className="rounded-2xl border border-k-gray-200 bg-k-white overflow-hidden">
+              <div
+                key={student.id}
+                className="rounded-2xl border border-k-gray-200 bg-k-white overflow-hidden"
+              >
                 <button
                   type="button"
                   onClick={() => toggleStudent(student.id)}
@@ -162,7 +175,8 @@ export default function StudentsPage() {
 
                   <div className="hidden sm:flex flex-col items-end gap-1.5">
                     <span className="rounded-full bg-k-primary/10 px-3 py-0.5 text-xs font-medium text-k-primary">
-                      {student.verified_count}/{Math.max(student.total_count, 1)} services
+                      {student.verified_count}/
+                      {Math.max(student.total_count, 1)} services
                     </span>
                     <span className="text-[10px] text-k-gray-400">
                       {student.total_count} total submissions
@@ -171,7 +185,8 @@ export default function StudentsPage() {
 
                   <div className="sm:hidden flex flex-col items-end gap-0.5">
                     <span className="text-xs font-medium text-k-primary">
-                      {student.verified_count}/{Math.max(student.total_count, 1)}
+                      {student.verified_count}/
+                      {Math.max(student.total_count, 1)}
                     </span>
                   </div>
 
@@ -191,9 +206,13 @@ export default function StudentsPage() {
                 {isExpanded && (
                   <div className="border-t border-k-gray-200 bg-k-gray-100/40 px-5 py-4">
                     {detailLoadingId === student.id ? (
-                      <p className="text-xs text-k-gray-400">Loading student details...</p>
+                      <p className="text-xs text-k-gray-400">
+                        Loading student details...
+                      </p>
                     ) : services.length === 0 ? (
-                      <p className="text-xs text-k-gray-400">No services submitted yet.</p>
+                      <p className="text-xs text-k-gray-400">
+                        No services submitted yet.
+                      </p>
                     ) : (
                       <div className="flex flex-col gap-2">
                         {services.map((service) => (
@@ -202,9 +221,14 @@ export default function StudentsPage() {
                             className="flex items-center justify-between rounded-xl border border-k-gray-200 bg-k-white px-3 py-2.5"
                           >
                             <div className="min-w-0">
-                              <p className="text-sm font-medium text-k-black truncate">{service.name}</p>
+                              <p className="text-sm font-medium text-k-black truncate">
+                                {service.name}
+                              </p>
                               <p className="text-xs text-k-gray-400 mt-0.5">
-                                {service.category_id} · {new Date(service.created_at).toLocaleDateString("en-GB")}
+                                {service.category_id} ·{" "}
+                                {new Date(
+                                  service.created_at,
+                                ).toLocaleDateString("en-GB")}
                               </p>
                             </div>
                             <span className="ml-3 shrink-0 rounded-full bg-k-primary/10 px-2.5 py-0.5 text-[10px] font-medium text-k-primary">

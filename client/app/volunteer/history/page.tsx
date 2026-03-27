@@ -47,7 +47,7 @@ export default function HistoryPage() {
   useEffect(() => {
     apiGet<HistoryResponse>("/api/confirmations/history")
       .then((res) => {
-        const mapped = (res.history ?? [])
+        const mapped: HistoryItem[] = (res.history ?? [])
           .filter(
             (item) => item.status === "confirmed" || item.status === "disputed",
           )
@@ -77,7 +77,7 @@ export default function HistoryPage() {
     const matchesSearch =
       search === "" ||
       s.service.toLowerCase().includes(search.toLowerCase()) ||
-      s.student.toLowerCase().includes(search.toLowerCase());
+      (s.student ?? "").toLowerCase().includes(search.toLowerCase());
     return matchesFilter && matchesSearch;
   });
 
