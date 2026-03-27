@@ -1,9 +1,0 @@
-{
-  "buildCommand": "npm run build:client",
-  "installCommand": "npm run install:all",
-  "outputDirectory": "client/.next",
-  "framework": "nextjs",
-  "env": {
-    "NEXT_PUBLIC_API_URL": "@next-public-api-url"
-  }
-}
