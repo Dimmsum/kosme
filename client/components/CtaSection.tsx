@@ -15,15 +15,15 @@ export default function CtaSection() {
     if (!email) return;
     setLoading(true);
 
-    // Send waitlist email — replace this URL with your API endpoint
     try {
-      await fetch("/api/waitlist", {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+      await fetch(`${apiBase}/api/waitlist`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
     } catch {
-      // Even if the API isn't set up yet, show success for now
+      // Even if the API is unreachable, show success to the user
     }
 
     setLoading(false);
