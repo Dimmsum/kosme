@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Hero() {
   const heroImageRef = useRef<HTMLDivElement>(null);
@@ -79,14 +80,14 @@ export default function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.9, ease: [0.22, 1, 0.36, 1] }}
         >
-          <a
-            href="#cta"
+          <Link
+            href="/signup"
             className="inline-flex items-center justify-center rounded-full bg-k-primary px-8 py-3.5 text-sm font-medium tracking-wide text-k-white no-underline
                        shadow-[0_4px_20px_rgba(59,10,42,0.25)] transition-all duration-200
                        hover:bg-k-primary-light hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(59,10,42,0.3)]"
           >
             Start for free
-          </a>
+          </Link>
           <a
             href="#how"
             className="inline-flex items-center justify-center gap-2 text-sm font-normal tracking-wide text-k-black no-underline transition-[gap] duration-200 hover:gap-3.5 sm:justify-start"
