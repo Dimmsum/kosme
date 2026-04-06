@@ -64,7 +64,8 @@ export default function ProofSection() {
               src="/proof-person.jpg"
               alt="Student portfolio example"
               fill
-              className="object-cover object-top"
+              sizes="(max-width: 768px) 100vw, 50vw"
+              className="object-cover object-center"
             />
           </div>
 

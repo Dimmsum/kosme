@@ -6,7 +6,6 @@ import RolesSection from "@/components/RolesSection";
 import HowItWorks from "@/components/HowItWorks";
 import ServicesSection from "@/components/ServicesSection";
 import ProofSection from "@/components/ProofSection";
-import Testimonials from "@/components/Testimonials";
 import CtaSection from "@/components/CtaSection";
 import Footer from "@/components/Footer";
 
@@ -22,7 +21,6 @@ export default function Home() {
         <HowItWorks />
         <ServicesSection />
         <ProofSection />
-        <Testimonials />
         <CtaSection />
       </main>
       <Footer />

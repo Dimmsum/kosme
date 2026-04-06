@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Paintbrush,
   Scissors,
@@ -11,8 +10,6 @@ import {
 import Image from "next/image";
 import Reveal from "./Reveal";
 import SectionTag from "./SectionTag";
-
-const tabs = ["Students", "Educators", "Employers"];
 
 const services = [
   {
@@ -53,8 +50,6 @@ const services = [
 ];
 
 export default function ServicesSection() {
-  const [activeTab, setActiveTab] = useState(0);
-
   return (
     <section
       id="features"
@@ -72,22 +67,6 @@ export default function ServicesSection() {
             </h2>
           </div>
 
-          {/* Tab toggle */}
-          <div className="flex w-full flex-wrap gap-1 rounded-[1.25rem] bg-k-white p-1 sm:w-auto sm:rounded-full self-start md:self-auto">
-            {tabs.map((tab, i) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(i)}
-                className={`flex-1 rounded-full px-4 py-2 text-sm font-normal transition-all duration-200 sm:flex-none sm:px-5 ${
-                  activeTab === i
-                    ? "bg-k-primary text-k-white"
-                    : "text-k-gray-400 hover:text-k-black"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
         </Reveal>
 
         {/* Grid */}
@@ -130,7 +109,8 @@ export default function ServicesSection() {
                     src={`/service-${id}.jpg`}
                     alt={title}
                     fill
-                    className="object-cover opacity-60 group-hover:opacity-80 transition-opacity duration-300"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover object-center opacity-60 group-hover:opacity-80 transition-opacity duration-300"
                   />
                 </div>
 

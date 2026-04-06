@@ -32,7 +32,8 @@ export default function Hero() {
             src="/hero-person.jpg"
             alt="Cosmetology student styling hair in a salon"
             fill
-            className="object-cover object-top"
+            sizes="(max-width: 768px) 100vw, 50vw"
+            className="object-cover object-center"
             priority
           />
         </motion.div>
