@@ -50,18 +50,18 @@ export default function LoginPage() {
       return;
     }
 
-    // Fetch the authoritative role from user_profiles (migration 0005).
-    const { data: roleRow, error: roleError } = await supabase
-      .from("user_profiles")
-      .select("role")
-      .eq("id", data.user.id)
-      .single();
+    // Use role from user_metadata (set at registration) — no extra round trip.
+    // Only fall back to a DB query if metadata is missing the role.
+    let role = normalizeRole(data.user.user_metadata?.role as string | undefined);
 
-    const dbRole = normalizeRole(roleRow?.role as string | undefined);
-    const fallbackRole = normalizeRole(
-      data.user.user_metadata?.role as string | undefined,
-    );
-    const role = roleError ? fallbackRole : (dbRole ?? fallbackRole);
+    if (!role) {
+      const { data: roleRow } = await supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
+      role = normalizeRole(roleRow?.role as string | undefined);
+    }
 
     if (!role) {
       setError(
@@ -71,8 +71,7 @@ export default function LoginPage() {
       return;
     }
 
-    const destination = ROLE_DASHBOARD[role];
-    router.push(destination);
+    router.push(ROLE_DASHBOARD[role]);
   };
 
   return (
