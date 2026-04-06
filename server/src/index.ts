@@ -10,6 +10,7 @@ import verificationsRouter from "./routes/verifications";
 import portfolioRouter from "./routes/portfolio";
 import shortlistRouter from "./routes/shortlist";
 import dashboardRouter from "./routes/dashboard";
+import volunteerRequestsRouter from "./routes/volunteer-requests";
 import { requireAuth } from "./middleware/auth";
 
 const app = express();
@@ -68,6 +69,7 @@ app.use("/api/verifications", requireAuth, verificationsRouter);
 app.use("/api/portfolio", requireAuth, portfolioRouter);
 app.use("/api/shortlist", requireAuth, shortlistRouter);
 app.use("/api/dashboard", requireAuth, dashboardRouter);
+app.use("/api/volunteer-requests", requireAuth, volunteerRequestsRouter);
 
 app.listen(PORT, () => {
   console.log(`Kosmee API running on http://localhost:${PORT}`);

@@ -36,6 +36,17 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
 export async function apiDelete(path: string): Promise<void> {
   const res = await fetch(`${BASE}${path}`, {
     method: "DELETE",

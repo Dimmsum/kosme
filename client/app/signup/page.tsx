@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -8,24 +8,49 @@ import { GraduationCap, BookOpen, Heart, Briefcase, ChevronLeft, Eye, EyeOff, Ch
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
-import { ROLE_DASHBOARD, type UserRole } from "@/lib/auth-context";
+import { ROLE_DASHBOARD, normalizeRole, type UserRole } from "@/lib/auth-context";
 
-// Icon mapping lives client-side — icons are UI components, not data
-const ROLE_ICONS: Record<string, React.ElementType> = {
-  student: GraduationCap,
-  educator: BookOpen,
-  client: Heart,
-  employer: Briefcase,
-};
-
-interface RoleRow {
+interface RoleOption {
   id: string;
   label: string;
+  icon: React.ElementType;
+  description: string;
+  hint: string;
 }
+
+const ROLES: RoleOption[] = [
+  {
+    id: "student",
+    label: "Student",
+    icon: GraduationCap,
+    description: "Log practicals, capture before/after photos, and build a verified portfolio.",
+    hint: "You'll document every client session and build an employer-ready portfolio.",
+  },
+  {
+    id: "educator",
+    label: "Educator / Lecturer",
+    icon: BookOpen,
+    description: "Review student work, give precise feedback, and sign off verified records.",
+    hint: "You'll verify student practicals and track your cohort's progress in real time.",
+  },
+  {
+    id: "client",
+    label: "Volunteer Client",
+    icon: Heart,
+    description: "Book free student sessions and provide ratings that count toward portfolios.",
+    hint: "You'll confirm your appointments and rate student work — helping them graduate.",
+  },
+  {
+    id: "employer",
+    label: "Employer / Salon Owner",
+    icon: Briefcase,
+    description: "Search verified graduate portfolios and shortlist top talent.",
+    hint: "You'll browse verified portfolios and shortlist graduates to interview.",
+  },
+];
 
 export default function SignupPage() {
   const router = useRouter();
-  const [roles, setRoles] = useState<RoleRow[]>([]);
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -37,16 +62,6 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
-
-  // Fetch available roles from the database
-  useEffect(() => {
-    supabase
-      .from("roles")
-      .select("id, label")
-      .then(({ data }) => {
-        if (data) setRoles(data as RoleRow[]);
-      });
-  }, []);
 
   const handleContinue = () => {
     if (selectedRole) setStep(2);
@@ -94,7 +109,7 @@ export default function SignupPage() {
     setSuccess(true);
   };
 
-  const selectedRoleLabel = roles.find((r) => r.id === selectedRole)?.label ?? "";
+  const selectedRoleData = ROLES.find((r) => r.id === selectedRole) ?? null;
 
   return (
     <>
@@ -132,8 +147,7 @@ export default function SignupPage() {
 
                 {/* Role grid */}
                 <div className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {roles.map(({ id, label }) => {
-                    const Icon = ROLE_ICONS[id] ?? GraduationCap;
+                  {ROLES.map(({ id, label, icon: Icon, description }) => {
                     const isSelected = selectedRole === id;
                     return (
                       <button
@@ -159,6 +173,9 @@ export default function SignupPage() {
                         </div>
                         <p className="text-sm font-medium text-k-black">
                           {label}
+                        </p>
+                        <p className="mt-1.5 text-xs font-light leading-5 text-k-gray-600">
+                          {description}
                         </p>
                       </button>
                     );
@@ -190,11 +207,20 @@ export default function SignupPage() {
                 </button>
 
                 {/* Selected role badge */}
-                {selectedRole && (
-                  <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-k-primary/20 bg-k-primary/8 px-4 py-1.5">
+                {selectedRoleData && (
+                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-k-primary/20 bg-k-primary/8 px-4 py-1.5">
                     <span className="text-xs font-medium text-k-primary">
-                      {selectedRoleLabel}
+                      {selectedRoleData.label}
                     </span>
+                  </div>
+                )}
+
+                {/* Role-specific hint */}
+                {selectedRoleData && (
+                  <div className="mb-6 rounded-2xl border border-k-primary/10 bg-k-primary/5 px-4 py-3">
+                    <p className="text-xs font-light leading-5 text-k-primary">
+                      {selectedRoleData.hint}
+                    </p>
                   </div>
                 )}
 

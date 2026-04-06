@@ -11,12 +11,14 @@ import {
   Clock,
   User,
   LogOut,
+  Compass,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 const navItems = [
   { href: "/volunteer/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/volunteer/confirmations", label: "Confirmations", icon: ClipboardCheck },
+  { href: "/volunteer/browse", label: "Browse", icon: Compass },
   { href: "/volunteer/history", label: "History", icon: Clock },
   { href: "/volunteer/profile", label: "Profile", icon: User },
 ];

@@ -8,22 +8,7 @@ import { Eye, EyeOff } from "lucide-react";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
-import { ROLE_DASHBOARD, type UserRole } from "@/lib/auth-context";
-
-function normalizeRole(raw: string | null | undefined): UserRole | null {
-  if (!raw) return null;
-  const role = raw.toLowerCase();
-  if (role === "volunteer") return "client";
-  if (
-    role === "student" ||
-    role === "educator" ||
-    role === "client" ||
-    role === "employer"
-  ) {
-    return role;
-  }
-  return null;
-}
+import { ROLE_DASHBOARD, normalizeRole, type UserRole } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();

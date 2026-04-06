@@ -101,8 +101,8 @@ export default function ServicesPage() {
             const cfg = STATUS_CONFIG[service.status] ?? STATUS_CONFIG.rejected;
             const Icon = cfg.Icon;
             return (
-              <div key={service.id}
-                className="group flex items-center gap-4 rounded-2xl border border-k-gray-200 bg-k-white px-5 py-4 transition-colors hover:border-k-primary/20">
+              <Link key={service.id} href={`/student/services/${service.id}`}
+                className="group flex items-center gap-4 rounded-2xl border border-k-gray-200 bg-k-white px-5 py-4 no-underline transition-colors hover:border-k-primary/30 hover:shadow-[0_2px_12px_rgba(59,10,42,0.06)]">
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${cfg.bgColor}`}>
                   <Icon size={18} className={cfg.color} />
                 </div>
@@ -117,7 +117,7 @@ export default function ServicesPage() {
                   {cfg.label}
                 </span>
                 <ChevronRight size={16} className="shrink-0 text-k-gray-400 group-hover:text-k-primary transition-colors" />
-              </div>
+              </Link>
             );
           })
         )}

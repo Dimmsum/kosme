@@ -17,6 +17,7 @@ interface VerificationItem {
   status: "Awaiting Review" | "Verified" | "Rejected";
   statusColor: string;
   notes: string | null;
+  photos: Array<{ id: string; type: "before" | "after"; url: string }>;
 }
 
 const filters: VerifyStatus[] = ["All", "Awaiting Review", "Verified"];
@@ -36,6 +37,7 @@ interface PendingResponse {
     created_at: string;
     student: { full_name: string | null } | null;
     client: { full_name: string | null } | null;
+    service_photos: Array<{ id: string; type: "before" | "after"; url: string }>;
   }>;
 }
 
@@ -79,6 +81,7 @@ export default function VerifyPage() {
             status: "Awaiting Review",
             statusColor: statusColor("Awaiting Review"),
             notes: item.notes,
+            photos: item.service_photos ?? [],
           }),
         );
 
@@ -96,6 +99,7 @@ export default function VerifyPage() {
               status: label,
               statusColor: statusColor(label),
               notes: null,
+              photos: [],
             };
           },
         );
@@ -311,6 +315,45 @@ export default function VerifyPage() {
                   {item.notes ?? "No notes provided."}
                 </p>
               </div>
+
+              {/* Photos */}
+              {item.photos.length > 0 && (() => {
+                const before = item.photos.filter((p) => p.type === "before");
+                const after  = item.photos.filter((p) => p.type === "after");
+                return (
+                  <div className="mb-4 rounded-2xl border border-k-gray-200 bg-k-white px-4 py-3">
+                    <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                      Photos
+                    </p>
+                    {before.length > 0 && (
+                      <div className="mb-3">
+                        <p className="mb-2 text-[10px] text-k-gray-400">Before</p>
+                        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                          {before.map((photo) => (
+                            <a key={photo.id} href={photo.url} target="_blank" rel="noopener noreferrer"
+                              className="group block aspect-square overflow-hidden rounded-lg border border-k-gray-200">
+                              <img src={photo.url} alt="Before" className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {after.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-[10px] text-k-gray-400">After</p>
+                        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                          {after.map((photo) => (
+                            <a key={photo.id} href={photo.url} target="_blank" rel="noopener noreferrer"
+                              className="group block aspect-square overflow-hidden rounded-lg border border-k-gray-200">
+                              <img src={photo.url} alt="After" className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Action buttons */}
               {item.status === "Awaiting Review" && (

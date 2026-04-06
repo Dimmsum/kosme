@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Upload, X, ChevronDown, Check, ImagePlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGet, apiPost, apiUpload } from "@/lib/api";
 
 interface Category { id: string; label: string }
 interface Client { id: string; full_name: string | null }
@@ -82,46 +82,17 @@ export default function NewServicePage() {
         notes: notes.trim() || undefined,
       });
 
-      const allPhotos = [...beforePhotos, ...afterPhotos];
-      if (allPhotos.length > 0) {
+      const totalPhotos = beforePhotos.length + afterPhotos.length;
+      if (totalPhotos > 0) {
         setUploadProgress(
-          `Uploading ${allPhotos.length} photo${allPhotos.length > 1 ? "s" : ""}…`
+          `Uploading ${totalPhotos} photo${totalPhotos > 1 ? "s" : ""}…`
         );
 
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user.id;
+        const formData = new FormData();
+        beforePhotos.forEach((p) => formData.append("before", p.file));
+        afterPhotos.forEach((p) => formData.append("after", p.file));
 
-        const uploadedPhotos: { url: string; type: "before" | "after" }[] = [];
-
-        for (let i = 0; i < beforePhotos.length; i++) {
-          const photo = beforePhotos[i];
-          const ext = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
-          const path = `${userId}/${service.id}/before-${i}.${ext}`;
-          const { error: uploadError } = await supabase.storage
-            .from("service-photos")
-            .upload(path, photo.file, { upsert: true });
-          if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`);
-          const { data: { publicUrl } } = supabase.storage
-            .from("service-photos")
-            .getPublicUrl(path);
-          uploadedPhotos.push({ url: publicUrl, type: "before" });
-        }
-
-        for (let i = 0; i < afterPhotos.length; i++) {
-          const photo = afterPhotos[i];
-          const ext = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
-          const path = `${userId}/${service.id}/after-${i}.${ext}`;
-          const { error: uploadError } = await supabase.storage
-            .from("service-photos")
-            .upload(path, photo.file, { upsert: true });
-          if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`);
-          const { data: { publicUrl } } = supabase.storage
-            .from("service-photos")
-            .getPublicUrl(path);
-          uploadedPhotos.push({ url: publicUrl, type: "after" });
-        }
-
-        await apiPost(`/api/services/${service.id}/photos`, { photos: uploadedPhotos });
+        await apiUpload(`/api/services/${service.id}/photos`, formData);
       }
 
       beforePhotos.forEach((p) => URL.revokeObjectURL(p.preview));
