@@ -68,6 +68,43 @@ router.post("/", requireRole("student"), async (req: AuthRequest, res: Response)
   return res.status(201).json({ service: data });
 });
 
+// POST /api/services/:id/photos — save photo URLs after client uploads to Supabase Storage
+router.post("/:id/photos", requireRole("student"), async (req: AuthRequest, res: Response) => {
+  const { photos } = req.body as { photos: { url: string; type: "before" | "after" }[] };
+
+  if (!Array.isArray(photos) || photos.length === 0) {
+    return res.status(400).json({ error: "photos array is required" });
+  }
+
+  // Verify the service belongs to this student
+  const { data: service, error: serviceError } = await supabaseAdmin
+    .from("services")
+    .select("id")
+    .eq("id", req.params.id)
+    .eq("student_id", req.userId!)
+    .single();
+
+  if (serviceError || !service) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  const { error } = await supabaseAdmin
+    .from("service_photos")
+    .insert(
+      photos.map(({ url, type }) => ({
+        service_id: req.params.id,
+        url,
+        type,
+      }))
+    );
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  return res.status(201).json({ ok: true });
+});
+
 // GET /api/services/:id — single service detail (student owner, assigned educator, or client)
 router.get("/:id", async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabaseAdmin
