@@ -178,35 +178,41 @@ router.get(
 );
 
 // GET /api/portfolio/feed — volunteer browsing feed (cursor-paginated verified services with photos)
-router.get("/feed", requireRole("client"), async (req: AuthRequest, res: Response) => {
-  const cursor = req.query.cursor as string | undefined;
-  const limit = 12;
+router.get(
+  "/feed",
+  requireRole("client"),
+  async (req: AuthRequest, res: Response) => {
+    const cursor = req.query.cursor as string | undefined;
+    const limit = 12;
 
-  let query = supabaseAdmin
-    .from("services")
-    .select(`
+    let query = supabaseAdmin
+      .from("services")
+      .select(
+        `
       id, name, category_id, created_at,
       student:student_id!inner ( id, full_name ),
       service_photos ( id, type, url )
-    `)
-    .eq("status", "verified")
-    .order("created_at", { ascending: false })
-    .limit(limit + 1);
+    `,
+      )
+      .eq("status", "verified")
+      .order("created_at", { ascending: false })
+      .limit(limit + 1);
 
-  if (cursor) {
-    query = query.lt("created_at", cursor);
-  }
+    if (cursor) {
+      query = query.lt("created_at", cursor);
+    }
 
-  const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
 
-  const items = data ?? [];
-  const hasMore = items.length > limit;
-  const feed = hasMore ? items.slice(0, limit) : items;
-  const nextCursor = hasMore ? feed[feed.length - 1].created_at : null;
+    const items = data ?? [];
+    const hasMore = items.length > limit;
+    const feed = hasMore ? items.slice(0, limit) : items;
+    const nextCursor = hasMore ? feed[feed.length - 1].created_at : null;
 
-  return res.json({ feed, nextCursor });
-});
+    return res.json({ feed, nextCursor });
+  },
+);
 
 // GET /api/portfolio/:studentId — educator, employer, or volunteer client views a student's portfolio
 router.get("/:studentId", async (req: AuthRequest, res: Response) => {

@@ -7,7 +7,14 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
+    const allowed = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "image/heif",
+    ];
     cb(null, allowed.includes(file.mimetype));
   },
 });
@@ -15,68 +22,84 @@ const upload = multer({
 const router = Router();
 
 // GET /api/services/clients — list volunteer clients for the new-service form (student only)
-router.get("/clients", requireRole("student"), async (_req: AuthRequest, res: Response) => {
-  const { data, error } = await supabaseAdmin
-    .from("user_profiles")
-    .select("id, full_name")
-    .eq("role", "client")
-    .order("full_name");
+router.get(
+  "/clients",
+  requireRole("student"),
+  async (_req: AuthRequest, res: Response) => {
+    const { data, error } = await supabaseAdmin
+      .from("user_profiles")
+      .select("id, full_name")
+      .eq("role", "client")
+      .order("full_name");
 
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
 
-  return res.json({ clients: data ?? [] });
-});
+    return res.json({ clients: data ?? [] });
+  },
+);
 
 // GET /api/services — student's own services
-router.get("/", requireRole("student"), async (req: AuthRequest, res: Response) => {
-  const { data, error } = await supabaseAdmin
-    .from("services")
-    .select(`
+router.get(
+  "/",
+  requireRole("student"),
+  async (req: AuthRequest, res: Response) => {
+    const { data, error } = await supabaseAdmin
+      .from("services")
+      .select(
+        `
       id, name, category_id, notes, status, created_at, updated_at,
       client:client_id ( id, full_name )
-    `)
-    .eq("student_id", req.userId!)
-    .order("created_at", { ascending: false });
+    `,
+      )
+      .eq("student_id", req.userId!)
+      .order("created_at", { ascending: false });
 
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
 
-  return res.json({ services: data });
-});
+    return res.json({ services: data });
+  },
+);
 
 // POST /api/services — student logs a new service
-router.post("/", requireRole("student"), async (req: AuthRequest, res: Response) => {
-  const { name, category_id, client_id, notes } = req.body;
+router.post(
+  "/",
+  requireRole("student"),
+  async (req: AuthRequest, res: Response) => {
+    const { name, category_id, client_id, notes } = req.body;
 
-  if (!name || !category_id) {
-    return res.status(400).json({ error: "name and category_id are required" });
-  }
+    if (!name || !category_id) {
+      return res
+        .status(400)
+        .json({ error: "name and category_id are required" });
+    }
 
-  // If no client supplied, jump straight to awaiting_educator
-  const status = client_id ? "awaiting_client" : "awaiting_educator";
+    // If no client supplied, jump straight to awaiting_educator
+    const status = client_id ? "awaiting_client" : "awaiting_educator";
 
-  const { data, error } = await supabaseAdmin
-    .from("services")
-    .insert({
-      student_id: req.userId!,
-      name,
-      category_id,
-      client_id: client_id ?? null,
-      notes: notes ?? null,
-      status,
-    })
-    .select("id, name, category_id, client_id, notes, status, created_at")
-    .single();
+    const { data, error } = await supabaseAdmin
+      .from("services")
+      .insert({
+        student_id: req.userId!,
+        name,
+        category_id,
+        client_id: client_id ?? null,
+        notes: notes ?? null,
+        status,
+      })
+      .select("id, name, category_id, client_id, notes, status, created_at")
+      .single();
 
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
 
-  return res.status(201).json({ service: data });
-});
+    return res.status(201).json({ service: data });
+  },
+);
 
 // POST /api/services/:id/photos — upload before/after photos via server (bypasses storage RLS)
 router.post(
@@ -100,14 +123,24 @@ router.post(
     }
 
     // Ensure bucket exists and is public (idempotent)
-    const { error: bucketCreateError } = await supabaseAdmin.storage.createBucket("service-photos", {
-      public: true,
-      fileSizeLimit: 10 * 1024 * 1024,
-      allowedMimeTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"],
-    });
+    const { error: bucketCreateError } =
+      await supabaseAdmin.storage.createBucket("service-photos", {
+        public: true,
+        fileSizeLimit: 10 * 1024 * 1024,
+        allowedMimeTypes: [
+          "image/jpeg",
+          "image/jpg",
+          "image/png",
+          "image/webp",
+          "image/heic",
+          "image/heif",
+        ],
+      });
     // If bucket already existed, force it public in case it was created private
     if (bucketCreateError) {
-      await supabaseAdmin.storage.updateBucket("service-photos", { public: true });
+      await supabaseAdmin.storage.updateBucket("service-photos", {
+        public: true,
+      });
     }
 
     const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
@@ -118,9 +151,21 @@ router.post(
       return res.status(400).json({ error: "No files uploaded" });
     }
 
-    const toUpload: { file: Express.Multer.File; type: "before" | "after"; index: number }[] = [
-      ...beforeFiles.map((f, i) => ({ file: f, type: "before" as const, index: i })),
-      ...afterFiles.map((f, i) => ({ file: f, type: "after" as const, index: i })),
+    const toUpload: {
+      file: Express.Multer.File;
+      type: "before" | "after";
+      index: number;
+    }[] = [
+      ...beforeFiles.map((f, i) => ({
+        file: f,
+        type: "before" as const,
+        index: i,
+      })),
+      ...afterFiles.map((f, i) => ({
+        file: f,
+        type: "after" as const,
+        index: i,
+      })),
     ];
 
     const savedPhotos: { url: string; type: string }[] = [];
@@ -131,47 +176,56 @@ router.post(
 
       const { error: uploadError } = await supabaseAdmin.storage
         .from("service-photos")
-        .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+        .upload(path, file.buffer, {
+          contentType: file.mimetype,
+          upsert: true,
+        });
 
       if (uploadError) {
-        return res.status(500).json({ error: `Upload failed: ${uploadError.message}` });
+        return res
+          .status(500)
+          .json({ error: `Upload failed: ${uploadError.message}` });
       }
 
-      const { data: { publicUrl } } = supabaseAdmin.storage
-        .from("service-photos")
-        .getPublicUrl(path);
+      const {
+        data: { publicUrl },
+      } = supabaseAdmin.storage.from("service-photos").getPublicUrl(path);
 
       savedPhotos.push({ url: publicUrl, type });
     }
 
     const { error: dbError } = await supabaseAdmin
       .from("service_photos")
-      .insert(savedPhotos.map(({ url, type }) => ({
-        service_id: req.params.id,
-        url,
-        type,
-      })));
+      .insert(
+        savedPhotos.map(({ url, type }) => ({
+          service_id: req.params.id,
+          url,
+          type,
+        })),
+      );
 
     if (dbError) {
       return res.status(500).json({ error: dbError.message });
     }
 
     return res.status(201).json({ photos: savedPhotos });
-  }
+  },
 );
 
 // GET /api/services/:id — single service detail (student owner, assigned educator, or client)
 router.get("/:id", async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabaseAdmin
     .from("services")
-    .select(`
+    .select(
+      `
       id, name, category_id, notes, status, created_at, updated_at,
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
       service_photos ( id, type, url, created_at ),
       confirmations ( id, status, created_at ),
       verifications ( id, status, notes, created_at )
-    `)
+    `,
+    )
     .eq("id", req.params.id)
     .single();
 

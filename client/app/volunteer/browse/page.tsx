@@ -176,7 +176,8 @@ function ServiceCard({ item }: { item: FeedItem }) {
             href={portfolioHref}
             className="text-xs font-medium text-k-primary no-underline hover:underline"
           >
-            View {item.student?.full_name?.split(" ")[0] ?? "student"}'s full portfolio →
+            View {item.student?.full_name?.split(" ")[0] ?? "student"}'s full
+            portfolio →
           </Link>
         ) : (
           <p className="text-xs font-medium text-k-gray-400">
@@ -235,11 +236,13 @@ export default function BrowsePage() {
             setNextCursor(res.nextCursor);
           })
           .catch((err: unknown) => {
-            setError(err instanceof Error ? err.message : "Failed to load more.");
+            setError(
+              err instanceof Error ? err.message : "Failed to load more.",
+            );
           })
           .finally(() => setLoadingMore(false));
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     observer.observe(sentinel);
@@ -262,12 +265,17 @@ export default function BrowsePage() {
       {loading ? (
         <div className="flex flex-col gap-4">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-72 animate-pulse rounded-3xl bg-k-gray-100" />
+            <div
+              key={i}
+              className="h-72 animate-pulse rounded-3xl bg-k-gray-100"
+            />
           ))}
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-3xl border border-k-gray-200 bg-k-white px-6 py-20 text-center">
-          <p className="text-sm text-k-gray-400">No verified work to display yet.</p>
+          <p className="text-sm text-k-gray-400">
+            No verified work to display yet.
+          </p>
         </div>
       ) : (
         <>
@@ -278,7 +286,10 @@ export default function BrowsePage() {
           </div>
 
           {/* Sentinel for infinite scroll */}
-          <div ref={sentinelRef} className="h-16 flex items-center justify-center">
+          <div
+            ref={sentinelRef}
+            className="h-16 flex items-center justify-center"
+          >
             {loadingMore && (
               <Loader2 size={20} className="animate-spin text-k-gray-400" />
             )}
