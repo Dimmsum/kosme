@@ -64,10 +64,11 @@ export default function VolunteerLayout({
           <Link href="/" className="block">
             <Image
               src="/Logo Text Only.png"
-              alt="proKosme"
+              alt="Kosmè"
               width={120}
               height={32}
               className="h-7 w-auto"
+              priority
             />
           </Link>
         </div>

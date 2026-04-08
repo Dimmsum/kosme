@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -8,15 +8,24 @@ import { Eye, EyeOff } from "lucide-react";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
-import { ROLE_DASHBOARD, normalizeRole, type UserRole } from "@/lib/auth-context";
+import { useAuth, ROLE_DASHBOARD } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { user, role: ctxRole, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // If the user is already authenticated (e.g. navigated back to /login),
+  // or the AuthProvider just resolved a fresh sign-in, redirect immediately.
+  useEffect(() => {
+    if (!authLoading && user && ctxRole) {
+      router.replace(ROLE_DASHBOARD[ctxRole]);
+    }
+  }, [authLoading, user, ctxRole, router]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -24,7 +33,7 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
+    const { error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -35,28 +44,9 @@ export default function LoginPage() {
       return;
     }
 
-    // Use role from user_metadata (set at registration) — no extra round trip.
-    // Only fall back to a DB query if metadata is missing the role.
-    let role = normalizeRole(data.user.user_metadata?.role as string | undefined);
-
-    if (!role) {
-      const { data: roleRow } = await supabase
-        .from("user_profiles")
-        .select("role")
-        .eq("id", data.user.id)
-        .single();
-      role = normalizeRole(roleRow?.role as string | undefined);
-    }
-
-    if (!role) {
-      setError(
-        "Your account has no valid role assigned yet. Please contact support.",
-      );
-      setLoading(false);
-      return;
-    }
-
-    router.push(ROLE_DASHBOARD[role]);
+    // Don't navigate here — the onAuthStateChange listener in AuthProvider
+    // will update the context, and the useEffect above will redirect once
+    // user + role are fully resolved. This eliminates the race condition.
   };
 
   return (

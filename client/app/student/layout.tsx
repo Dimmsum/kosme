@@ -8,7 +8,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ClipboardList,
-  PlusCircle,
   Briefcase,
   Users,
   User,
@@ -19,7 +18,6 @@ import { useAuth } from "@/lib/auth-context";
 const navItems = [
   { href: "/student/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/student/services", label: "Services", icon: ClipboardList },
-  { href: "/student/services/new", label: "New", icon: PlusCircle },
   { href: "/student/portfolio", label: "Portfolio", icon: Briefcase },
   { href: "/student/volunteers", label: "Volunteers", icon: Users },
   { href: "/student/profile", label: "Profile", icon: User },
@@ -65,17 +63,18 @@ export default function StudentLayout({
           <Link href="/" className="block">
             <Image
               src="/Logo Text Only.png"
-              alt="proKosme"
+              alt="Kosmè"
               width={120}
               height={32}
               className="h-7 w-auto"
+              priority
             />
           </Link>
         </div>
 
         <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
           {navItems.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || (href !== "/student/dashboard" && pathname.startsWith(href) && href !== "/student/services" ) || (href === "/student/services" && pathname === "/student/services");
+            const active = pathname === href || (href !== "/student/dashboard" && pathname.startsWith(href));
             return (
               <Link
                 key={href}
@@ -121,7 +120,7 @@ export default function StudentLayout({
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-k-gray-200 bg-k-white px-2 py-2 md:hidden">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href !== "/student/dashboard" && pathname.startsWith(href) && href !== "/student/services") || (href === "/student/services" && pathname === "/student/services");
+          const active = pathname === href || (href !== "/student/dashboard" && pathname.startsWith(href));
           return (
             <Link
               key={href}

@@ -56,6 +56,13 @@ async function fetchRoleFromDb(): Promise<UserRole | null> {
   return normalizeRole(data as string | null);
 }
 
+async function resolveRole(u: User): Promise<UserRole | null> {
+  const metadataRole = normalizeRole(
+    u.user_metadata?.role as string | undefined,
+  );
+  return metadataRole ?? (await fetchRoleFromDb());
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -63,6 +70,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Bootstrap: read the existing session from storage so protected
+    // layouts don't flash back to /login on full-page reloads.
+    supabase.auth.getSession().then(async ({ data: { session: initial } }) => {
+      const initialUser = initial?.user ?? null;
+      setSession(initial);
+      setUser(initialUser);
+      if (initialUser) {
+        setRole(await resolveRole(initialUser));
+      }
+      setLoading(false);
+    });
+
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         // TOKEN_REFRESHED is a silent background event — no loading flash needed
@@ -72,6 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        // INITIAL_SESSION is handled by getSession() above — skip to avoid
+        // a redundant loading flash.
+        if (event === "INITIAL_SESSION") return;
+
         // Block layouts while user + role are being resolved
         setLoading(true);
         const newUser = newSession?.user ?? null;
@@ -79,13 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(newUser);
 
         if (newUser) {
-          // Prefer role from user_metadata (written at signup since migration 0005).
-          // Only fall back to a DB query for legacy accounts that predate the migration.
-          const metadataRole = normalizeRole(
-            newUser.user_metadata?.role as string | undefined,
-          );
-          const r = metadataRole ?? (await fetchRoleFromDb());
-          setRole(r);
+          setRole(await resolveRole(newUser));
         } else {
           setRole(null);
         }

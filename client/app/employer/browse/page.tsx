@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Heart, CheckCircle2 } from "lucide-react";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
-
-const specialisations = ["All", "Colour", "Haircuts", "Styling", "Scalp"];
+import { supabase } from "@/lib/supabase";
 
 interface Graduate {
   id: string;
@@ -35,6 +34,7 @@ export default function BrowsePage() {
   const [pendingShortlistIds, setPendingShortlistIds] = useState<Set<string>>(
     new Set(),
   );
+  const [specialisations, setSpecialisations] = useState<string[]>(["All"]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,12 +52,18 @@ export default function BrowsePage() {
       apiGet<{ shortlist: Array<{ student: { id: string } }> }>(
         "/api/shortlist",
       ),
+      supabase
+        .from("service_categories")
+        .select("id")
+        .order("id")
+        .then(({ data }) => data ?? []),
     ])
-      .then(([browseRes, shortlistRes]) => {
+      .then(([browseRes, shortlistRes, categories]) => {
         setGraduates(browseRes.graduates ?? []);
         setShortlisted(
           new Set(shortlistRes.shortlist.map((item) => item.student.id)),
         );
+        setSpecialisations(["All", ...categories.map((c) => c.id)]);
       })
       .catch((err: unknown) => {
         const message =

@@ -10,9 +10,8 @@ import {
   Share2,
   Grid,
   List,
-  Trash2,
 } from "lucide-react";
-import { apiGet, apiPatch } from "@/lib/api";
+import { apiGet } from "@/lib/api";
 
 type PortfolioApiRow = {
   id: string;
@@ -52,8 +51,6 @@ export default function PortfolioPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
-  const [newPhotoUrl, setNewPhotoUrl] = useState("");
-  const [savingPhotos, setSavingPhotos] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -116,50 +113,6 @@ export default function PortfolioPage() {
     selectedPhotos.length > 0
       ? selectedPhotos[Math.min(selectedPhotoIndex, selectedPhotos.length - 1)]
       : null;
-
-  const updateServicePhotos = async (serviceId: string, photos: string[]) => {
-    setSavingPhotos(true);
-    setPhotoError(null);
-    try {
-      await apiPatch(`/api/portfolio/${serviceId}/photos`, { photos });
-      setVerifiedServices((prev) =>
-        prev.map((service) =>
-          service.id === serviceId ? { ...service, photos } : service,
-        ),
-      );
-      setSelectedPhotoIndex(0);
-      setNewPhotoUrl("");
-    } catch (err) {
-      setPhotoError(
-        err instanceof Error ? err.message : "Failed to update photos",
-      );
-    } finally {
-      setSavingPhotos(false);
-    }
-  };
-
-  const handleAddPhoto = async () => {
-    if (!selected) return;
-    const trimmed = newPhotoUrl.trim();
-    if (!trimmed) {
-      setPhotoError("Enter a photo URL first.");
-      return;
-    }
-    const isValidUrl = /^https?:\/\//i.test(trimmed);
-    if (!isValidUrl) {
-      setPhotoError("Photo URL must start with http:// or https://");
-      return;
-    }
-    await updateServicePhotos(selected.id, [...selectedPhotos, trimmed]);
-  };
-
-  const handleRemoveCurrentPhoto = async () => {
-    if (!selected || selectedPhotos.length === 0) return;
-    const nextPhotos = selectedPhotos.filter(
-      (_, index) => index !== selectedPhotoIndex,
-    );
-    await updateServicePhotos(selected.id, nextPhotos);
-  };
 
   const handlePrevPhoto = () => {
     if (selectedPhotos.length <= 1) return;
@@ -225,7 +178,9 @@ export default function PortfolioPage() {
           <p className="text-xs text-k-gray-400 mt-1">Categories</p>
         </div>
         <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
-          <p className="font-serif text-2xl text-k-black">2</p>
+          <p className="font-serif text-2xl text-k-black">
+            {new Set(verifiedServices.map((s) => s.educator).filter(Boolean)).size}
+          </p>
           <p className="text-xs text-k-gray-400 mt-1">Educators</p>
         </div>
       </div>
@@ -450,29 +405,9 @@ export default function PortfolioPage() {
                 </div>
               )}
 
-              <div className="flex gap-2">
-                <input
-                  value={newPhotoUrl}
-                  onChange={(e) => setNewPhotoUrl(e.target.value)}
-                  placeholder="https://example.com/photo.jpg"
-                  className="flex-1 rounded-full border border-k-gray-200 px-4 py-2 text-xs text-k-black outline-none transition-colors focus:border-k-primary"
-                />
-                <button
-                  onClick={handleAddPhoto}
-                  disabled={savingPhotos}
-                  className="inline-flex items-center gap-1 rounded-full border border-k-gray-200 px-3 py-2 text-xs font-medium text-k-black hover:bg-k-gray-100 disabled:opacity-50"
-                >
-                  <ImagePlus size={12} />
-                  Add
-                </button>
-                <button
-                  onClick={handleRemoveCurrentPhoto}
-                  disabled={savingPhotos || selectedPhotos.length === 0}
-                  className="inline-flex items-center gap-1 rounded-full border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                >
-                  <Trash2 size={12} />
-                  Remove
-                </button>
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-2.5">
+                <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+                <p className="text-xs text-emerald-700">This service is verified and locked. Photos cannot be modified.</p>
               </div>
             </div>
 
