@@ -12,7 +12,7 @@ import {
   User,
   LogOut,
 } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
 
 const navItems = [
   { href: "/employer/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -29,14 +29,21 @@ export default function EmployerLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, role, loading, signOut } = useAuth();
+  const rolePending = !!user && role === null;
+  const roleMismatch = !!user && !!role && role !== "employer";
 
   useEffect(() => {
-    if (!loading && (!user || role !== "employer")) {
+    if (!loading && !user) {
       router.replace("/login");
+      return;
     }
-  }, [user, role, loading, router]);
 
-  if (loading || !user || role !== "employer") {
+    if (!loading && roleMismatch) {
+      router.replace(ROLE_DASHBOARD[role]);
+    }
+  }, [user, role, roleMismatch, loading, router]);
+
+  if (loading || !user || rolePending || roleMismatch) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-k-white">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-k-primary border-t-transparent" />

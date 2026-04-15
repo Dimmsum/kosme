@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -68,6 +69,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const userRef = useRef<User | null>(null);
+  const roleRef = useRef<UserRole | null>(null);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    roleRef.current = role;
+  }, [role]);
 
   useEffect(() => {
     // Bootstrap: read the existing session from storage so protected
@@ -94,19 +105,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // INITIAL_SESSION is handled by getSession() above — skip to avoid
         // a redundant loading flash.
         if (event === "INITIAL_SESSION") return;
-
-        // Block layouts while user + role are being resolved
-        setLoading(true);
         const newUser = newSession?.user ?? null;
+        const prevUser = userRef.current;
+        const prevRole = roleRef.current;
+
         setSession(newSession);
         setUser(newUser);
 
-        if (newUser) {
-          setRole(await resolveRole(newUser));
-        } else {
+        if (!newUser) {
           setRole(null);
+          setLoading(false);
+          return;
         }
 
+        const metadataRole = normalizeRole(
+          newUser.user_metadata?.role as string | undefined,
+        );
+        if (metadataRole) {
+          setRole(metadataRole);
+          setLoading(false);
+          return;
+        }
+
+        // Keep the existing resolved role for the same user while we retry
+        // role resolution from the database.
+        const sameUser = prevUser?.id === newUser.id;
+        if (sameUser && prevRole) {
+          setRole(prevRole);
+        } else {
+          setLoading(true);
+        }
+
+        const resolvedRole = await fetchRoleFromDb();
+        setRole(resolvedRole ?? (sameUser ? prevRole : null));
         setLoading(false);
       },
     );
