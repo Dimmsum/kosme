@@ -280,10 +280,12 @@ export default function StudentsPage() {
 
                             <div className="mt-2 flex flex-col gap-2 text-xs text-k-gray-400 sm:flex-row sm:items-center sm:justify-between">
                               <p className="truncate">
-                                Client: {service.client?.full_name ?? "Not assigned"}
+                                Client:{" "}
+                                {service.client?.full_name ?? "Not assigned"}
                               </p>
                               <p>
-                                {service.service_photos.length} image{service.service_photos.length === 1 ? "" : "s"}
+                                {service.service_photos.length} image
+                                {service.service_photos.length === 1 ? "" : "s"}
                               </p>
                             </div>
 

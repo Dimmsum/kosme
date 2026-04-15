@@ -37,7 +37,11 @@ interface PendingResponse {
     created_at: string;
     student: { full_name: string | null } | null;
     client: { full_name: string | null } | null;
-    service_photos: Array<{ id: string; type: "before" | "after"; url: string }>;
+    service_photos: Array<{
+      id: string;
+      type: "before" | "after";
+      url: string;
+    }>;
   }>;
 }
 
@@ -51,7 +55,11 @@ interface HistoryResponse {
       notes: string | null;
       created_at: string;
       student: { full_name: string | null } | null;
-      service_photos: Array<{ id: string; type: "before" | "after"; url: string }>;
+      service_photos: Array<{
+        id: string;
+        type: "before" | "after";
+        url: string;
+      }>;
     };
   }>;
 }
@@ -379,7 +387,8 @@ export default function VerifyPage() {
                     </p>
                   </div>
                   <div className="rounded-full bg-k-white px-3 py-1 text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-500">
-                    {item.photos.length} photo{item.photos.length === 1 ? "" : "s"}
+                    {item.photos.length} photo
+                    {item.photos.length === 1 ? "" : "s"}
                   </div>
                 </div>
               </div>
