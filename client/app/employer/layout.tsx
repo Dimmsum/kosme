@@ -5,13 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Search,
-  Heart,
-  User,
-  LogOut,
-} from "lucide-react";
+import { LayoutDashboard, Search, Heart, User, LogOut } from "lucide-react";
 import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
 
 const navItems = [
@@ -51,14 +45,18 @@ export default function EmployerLayout({
     );
   }
 
-  const initials = (user.user_metadata?.full_name as string | undefined)
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase() ?? "EM";
+  const initials =
+    (user.user_metadata?.full_name as string | undefined)
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() ?? "EM";
 
-  const displayName = (user.user_metadata?.full_name as string | undefined) ?? user.email ?? "Employer";
+  const displayName =
+    (user.user_metadata?.full_name as string | undefined) ??
+    user.email ??
+    "Employer";
 
   return (
     <div className="flex min-h-screen bg-k-gray-100">
@@ -79,7 +77,9 @@ export default function EmployerLayout({
 
         <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
           {navItems.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || (href !== "/employer/dashboard" && pathname.startsWith(href));
+            const active =
+              pathname === href ||
+              (href !== "/employer/dashboard" && pathname.startsWith(href));
             return (
               <Link
                 key={href}
@@ -100,10 +100,14 @@ export default function EmployerLayout({
         <div className="border-t border-k-gray-200 px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-full bg-k-primary/10 flex items-center justify-center">
-              <span className="text-sm font-semibold text-k-primary">{initials}</span>
+              <span className="text-sm font-semibold text-k-primary">
+                {initials}
+              </span>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-k-black leading-tight">{displayName}</p>
+              <p className="truncate text-sm font-medium text-k-black leading-tight">
+                {displayName}
+              </p>
               <p className="text-xs text-k-gray-400">Employer</p>
             </div>
             <button
@@ -118,14 +122,14 @@ export default function EmployerLayout({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 md:ml-[240px] pb-20 md:pb-0">
-        {children}
-      </main>
+      <main className="flex-1 md:ml-[240px] pb-20 md:pb-0">{children}</main>
 
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-k-gray-200 bg-k-white px-2 py-2 md:hidden">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href !== "/employer/dashboard" && pathname.startsWith(href));
+          const active =
+            pathname === href ||
+            (href !== "/employer/dashboard" && pathname.startsWith(href));
           return (
             <Link
               key={href}

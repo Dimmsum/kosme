@@ -48,10 +48,71 @@ interface HistoryResponse {
       id: string;
       name: string;
       category_id: string;
+      notes: string | null;
       created_at: string;
       student: { full_name: string | null } | null;
+      service_photos: Array<{ id: string; type: "before" | "after"; url: string }>;
     };
   }>;
+}
+
+function renderPhotos(photos: VerificationItem["photos"]) {
+  if (photos.length === 0) return null;
+
+  const before = photos.filter((photo) => photo.type === "before");
+  const after = photos.filter((photo) => photo.type === "after");
+
+  return (
+    <div className="mb-4 rounded-2xl border border-k-gray-200 bg-k-white px-4 py-3">
+      <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+        Photos
+      </p>
+      {before.length > 0 && (
+        <div className="mb-3">
+          <p className="mb-2 text-[10px] text-k-gray-400">Before</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+            {before.map((photo) => (
+              <a
+                key={photo.id}
+                href={photo.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group block aspect-square overflow-hidden rounded-lg border border-k-gray-200"
+              >
+                <img
+                  src={photo.url}
+                  alt="Before photo"
+                  className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+      {after.length > 0 && (
+        <div>
+          <p className="mb-2 text-[10px] text-k-gray-400">After</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+            {after.map((photo) => (
+              <a
+                key={photo.id}
+                href={photo.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group block aspect-square overflow-hidden rounded-lg border border-k-gray-200"
+              >
+                <img
+                  src={photo.url}
+                  alt="After photo"
+                  className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function VerifyPage() {
@@ -98,8 +159,8 @@ export default function VerifyPage() {
               dateSubmitted: item.service.created_at,
               status: label,
               statusColor: statusColor(label),
-              notes: null,
-              photos: [],
+              notes: item.service.notes ?? null,
+              photos: item.service.service_photos ?? [],
             };
           },
         );
@@ -308,52 +369,22 @@ export default function VerifyPage() {
               </div>
 
               <div className="mb-4 rounded-2xl border border-k-gray-200 bg-k-gray-100 px-4 py-3">
-                <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
-                  Notes
-                </p>
-                <p className="mt-1 text-sm text-k-gray-600">
-                  {item.notes ?? "No notes provided."}
-                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+                      Notes
+                    </p>
+                    <p className="mt-1 text-sm text-k-gray-600">
+                      {item.notes ?? "No notes provided."}
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-k-white px-3 py-1 text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-500">
+                    {item.photos.length} photo{item.photos.length === 1 ? "" : "s"}
+                  </div>
+                </div>
               </div>
 
-              {/* Photos */}
-              {item.photos.length > 0 && (() => {
-                const before = item.photos.filter((p) => p.type === "before");
-                const after  = item.photos.filter((p) => p.type === "after");
-                return (
-                  <div className="mb-4 rounded-2xl border border-k-gray-200 bg-k-white px-4 py-3">
-                    <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
-                      Photos
-                    </p>
-                    {before.length > 0 && (
-                      <div className="mb-3">
-                        <p className="mb-2 text-[10px] text-k-gray-400">Before</p>
-                        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-                          {before.map((photo) => (
-                            <a key={photo.id} href={photo.url} target="_blank" rel="noopener noreferrer"
-                              className="group block aspect-square overflow-hidden rounded-lg border border-k-gray-200">
-                              <img src={photo.url} alt="Before" className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {after.length > 0 && (
-                      <div>
-                        <p className="mb-2 text-[10px] text-k-gray-400">After</p>
-                        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-                          {after.map((photo) => (
-                            <a key={photo.id} href={photo.url} target="_blank" rel="noopener noreferrer"
-                              className="group block aspect-square overflow-hidden rounded-lg border border-k-gray-200">
-                              <img src={photo.url} alt="After" className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+              {renderPhotos(item.photos)}
 
               {/* Action buttons */}
               {item.status === "Awaiting Review" && (

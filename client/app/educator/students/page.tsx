@@ -16,9 +16,11 @@ interface StudentDetailService {
   id: string;
   name: string;
   category_id: string;
+  notes: string | null;
   status: string;
   created_at: string;
   client: { id: string; full_name: string | null } | null;
+  service_photos: Array<{ id: string; type: "before" | "after"; url: string }>;
 }
 
 interface StudentDetailResponse {
@@ -40,6 +42,39 @@ function initialsFromName(name: string | null): string {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function PhotoStrip({
+  photos,
+}: {
+  photos: Array<{ id: string; type: "before" | "after"; url: string }>;
+}) {
+  if (photos.length === 0) return null;
+
+  return (
+    <div className="mt-3">
+      <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+        Images
+      </p>
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+        {photos.map((photo) => (
+          <a
+            key={photo.id}
+            href={photo.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group block aspect-square overflow-hidden rounded-lg border border-k-gray-200 bg-k-white"
+          >
+            <img
+              src={photo.url}
+              alt={`${photo.type} photo`}
+              className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+            />
+          </a>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function StudentsPage() {
@@ -218,22 +253,41 @@ export default function StudentsPage() {
                         {services.map((service) => (
                           <div
                             key={service.id}
-                            className="flex items-center justify-between rounded-xl border border-k-gray-200 bg-k-white px-3 py-2.5"
+                            className="rounded-xl border border-k-gray-200 bg-k-white px-3 py-2.5"
                           >
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-k-black truncate">
-                                {service.name}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-k-black truncate">
+                                  {service.name}
+                                </p>
+                                <p className="text-xs text-k-gray-400 mt-0.5">
+                                  {service.category_id} ·{" "}
+                                  {new Date(
+                                    service.created_at,
+                                  ).toLocaleDateString("en-GB")}
+                                </p>
+                              </div>
+                              <span className="shrink-0 rounded-full bg-k-primary/10 px-2.5 py-0.5 text-[10px] font-medium text-k-primary">
+                                {service.status}
+                              </span>
+                            </div>
+
+                            {service.notes && (
+                              <p className="mt-2 rounded-lg bg-k-gray-100 px-3 py-2 text-xs text-k-gray-600">
+                                {service.notes}
                               </p>
-                              <p className="text-xs text-k-gray-400 mt-0.5">
-                                {service.category_id} ·{" "}
-                                {new Date(
-                                  service.created_at,
-                                ).toLocaleDateString("en-GB")}
+                            )}
+
+                            <div className="mt-2 flex flex-col gap-2 text-xs text-k-gray-400 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="truncate">
+                                Client: {service.client?.full_name ?? "Not assigned"}
+                              </p>
+                              <p>
+                                {service.service_photos.length} image{service.service_photos.length === 1 ? "" : "s"}
                               </p>
                             </div>
-                            <span className="ml-3 shrink-0 rounded-full bg-k-primary/10 px-2.5 py-0.5 text-[10px] font-medium text-k-primary">
-                              {service.status}
-                            </span>
+
+                            <PhotoStrip photos={service.service_photos} />
                           </div>
                         ))}
                       </div>

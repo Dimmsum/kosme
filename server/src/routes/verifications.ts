@@ -73,9 +73,10 @@ router.get(
       .from("services")
       .select(
         `
-      id, name, category_id, status, created_at,
+      id, name, category_id, notes, status, created_at,
       client:client_id ( id, full_name ),
-      verifications ( id, status, created_at, notes )
+      verifications ( id, status, created_at, notes ),
+      service_photos ( id, type, url )
     `,
       )
       .eq("student_id", studentId)
@@ -126,8 +127,9 @@ router.get(
         `
       id, status, notes, created_at,
       service:service_id (
-        id, name, category_id, created_at,
-        student:student_id ( id, full_name )
+        id, name, category_id, notes, created_at,
+        student:student_id ( id, full_name ),
+        service_photos ( id, type, url )
       )
     `,
       )
