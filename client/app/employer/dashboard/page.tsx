@@ -142,7 +142,7 @@ export default function EmployerDashboard() {
       </div>
 
       {/* Quick stats */}
-      <div className="mb-8 grid grid-cols-3 gap-3">
+      <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {stats.map((stat) => (
           <div
             key={stat.label}
@@ -164,7 +164,7 @@ export default function EmployerDashboard() {
       )}
 
       {/* Quick actions */}
-      <div className="mb-8 grid grid-cols-2 gap-3">
+      <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Link
           href="/employer/browse"
           className="flex items-center gap-3 rounded-2xl border border-k-accent/20 bg-k-accent/5 px-4 py-3.5 no-underline transition-colors hover:bg-k-accent/10"

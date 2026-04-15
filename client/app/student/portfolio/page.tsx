@@ -164,7 +164,7 @@ export default function PortfolioPage() {
       </div>
 
       {/* Portfolio stats */}
-      <div className="mb-6 grid grid-cols-3 gap-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
           <p className="font-serif text-2xl text-k-primary">
             {verifiedServices.length}
@@ -186,8 +186,8 @@ export default function PortfolioPage() {
       </div>
 
       {/* Filters + view toggle */}
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 overflow-x-auto">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -202,7 +202,7 @@ export default function PortfolioPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 self-end shrink-0">
           <button
             onClick={() => setViewMode("grid")}
             className={`rounded-lg p-2 transition-colors ${
@@ -280,9 +280,9 @@ export default function PortfolioPage() {
                 setSelectedPhotoIndex(0);
                 setPhotoError(null);
               }}
-              className="group flex items-center gap-4 rounded-2xl border border-k-gray-200 bg-k-white px-5 py-4 text-left transition-all hover:border-k-primary/20"
+              className="group flex flex-col gap-3 rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-left transition-all hover:border-k-primary/20 sm:flex-row sm:items-center sm:gap-4 sm:px-5"
             >
-              <div className="h-14 w-20 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-k-primary/5 to-k-accent/5 flex items-center justify-center">
+              <div className="h-36 w-full shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-k-primary/5 to-k-accent/5 flex items-center justify-center sm:h-14 sm:w-20">
                 {service.photos[0] ? (
                   <img
                     src={service.photos[0]}
@@ -304,7 +304,7 @@ export default function PortfolioPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                 <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
                   <CheckCircle2 size={12} /> Verified
                 </span>
@@ -321,11 +321,11 @@ export default function PortfolioPage() {
       {/* Detail modal */}
       {selected && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4"
           onClick={() => setSelectedService(null)}
         >
           <div
-            className="w-full max-w-lg rounded-3xl bg-k-white p-6 sm:p-8"
+            className="mx-auto my-4 w-full max-w-lg rounded-3xl bg-k-white p-5 sm:my-8 sm:p-8"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-5 flex items-start justify-between">

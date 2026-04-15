@@ -111,7 +111,7 @@ export default function ProfilePage() {
         )}
 
         {/* Avatar & name card */}
-        <div className="mb-6 flex items-center gap-5 rounded-3xl border border-k-gray-200 bg-k-white p-6">
+        <div className="mb-6 flex flex-col items-start gap-4 rounded-3xl border border-k-gray-200 bg-k-white p-5 sm:flex-row sm:items-center sm:gap-5 sm:p-6">
           <div className="relative">
             <div className="h-20 w-20 rounded-full bg-gradient-to-br from-k-primary to-k-primary-light flex items-center justify-center">
               <span className="font-serif text-2xl text-white">{initials}</span>
@@ -120,8 +120,8 @@ export default function ProfilePage() {
               <Camera size={12} />
             </button>
           </div>
-          <div className="flex-1">
-            <h2 className="font-serif text-xl text-k-black">
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate font-serif text-xl text-k-black">
               {name || "Student"}
             </h2>
             <p className="text-sm text-k-gray-400 mt-0.5">{institution}</p>

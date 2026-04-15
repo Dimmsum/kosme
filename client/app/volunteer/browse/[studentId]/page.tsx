@@ -147,7 +147,7 @@ function ServiceCard({ service }: { service: PortfolioService }) {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
               {service.service_photos.slice(0, 6).map((p) => (
                 <a
                   key={p.id}

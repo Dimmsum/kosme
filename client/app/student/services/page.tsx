@@ -211,7 +211,7 @@ export default function ServicesPage() {
   /* ── Render ── */
 
   return (
-    <div className="px-4 py-6 sm:px-6 md:px-8 md:py-8 max-w-5xl">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 md:px-8 md:py-8">
 
       {/* ━━ Header ━━ */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -226,7 +226,7 @@ export default function ServicesPage() {
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="group inline-flex items-center justify-center gap-2 rounded-full bg-k-primary px-7 py-3 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-0.5 shadow-[0_4px_24px_rgba(59,10,42,0.18)] hover:shadow-[0_8px_32px_rgba(59,10,42,0.26)]"
+            className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-k-primary px-7 py-3 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-0.5 shadow-[0_4px_24px_rgba(59,10,42,0.18)] hover:shadow-[0_8px_32px_rgba(59,10,42,0.26)] sm:w-auto"
           >
             <Plus size={16} className="transition-transform duration-200 group-hover:rotate-90" />
             Log New Service
@@ -462,17 +462,17 @@ export default function ServicesPage() {
                       <p className="hidden sm:block text-xs text-k-gray-400 max-w-xs leading-relaxed">
                         Your volunteer client (if selected) will confirm the service. Your educator will then verify.
                       </p>
-                      <div className="flex gap-3 sm:ml-auto">
+                      <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row sm:gap-3">
                         <button
                           onClick={() => { resetForm(); setShowForm(false); }}
-                          className="rounded-full border border-k-gray-200 px-6 py-2.5 text-sm font-medium text-k-black hover:bg-k-gray-100 transition-colors"
+                          className="w-full rounded-full border border-k-gray-200 px-6 py-2.5 text-sm font-medium text-k-black hover:bg-k-gray-100 transition-colors sm:w-auto"
                         >
                           Cancel
                         </button>
                         <button
                           onClick={handleSubmit}
                           disabled={submitting}
-                          className="inline-flex items-center gap-2 rounded-full bg-k-primary px-7 py-2.5 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 shadow-[0_4px_20px_rgba(59,10,42,0.15)]"
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-k-primary px-7 py-2.5 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 shadow-[0_4px_20px_rgba(59,10,42,0.15)] sm:w-auto"
                         >
                           <Upload size={15} />
                           {submitting ? (uploadProgress ?? "Submitting…") : "Submit Service"}
@@ -490,7 +490,7 @@ export default function ServicesPage() {
       {/* ━━ Filter tabs + Search ━━ */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Filter pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
+        <div className="flex flex-wrap items-center gap-2">
           {FILTERS.map(({ key, label, icon: FIcon }) => {
             const active = activeFilter === key;
             const count = counts[key];
