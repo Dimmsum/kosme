@@ -18,6 +18,8 @@
 
   html {
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -25,6 +27,7 @@
     background: #fafaf8;
     color: #111010;
     overflow-x: hidden;
+    text-rendering: optimizeLegibility;
   }
 }
 

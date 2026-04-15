@@ -199,7 +199,7 @@ export default function ServiceDetailPage() {
           </p>
         </div>
         <span
-          className={`inline-flex items-center gap-1.5 self-start rounded-full border px-3.5 py-1.5 text-xs font-medium ${cfg.bgColor} ${cfg.color} ${cfg.borderColor}`}
+          className={`inline-flex max-w-full items-center gap-1.5 self-start rounded-full border px-3.5 py-1.5 text-xs font-medium ${cfg.bgColor} ${cfg.color} ${cfg.borderColor}`}
         >
           <StatusIcon size={13} />
           {cfg.label}
@@ -325,7 +325,7 @@ export default function ServiceDetailPage() {
                   <p className="mb-2.5 text-xs font-medium uppercase tracking-[0.08em] text-k-gray-400">
                     Before
                   </p>
-                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {beforePhotos.map((photo) => (
                       <a
                         key={photo.id}
@@ -349,7 +349,7 @@ export default function ServiceDetailPage() {
                   <p className="mb-2.5 text-xs font-medium uppercase tracking-[0.08em] text-k-gray-400">
                     After
                   </p>
-                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {afterPhotos.map((photo) => (
                       <a
                         key={photo.id}

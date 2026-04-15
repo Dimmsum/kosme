@@ -130,10 +130,11 @@ export default function StudentLayout({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 md:ml-[240px] pb-20 md:pb-0">{children}</main>
+      <main className="flex-1 md:ml-[240px] pb-24 md:pb-0">{children}</main>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-k-gray-200 bg-k-white px-2 py-2 md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-k-gray-200 bg-k-white px-1 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 md:hidden">
+        <div className="grid grid-cols-5 gap-1 px-1">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active =
             pathname === href ||
@@ -142,15 +143,16 @@ export default function StudentLayout({
             <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 no-underline transition-colors duration-150 ${
+              className={`flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 no-underline transition-colors duration-150 ${
                 active ? "text-k-primary" : "text-k-gray-400"
               }`}
             >
-              <Icon size={20} />
-              <span className="text-[10px] font-medium">{label}</span>
+              <Icon size={17} />
+              <span className="truncate text-[10px] font-medium">{label}</span>
             </Link>
           );
         })}
+        </div>
       </nav>
     </div>
   );

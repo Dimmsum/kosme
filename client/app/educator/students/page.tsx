@@ -154,7 +154,10 @@ export default function StudentsPage() {
   const summary = useMemo(() => {
     const totalStudents = students.length;
     const totalServices = students.reduce((acc, s) => acc + s.total_count, 0);
-    const totalVerified = students.reduce((acc, s) => acc + s.verified_count, 0);
+    const totalVerified = students.reduce(
+      (acc, s) => acc + s.verified_count,
+      0,
+    );
     const pendingCount = Math.max(totalServices - totalVerified, 0);
     const completionRate =
       totalServices === 0
@@ -352,7 +355,9 @@ export default function StudentsPage() {
             const isExpanded = expandedStudentId === student.id;
             const services = studentDetails[student.id] ?? [];
             const total = Math.max(student.total_count, 1);
-            const completion = Math.round((student.verified_count / total) * 100);
+            const completion = Math.round(
+              (student.verified_count / total) * 100,
+            );
 
             return (
               <article
@@ -378,7 +383,8 @@ export default function StudentsPage() {
                           {student.full_name ?? "Unnamed Student"}
                         </p>
                         <span className="rounded-full bg-k-gray-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-k-gray-500">
-                          {student.verified_count}/{student.total_count} verified
+                          {student.verified_count}/{student.total_count}{" "}
+                          verified
                         </span>
                       </div>
 
@@ -434,7 +440,8 @@ export default function StudentsPage() {
                                   {service.name}
                                 </p>
                                 <p className="mt-0.5 text-xs text-k-gray-400">
-                                  {service.category_id} • {formatDate(service.created_at)}
+                                  {service.category_id} •{" "}
+                                  {formatDate(service.created_at)}
                                 </p>
                               </div>
                               <span
@@ -452,7 +459,8 @@ export default function StudentsPage() {
 
                             <div className="mt-2 flex flex-col gap-1.5 text-xs text-k-gray-400 sm:flex-row sm:items-center sm:justify-between">
                               <p className="truncate">
-                                Client: {service.client?.full_name ?? "Not assigned"}
+                                Client:{" "}
+                                {service.client?.full_name ?? "Not assigned"}
                               </p>
                               <p>
                                 {service.service_photos.length} image
