@@ -11,7 +11,14 @@ const upload = (0, multer_1.default)({
     storage: multer_1.default.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-        const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
+        const allowed = [
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/webp",
+            "image/heic",
+            "image/heif",
+        ];
         cb(null, allowed.includes(file.mimetype));
     },
 });
@@ -47,7 +54,9 @@ router.get("/", (0, auth_1.requireRole)("student"), async (req, res) => {
 router.post("/", (0, auth_1.requireRole)("student"), async (req, res) => {
     const { name, category_id, client_id, notes } = req.body;
     if (!name || !category_id) {
-        return res.status(400).json({ error: "name and category_id are required" });
+        return res
+            .status(400)
+            .json({ error: "name and category_id are required" });
     }
     // If no client supplied, jump straight to awaiting_educator
     const status = client_id ? "awaiting_client" : "awaiting_educator";
@@ -72,6 +81,7 @@ router.post("/", (0, auth_1.requireRole)("student"), async (req, res) => {
 router.post("/:id/photos", (0, auth_1.requireRole)("student"), upload.fields([
     { name: "before", maxCount: 10 },
     { name: "after", maxCount: 10 },
+    { name: "photos", maxCount: 20 },
 ]), async (req, res) => {
     // Verify the service belongs to this student
     const { data: service, error: serviceError } = await supabase_1.supabaseAdmin
@@ -87,21 +97,47 @@ router.post("/:id/photos", (0, auth_1.requireRole)("student"), upload.fields([
     const { error: bucketCreateError } = await supabase_1.supabaseAdmin.storage.createBucket("service-photos", {
         public: true,
         fileSizeLimit: 10 * 1024 * 1024,
-        allowedMimeTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"],
+        allowedMimeTypes: [
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/webp",
+            "image/heic",
+            "image/heif",
+        ],
     });
     // If bucket already existed, force it public in case it was created private
     if (bucketCreateError) {
-        await supabase_1.supabaseAdmin.storage.updateBucket("service-photos", { public: true });
+        await supabase_1.supabaseAdmin.storage.updateBucket("service-photos", {
+            public: true,
+        });
     }
     const files = (req.files ?? {});
     const beforeFiles = files["before"] ?? [];
     const afterFiles = files["after"] ?? [];
-    if (beforeFiles.length === 0 && afterFiles.length === 0) {
+    const genericFiles = files["photos"] ?? [];
+    if (beforeFiles.length === 0 &&
+        afterFiles.length === 0 &&
+        genericFiles.length === 0) {
         return res.status(400).json({ error: "No files uploaded" });
     }
     const toUpload = [
-        ...beforeFiles.map((f, i) => ({ file: f, type: "before", index: i })),
-        ...afterFiles.map((f, i) => ({ file: f, type: "after", index: i })),
+        ...beforeFiles.map((f, i) => ({
+            file: f,
+            type: "before",
+            index: i,
+        })),
+        ...afterFiles.map((f, i) => ({
+            file: f,
+            type: "after",
+            index: i,
+        })),
+        // Backward compatibility: older clients send `photos` without type.
+        ...genericFiles.map((f, i) => ({
+            file: f,
+            type: "after",
+            index: i,
+        })),
     ];
     const savedPhotos = [];
     for (const { file, type, index } of toUpload) {
@@ -109,13 +145,16 @@ router.post("/:id/photos", (0, auth_1.requireRole)("student"), upload.fields([
         const path = `${req.userId}/${req.params.id}/${type}-${index}.${ext}`;
         const { error: uploadError } = await supabase_1.supabaseAdmin.storage
             .from("service-photos")
-            .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+            .upload(path, file.buffer, {
+            contentType: file.mimetype,
+            upsert: true,
+        });
         if (uploadError) {
-            return res.status(500).json({ error: `Upload failed: ${uploadError.message}` });
+            return res
+                .status(500)
+                .json({ error: `Upload failed: ${uploadError.message}` });
         }
-        const { data: { publicUrl } } = supabase_1.supabaseAdmin.storage
-            .from("service-photos")
-            .getPublicUrl(path);
+        const { data: { publicUrl }, } = supabase_1.supabaseAdmin.storage.from("service-photos").getPublicUrl(path);
         savedPhotos.push({ url: publicUrl, type });
     }
     const { error: dbError } = await supabase_1.supabaseAdmin

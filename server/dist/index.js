@@ -37,8 +37,8 @@ app.use((0, cors_1.default)({
         // Check exact match
         if (allowedOrigins.includes(origin))
             return callback(null, true);
-        // Allow all *.vercel.app domains in production
-        if (origin.endsWith(".vercel.app"))
+        // Allow Vercel preview deployments for this project
+        if (/^https:\/\/kosme[a-z0-9-]*\.vercel\.app$/.test(origin))
             return callback(null, true);
         return callback(new Error("Not allowed by CORS"));
     },

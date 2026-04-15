@@ -47,9 +47,10 @@ router.get("/students/:studentId", (0, auth_1.requireRole)("educator"), async (r
     const { data: services, error: servicesError } = await supabase_1.supabaseAdmin
         .from("services")
         .select(`
-      id, name, category_id, status, created_at,
+      id, name, category_id, notes, status, created_at,
       client:client_id ( id, full_name ),
-      verifications ( id, status, created_at, notes )
+      verifications ( id, status, created_at, notes ),
+      service_photos ( id, type, url )
     `)
         .eq("student_id", studentId)
         .order("created_at", { ascending: false });
@@ -82,8 +83,9 @@ router.get("/history", (0, auth_1.requireRole)("educator"), async (req, res) => 
         .select(`
       id, status, notes, created_at,
       service:service_id (
-        id, name, category_id, created_at,
-        student:student_id ( id, full_name )
+        id, name, category_id, notes, created_at,
+        student:student_id ( id, full_name ),
+        service_photos ( id, type, url )
       )
     `)
         .eq("educator_id", req.userId)

@@ -108,6 +108,7 @@ router.post(
   upload.fields([
     { name: "before", maxCount: 10 },
     { name: "after", maxCount: 10 },
+    { name: "photos", maxCount: 20 },
   ]),
   async (req: AuthRequest, res: Response) => {
     // Verify the service belongs to this student
@@ -146,8 +147,13 @@ router.post(
     const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
     const beforeFiles = files["before"] ?? [];
     const afterFiles = files["after"] ?? [];
+    const genericFiles = files["photos"] ?? [];
 
-    if (beforeFiles.length === 0 && afterFiles.length === 0) {
+    if (
+      beforeFiles.length === 0 &&
+      afterFiles.length === 0 &&
+      genericFiles.length === 0
+    ) {
       return res.status(400).json({ error: "No files uploaded" });
     }
 
@@ -162,6 +168,12 @@ router.post(
         index: i,
       })),
       ...afterFiles.map((f, i) => ({
+        file: f,
+        type: "after" as const,
+        index: i,
+      })),
+      // Backward compatibility: older clients send `photos` without type.
+      ...genericFiles.map((f, i) => ({
         file: f,
         type: "after" as const,
         index: i,
