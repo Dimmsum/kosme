@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
+import { useSignIn } from "@clerk/nextjs";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-import { supabase } from "@/lib/supabase";
 import { useAuth, ROLE_DASHBOARD } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { isLoaded, signIn, setActive } = useSignIn();
   const { user, role: ctxRole, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,24 +30,30 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!email || !password || !isLoaded) return;
     setLoading(true);
     setError("");
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      });
 
-    if (authError) {
-      setError(authError.message);
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        // AuthProvider detects the new session and role, then redirects via the useEffect above
+      } else {
+        setError("Sign-in could not be completed. Please try again.");
+        setLoading(false);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "An error occurred";
+      // Clerk wraps errors — extract the user-facing message
+      const clerkErr = err as { errors?: Array<{ message: string }> };
+      setError(clerkErr?.errors?.[0]?.message ?? msg);
       setLoading(false);
-      return;
     }
-
-    // Don't navigate here — the onAuthStateChange listener in AuthProvider
-    // will update the context, and the useEffect above will redirect once
-    // user + role are fully resolved. This eliminates the race condition.
   };
 
   return (

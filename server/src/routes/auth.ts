@@ -1,84 +1,53 @@
 import { Router, Request, Response } from "express";
-import { supabase, supabaseAdmin } from "../lib/supabase";
+import { verifyToken } from "@clerk/backend";
+import { clerkClient } from "../lib/clerk";
+import { supabaseAdmin } from "../lib/supabase";
 
 const router = Router();
 
-// POST /api/auth/register
-router.post("/register", async (req: Request, res: Response) => {
-  const { email, password, role, full_name } = req.body;
+// POST /api/auth/sync
+// Called by the client after Clerk signup/login to create the user_profiles row.
+// Does NOT use requireAuth middleware because the profile may not exist yet.
+router.post("/sync", async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const token = authHeader.slice(7);
 
-  if (!email || !password || !role || !full_name) {
-    return res.status(400).json({ error: "email, password, role, and full_name are required" });
+  let clerkId: string;
+  try {
+    const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+    clerkId = payload.sub;
+  } catch {
+    return res.status(401).json({ error: "Invalid or expired token" });
   }
 
-  // Fetch valid roles from the database — no hardcoded list
-  const { data: validRoles, error: rolesError } = await supabaseAdmin
-    .from("roles")
-    .select("id");
-
-  if (rolesError) {
-    return res.status(500).json({ error: "Could not fetch valid roles" });
+  const { role, full_name } = req.body;
+  if (!role || !full_name) {
+    return res.status(400).json({ error: "role and full_name are required" });
   }
 
-  const validRoleIds = (validRoles ?? []).map((r: { id: string }) => r.id);
-  if (!validRoleIds.includes(role)) {
-    return res.status(400).json({ error: `Invalid role. Valid roles: ${validRoleIds.join(", ")}` });
+  const validRoles = ["student", "educator", "client", "employer"];
+  if (!validRoles.includes(role)) {
+    return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(", ")}` });
   }
 
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { role, full_name },
-    },
-  });
-
-  if (error) {
-    return res.status(400).json({ error: error.message });
-  }
-
-  return res.status(201).json({
-    user: {
-      id: data.user?.id,
-      email: data.user?.email,
-      role,
-    },
-    session: data.session,
-  });
-});
-
-// POST /api/auth/login
-router.post("/login", async (req: Request, res: Response) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: "email and password are required" });
-  }
-
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    return res.status(401).json({ error: error.message });
-  }
-
-  // Fetch the authoritative role from user_profiles (merged in migration 0005)
-  const { data: profileRow } = await supabaseAdmin
+  // Upsert profile (handles both first-time signup and re-syncs)
+  const { error: upsertError } = await supabaseAdmin
     .from("user_profiles")
-    .select("role")
-    .eq("id", data.user.id)
-    .single();
+    .upsert({ clerk_id: clerkId, full_name, role }, { onConflict: "clerk_id" });
 
-  return res.json({
-    user: {
-      id: data.user.id,
-      email: data.user.email,
-      role: profileRow?.role ?? null,
-    },
-    session: data.session,
+  if (upsertError) {
+    return res.status(500).json({ error: upsertError.message });
+  }
+
+  // Set role in Clerk publicMetadata so the frontend can read it
+  await clerkClient.users.updateUserMetadata(clerkId, {
+    publicMetadata: { role },
   });
+
+  return res.status(200).json({ ok: true });
 });
 
 export default router;

@@ -45,10 +45,26 @@ export default function StudentLayout({
     }
   }, [user, role, roleMismatch, loading, router]);
 
-  if (loading || !user || rolePending || roleMismatch) {
+  if (loading || !user || roleMismatch) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-k-white">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-k-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (rolePending) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-k-white px-6 text-center">
+        <p className="text-sm text-k-gray-600">
+          Your account is set up but your role could not be confirmed.
+        </p>
+        <a
+          href="/login"
+          className="rounded-full bg-k-primary px-6 py-2.5 text-sm font-medium text-k-white hover:bg-k-primary-light"
+        >
+          Sign in again
+        </a>
       </div>
     );
   }

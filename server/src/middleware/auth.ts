@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { verifyToken } from "@clerk/backend";
 import { supabaseAdmin } from "../lib/supabase";
 
 export interface AuthRequest extends Request {
@@ -18,25 +19,30 @@ export async function requireAuth(
 
   const token = authHeader.slice(7);
 
-  const { data, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !data.user) {
+  let clerkId: string;
+  try {
+    const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+    clerkId = payload.sub;
+  } catch {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 
-  req.userId = data.user.id;
-
-  // Fetch the authoritative role from user_profiles (merged in migration 0005)
-  const { data: profileRow, error: roleError } = await supabaseAdmin
+  // Look up the DB profile by clerk_id to get the UUID primary key and role
+  const { data: profile, error } = await supabaseAdmin
     .from("user_profiles")
-    .select("role")
-    .eq("id", data.user.id)
+    .select("id, role")
+    .eq("clerk_id", clerkId)
     .single();
 
-  if (roleError || !profileRow?.role) {
+  if (error || !profile) {
+    return res.status(403).json({ error: "Account not set up. Please complete registration." });
+  }
+  if (!profile.role) {
     return res.status(403).json({ error: "No role assigned to this account" });
   }
 
-  req.userRole = profileRow.role;
+  req.userId = profile.id;       // UUID — all existing routes stay unchanged
+  req.userRole = profile.role;
   next();
 }
 

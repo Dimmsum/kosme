@@ -4,7 +4,7 @@ import {
   DM_Sans,
   DM_Serif_Display,
 } from "next/font/google";
-import { AuthProvider } from "@/lib/auth-context";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -42,7 +42,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${cormorant.variable} ${dmSans.variable} ${dmSerif.variable}`}>
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
