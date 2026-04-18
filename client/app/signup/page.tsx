@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { GraduationCap, BookOpen, Heart, Briefcase, ChevronLeft, Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { useSignUp, useAuth as useClerkAuth } from "@clerk/nextjs";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-import { supabase } from "@/lib/supabase";
 import { ROLE_DASHBOARD, normalizeRole, type UserRole } from "@/lib/auth-context";
 
 interface RoleOption {
@@ -51,7 +51,10 @@ const ROLES: RoleOption[] = [
 
 export default function SignupPage() {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2>(1);
+  const { isLoaded, signUp, setActive } = useSignUp();
+  const { isSignedIn, getToken } = useClerkAuth();
+
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -59,20 +62,48 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [needsSync, setNeedsSync] = useState<{ role: string; name: string } | null>(null);
+
+  // Once Clerk session is active, sync the profile then redirect
+  useEffect(() => {
+    if (!isSignedIn || !needsSync) return;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ role: needsSync.role, full_name: needsSync.name }),
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`Sync ${res.status}: ${body}`);
+        }
+        const destination = ROLE_DASHBOARD[normalizeRole(needsSync.role) as UserRole] ?? "/";
+        router.push(destination);
+      } catch (err) {
+        console.error("Profile sync failed:", err);
+        setError("Account created but failed to set up profile. Please log in.");
+        setLoading(false);
+        setNeedsSync(null);
+      }
+    })();
+  }, [isSignedIn, needsSync, getToken, router]);
 
   const handleContinue = () => {
     if (selectedRole) setStep(2);
   };
 
+  // Step 2 → create the Clerk account
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email || !name || !password || !selectedRole) return;
+    if (!email || !name || !password || !selectedRole || !isLoaded) return;
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     if (password !== confirmPassword) {
@@ -83,30 +114,58 @@ export default function SignupPage() {
     setLoading(true);
     setError("");
 
-    const { data, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { role: selectedRole, full_name: name },
-      },
-    });
+    const [firstName, ...rest] = name.trim().split(" ");
+    const lastName = rest.join(" ") || undefined;
 
-    if (authError) {
-      setError(authError.message);
+    try {
+      const result = await signUp.create({
+        emailAddress: email,
+        password,
+        firstName,
+        lastName,
+        unsafeMetadata: { role: selectedRole, full_name: name },
+      });
+
+      if (result.status === "complete") {
+        // No email verification required — sign in immediately
+        await setActive({ session: result.createdSessionId });
+        setNeedsSync({ role: selectedRole, name });
+      } else {
+        // Email verification required — send OTP code
+        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+        setLoading(false);
+        setStep(3);
+      }
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: Array<{ message: string; longMessage?: string; code?: string }> };
+      const e = clerkErr?.errors?.[0];
+      setError(e ? `[${e.code}] ${e.longMessage ?? e.message}` : "An error occurred. Please try again.");
       setLoading(false);
-      return;
     }
+  };
 
-    // If session exists the user is auto-confirmed — redirect to their dashboard
-    if (data.session) {
-      const destination = ROLE_DASHBOARD[selectedRole as UserRole] ?? "/";
-      router.push(destination);
-      return;
+  // Step 3 → verify the OTP code
+  const handleVerify = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!code || !isLoaded) return;
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await signUp.attemptEmailAddressVerification({ code });
+
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        setNeedsSync({ role: selectedRole!, name });
+      } else {
+        setError("Verification incomplete. Please try again.");
+        setLoading(false);
+      }
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: Array<{ message: string }> };
+      setError(clerkErr?.errors?.[0]?.message ?? "Invalid code. Please try again.");
+      setLoading(false);
     }
-
-    // Otherwise show "check your email" confirmation
-    setLoading(false);
-    setSuccess(true);
   };
 
   const selectedRoleData = ROLES.find((r) => r.id === selectedRole) ?? null;
@@ -194,7 +253,7 @@ export default function SignupPage() {
             )}
 
             {/* ── STEP 2 — Account details ── */}
-            {step === 2 && !success && (
+            {step === 2 && (
               <>
                 {/* Back */}
                 <button
@@ -238,6 +297,8 @@ export default function SignupPage() {
                 )}
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+                  {/* Required by Clerk bot protection in custom flows */}
+                  <div id="clerk-captcha" />
                   {/* Full name */}
                   <div className="flex flex-col gap-1.5">
                     <label
@@ -292,7 +353,7 @@ export default function SignupPage() {
                         type={showPassword ? "text" : "password"}
                         autoComplete="new-password"
                         required
-                        placeholder="Min. 6 characters"
+                        placeholder="Min. 8 characters"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="w-full rounded-full border border-k-gray-200 bg-k-white px-5 py-3.5 pr-12 text-sm text-k-black placeholder:text-k-gray-400 outline-none transition-all duration-200 focus:border-k-primary focus:shadow-[0_0_0_3px_rgba(59,10,42,0.08)]"
@@ -349,29 +410,79 @@ export default function SignupPage() {
               </>
             )}
 
-            {/* ── SUCCESS — email confirmation ── */}
-            {step === 2 && success && (
-              <div className="flex flex-col items-center py-8 text-center">
-                <div className="mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-k-primary/10">
-                  <CheckCircle2 size={28} className="text-k-primary" aria-hidden="true" />
+            {/* ── STEP 3 — OTP verification ── */}
+            {step === 3 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setStep(2); setCode(""); setError(""); }}
+                  className="mb-6 inline-flex items-center gap-1.5 text-sm font-light text-k-gray-600 transition-colors duration-200 hover:text-k-black"
+                >
+                  <ChevronLeft size={15} />
+                  Back
+                </button>
+
+                <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-k-primary/10">
+                  <CheckCircle2 size={24} className="text-k-primary" />
                 </div>
-                <h2 className="mb-2 font-serif text-2xl font-light tracking-tight3 text-k-black sm:text-3xl">
+
+                <h2 className="mb-1.5 font-serif text-3xl font-light tracking-tight3 text-k-black sm:text-4xl">
                   Check your email
                 </h2>
-                <p className="max-w-[300px] text-sm font-light leading-7 text-k-gray-600">
-                  We&apos;ve sent a confirmation link to <strong>{email}</strong>. Click it to activate your account, then log in.
+                <p className="mb-8 text-sm font-light text-k-gray-600">
+                  We sent a 6-digit code to <strong>{email}</strong>. Enter it below to confirm your account.
                 </p>
-                <Link
-                  href="/login"
-                  className="mt-8 inline-flex items-center justify-center rounded-full bg-k-primary px-7 py-3 text-sm font-medium text-k-white no-underline shadow-[0_4px_20px_rgba(59,10,42,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-k-primary-light"
-                >
-                  Go to login
-                </Link>
-              </div>
+
+                {error && (
+                  <div className="mb-5 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleVerify} className="flex flex-col gap-4" noValidate>
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      htmlFor="otp-code"
+                      className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600"
+                    >
+                      Verification code
+                    </label>
+                    <input
+                      id="otp-code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="000000"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className="w-full rounded-full border border-k-gray-200 bg-k-white px-5 py-3.5 text-center text-lg tracking-[0.3em] text-k-black placeholder:text-k-gray-300 outline-none transition-all duration-200 focus:border-k-primary focus:shadow-[0_0_0_3px_rgba(59,10,42,0.08)]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading || code.length < 6}
+                    className="mt-1 w-full rounded-full bg-k-primary px-8 py-3.5 text-sm font-medium tracking-wide text-k-white shadow-[0_4px_20px_rgba(59,10,42,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-k-primary-light hover:shadow-[0_8px_28px_rgba(59,10,42,0.28)] disabled:cursor-not-allowed disabled:opacity-50 disabled:translate-y-0 disabled:shadow-none"
+                  >
+                    {loading ? "Verifying..." : "Verify & continue"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+                    }}
+                    className="text-center text-sm font-light text-k-gray-400 transition-colors duration-200 hover:text-k-primary"
+                  >
+                    Resend code
+                  </button>
+                </form>
+              </>
             )}
 
+
             {/* Log in link */}
-            {!(step === 2 && success) && (
+            {step !== 3 && (
               <p className="mt-7 text-center text-sm font-light text-k-gray-600">
                 Already have an account?{" "}
                 <Link

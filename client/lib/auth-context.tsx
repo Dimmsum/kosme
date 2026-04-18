@@ -1,15 +1,7 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "./supabase";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useUser, useClerk, useAuth as useClerkAuth } from "@clerk/nextjs";
 
 export type UserRole = "student" | "educator" | "client" | "employer";
 
@@ -21,8 +13,7 @@ export const ROLE_DASHBOARD: Record<UserRole, string> = {
 };
 
 interface AuthState {
-  user: User | null;
-  session: Session | null;
+  user: { email: string } | null;
   role: UserRole | null;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -30,7 +21,6 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState>({
   user: null,
-  session: null,
   role: null,
   loading: true,
   signOut: async () => {},
@@ -38,119 +28,70 @@ const AuthContext = createContext<AuthState>({
 
 export function normalizeRole(raw: string | null | undefined): UserRole | null {
   if (!raw) return null;
-  const role = raw.toLowerCase();
-  if (role === "volunteer") return "client";
-  if (
-    role === "student" ||
-    role === "educator" ||
-    role === "client" ||
-    role === "employer"
-  ) {
-    return role;
+  const r = raw.toLowerCase();
+  if (r === "volunteer") return "client";
+  if (r === "student" || r === "educator" || r === "client" || r === "employer") {
+    return r as UserRole;
   }
   return null;
 }
 
-async function fetchRoleFromDb(): Promise<UserRole | null> {
-  const { data, error } = await supabase.rpc("get_my_role");
-  if (error) return null;
-  return normalizeRole(data as string | null);
-}
-
-async function resolveRole(u: User): Promise<UserRole | null> {
-  const metadataRole = normalizeRole(
-    u.user_metadata?.role as string | undefined,
-  );
-  return metadataRole ?? (await fetchRoleFromDb());
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [role, setRole] = useState<UserRole | null>(null);
-  const [loading, setLoading] = useState(true);
-  const userRef = useRef<User | null>(null);
-  const roleRef = useRef<UserRole | null>(null);
+  const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
+  const { getToken, isSignedIn } = useClerkAuth();
+  const [syncing, setSyncing] = useState(false);
+  const [syncAttempted, setSyncAttempted] = useState(false);
 
+  // Auto-sync: when user is signed in but publicMetadata.role is not yet set
+  // (happens after email-link verification callback), sync using unsafeMetadata.role.
+  // Only attempted once per session to avoid infinite loops when the sync fails.
   useEffect(() => {
-    userRef.current = user;
-  }, [user]);
-
-  useEffect(() => {
-    roleRef.current = role;
-  }, [role]);
-
-  useEffect(() => {
-    // Bootstrap: read the existing session from storage so protected
-    // layouts don't flash back to /login on full-page reloads.
-    supabase.auth.getSession().then(async ({ data: { session: initial } }) => {
-      const initialUser = initial?.user ?? null;
-      setSession(initial);
-      setUser(initialUser);
-      if (initialUser) {
-        setRole(await resolveRole(initialUser));
-      }
-      setLoading(false);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        // TOKEN_REFRESHED is a silent background event — no loading flash needed
-        // and the user's role hasn't changed, so skip the full resolution path.
-        if (event === "TOKEN_REFRESHED") {
-          setSession(newSession);
-          return;
+    if (!isSignedIn || !user || syncing || syncAttempted) return;
+    const pubRole = user.publicMetadata?.role as string | undefined;
+    const unsafeRole = user.unsafeMetadata?.role as string | undefined;
+    const unsafeName = user.unsafeMetadata?.full_name as string | undefined;
+    if (!pubRole && unsafeRole && unsafeName) {
+      setSyncing(true);
+      setSyncAttempted(true);
+      (async () => {
+        try {
+          const token = await getToken();
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ role: unsafeRole, full_name: unsafeName }),
+          });
+          if (!res.ok) {
+            console.error("Auto-sync failed:", res.status, await res.text());
+          } else {
+            await user.reload(); // refresh publicMetadata from Clerk
+          }
+        } catch (err) {
+          console.error("Auto-sync error:", err);
+        } finally {
+          setSyncing(false);
         }
+      })();
+    } else if (!pubRole) {
+      // No unsafeMetadata to sync from — mark as attempted so we don't loop
+      setSyncAttempted(true);
+    }
+  }, [isSignedIn, user, syncing, syncAttempted, getToken]);
 
-        // INITIAL_SESSION is handled by getSession() above — skip to avoid
-        // a redundant loading flash.
-        if (event === "INITIAL_SESSION") return;
-        const newUser = newSession?.user ?? null;
-        const prevUser = userRef.current;
-        const prevRole = roleRef.current;
-
-        setSession(newSession);
-        setUser(newUser);
-
-        if (!newUser) {
-          setRole(null);
-          setLoading(false);
-          return;
-        }
-
-        const metadataRole = normalizeRole(
-          newUser.user_metadata?.role as string | undefined,
-        );
-        if (metadataRole) {
-          setRole(metadataRole);
-          setLoading(false);
-          return;
-        }
-
-        // Keep the existing resolved role for the same user while we retry
-        // role resolution from the database.
-        const sameUser = prevUser?.id === newUser.id;
-        if (sameUser && prevRole) {
-          setRole(prevRole);
-        } else {
-          setLoading(true);
-        }
-
-        const resolvedRole = await fetchRoleFromDb();
-        setRole(resolvedRole ?? (sameUser ? prevRole : null));
-        setLoading(false);
-      },
-    );
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+  const role = normalizeRole((user?.publicMetadata?.role as string) ?? null);
+  const loading = !isLoaded || syncing;
+  const email = user?.emailAddresses?.[0]?.emailAddress ?? null;
 
   return (
-    <AuthContext.Provider value={{ user, session, role, loading, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user: email ? { email } : null,
+        role,
+        loading,
+        signOut: () => signOut(),
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
