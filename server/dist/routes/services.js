@@ -31,7 +31,8 @@ router.get("/clients", (0, auth_1.requireRole)("student"), async (_req, res) => 
         .eq("role", "client")
         .order("full_name");
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("services GET clients error:", error);
+        return res.status(500).json({ error: "Failed to fetch clients" });
     }
     return res.json({ clients: data ?? [] });
 });
@@ -46,7 +47,8 @@ router.get("/", (0, auth_1.requireRole)("student"), async (req, res) => {
         .eq("student_id", req.userId)
         .order("created_at", { ascending: false });
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("services GET error:", error);
+        return res.status(500).json({ error: "Failed to fetch services" });
     }
     return res.json({ services: data });
 });
@@ -54,9 +56,22 @@ router.get("/", (0, auth_1.requireRole)("student"), async (req, res) => {
 router.post("/", (0, auth_1.requireRole)("student"), async (req, res) => {
     const { name, category_id, client_id, notes } = req.body;
     if (!name || !category_id) {
-        return res
-            .status(400)
-            .json({ error: "name and category_id are required" });
+        return res.status(400).json({ error: "name and category_id are required" });
+    }
+    if (typeof name !== "string" || name.trim().length === 0 || name.length > 255) {
+        return res.status(400).json({ error: "name must be between 1 and 255 characters" });
+    }
+    if (notes !== undefined && notes !== null) {
+        if (typeof notes !== "string" || notes.length > 2000) {
+            return res.status(400).json({ error: "notes must be at most 2000 characters" });
+        }
+    }
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(category_id)) {
+        return res.status(400).json({ error: "Invalid category_id format" });
+    }
+    if (client_id && !UUID_RE.test(client_id)) {
+        return res.status(400).json({ error: "Invalid client_id format" });
     }
     // If no client supplied, jump straight to awaiting_educator
     const status = client_id ? "awaiting_client" : "awaiting_educator";
@@ -64,7 +79,7 @@ router.post("/", (0, auth_1.requireRole)("student"), async (req, res) => {
         .from("services")
         .insert({
         student_id: req.userId,
-        name,
+        name: name.trim(),
         category_id,
         client_id: client_id ?? null,
         notes: notes ?? null,
@@ -73,7 +88,8 @@ router.post("/", (0, auth_1.requireRole)("student"), async (req, res) => {
         .select("id, name, category_id, client_id, notes, status, created_at")
         .single();
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("services POST error:", error);
+        return res.status(500).json({ error: "Failed to create service" });
     }
     return res.status(201).json({ service: data });
 });
@@ -150,9 +166,8 @@ router.post("/:id/photos", (0, auth_1.requireRole)("student"), upload.fields([
             upsert: true,
         });
         if (uploadError) {
-            return res
-                .status(500)
-                .json({ error: `Upload failed: ${uploadError.message}` });
+            console.error("photo upload error:", uploadError);
+            return res.status(500).json({ error: "Failed to upload photo" });
         }
         const { data: { publicUrl }, } = supabase_1.supabaseAdmin.storage.from("service-photos").getPublicUrl(path);
         savedPhotos.push({ url: publicUrl, type });
@@ -165,7 +180,8 @@ router.post("/:id/photos", (0, auth_1.requireRole)("student"), upload.fields([
         type,
     })));
     if (dbError) {
-        return res.status(500).json({ error: dbError.message });
+        console.error("service_photos insert error:", dbError);
+        return res.status(500).json({ error: "Failed to save photo records" });
     }
     return res.status(201).json({ photos: savedPhotos });
 });

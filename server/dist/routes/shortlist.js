@@ -18,7 +18,8 @@ router.get("/", (0, auth_1.requireRole)("employer"), async (req, res) => {
         .eq("employer_id", req.userId)
         .order("created_at", { ascending: false });
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     const enriched = await Promise.all(data.map(async (row) => {
         const { data: services } = await supabase_1.supabaseAdmin
@@ -52,7 +53,8 @@ router.post("/", (0, auth_1.requireRole)("employer"), async (req, res) => {
         .select("id, created_at")
         .single();
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.status(201).json({ entry: data });
 });
@@ -65,7 +67,8 @@ router.delete("/:studentId", (0, auth_1.requireRole)("employer"), async (req, re
         .eq("employer_id", req.userId)
         .eq("student_id", studentId);
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.status(204).send();
 });

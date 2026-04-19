@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import waitlistRouter from "./routes/waitlist";
 import authRouter from "./routes/auth";
 import profileRouter from "./routes/profile";
@@ -16,7 +17,6 @@ import { requireAuth } from "./middleware/auth";
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
-// Parse allowed origins from environment or use defaults
 const defaultOrigins = [
   "http://localhost:3000",
   "https://kosme.vercel.app",
@@ -32,14 +32,13 @@ const allowedOrigins = [...defaultOrigins, ...envOrigins];
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. curl, mobile apps)
-      if (!origin) return callback(null, true);
+      // Block requests with no Origin header (non-browser clients aren't expected in production)
+      if (!origin) return callback(new Error("Not allowed by CORS"));
 
-      // Check exact match
       if (allowedOrigins.includes(origin)) return callback(null, true);
 
-      // Allow Vercel preview deployments for this project
-      if (/^https:\/\/kosme[a-z0-9-]*\.vercel\.app$/.test(origin)) return callback(null, true);
+      // Allow Vercel preview deployments for this project (kosme-* pattern)
+      if (/^https:\/\/kosme-[a-z0-9-]+\.vercel\.app$/.test(origin)) return callback(null, true);
 
       return callback(new Error("Not allowed by CORS"));
     },
@@ -48,7 +47,36 @@ app.use(
   }),
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
+
+// Global rate limit — applied to all routes
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please slow down." },
+});
+
+// Stricter limit for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many auth attempts, please try again later." },
+});
+
+// Limit for file uploads
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Upload limit reached, please try again later." },
+});
+
+app.use(globalLimiter);
 
 // Public routes
 app.get("/health", (_req, res) => {
@@ -59,10 +87,11 @@ app.get("/health", (_req, res) => {
   });
 });
 app.use("/api/waitlist", waitlistRouter);
-app.use("/api/auth", authRouter);
+app.use("/api/auth", authLimiter, authRouter);
 
-// Protected routes — all require a valid Supabase JWT
+// Protected routes — all require a valid Clerk JWT
 app.use("/api/profile", requireAuth, profileRouter);
+app.use("/api/services/:id/photos", requireAuth, uploadLimiter, servicesRouter);
 app.use("/api/services", requireAuth, servicesRouter);
 app.use("/api/confirmations", requireAuth, confirmationsRouter);
 app.use("/api/verifications", requireAuth, verificationsRouter);

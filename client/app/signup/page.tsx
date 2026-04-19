@@ -470,7 +470,7 @@ export default function SignupPage() {
                   <button
                     type="button"
                     onClick={async () => {
-                      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+                      await signUp?.prepareEmailAddressVerification({ strategy: "email_code" });
                     }}
                     className="text-center text-sm font-light text-k-gray-400 transition-colors duration-200 hover:text-k-primary"
                   >

@@ -68,7 +68,7 @@ export default function EducatorLayout({
   }
 
   const initials =
-    (user.user_metadata?.full_name as string | undefined)
+    user.full_name
       ?.split(" ")
       .map((n) => n[0])
       .join("")
@@ -76,7 +76,7 @@ export default function EducatorLayout({
       .toUpperCase() ?? "ED";
 
   const displayName =
-    (user.user_metadata?.full_name as string | undefined) ??
+    user.full_name ??
     user.email ??
     "Educator";
 

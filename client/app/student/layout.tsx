@@ -70,7 +70,7 @@ export default function StudentLayout({
   }
 
   const initials =
-    (user.user_metadata?.full_name as string | undefined)
+    user.full_name
       ?.split(" ")
       .map((n) => n[0])
       .join("")
@@ -78,7 +78,7 @@ export default function StudentLayout({
       .toUpperCase() ?? "ST";
 
   const displayName =
-    (user.user_metadata?.full_name as string | undefined) ??
+    user.full_name ??
     user.email ??
     "Student";
 

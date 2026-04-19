@@ -16,7 +16,8 @@ router.get("/pending", (0, auth_1.requireRole)("client"), async (req, res) => {
         .eq("status", "awaiting_client")
         .order("created_at", { ascending: false });
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.json({ confirmations: data });
 });
@@ -34,7 +35,8 @@ router.get("/history", (0, auth_1.requireRole)("client"), async (req, res) => {
         .eq("volunteer_id", req.userId)
         .order("created_at", { ascending: false });
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.json({ history: data });
 });
