@@ -23,7 +23,8 @@ router.get(
       .order("created_at", { ascending: false });
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
     }
 
     return res.json({ portfolio: data });
@@ -136,7 +137,8 @@ router.get(
     const { data: profiles, error } = await query;
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
     }
 
     // Build a summary per student: verified count, category list
@@ -203,7 +205,8 @@ router.get(
     }
 
     const { data, error } = await query;
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
 
     const items = data ?? [];
     const hasMore = items.length > limit;
@@ -237,7 +240,8 @@ router.get("/:studentId", async (req: AuthRequest, res: Response) => {
     .order("created_at", { ascending: false });
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 
   // Also return the student's profile

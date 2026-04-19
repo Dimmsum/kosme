@@ -17,7 +17,8 @@ router.get("/", (0, auth_1.requireRole)("student"), async (req, res) => {
         .eq("status", "verified")
         .order("created_at", { ascending: false });
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.json({ portfolio: data });
 });
@@ -96,7 +97,8 @@ router.get("/browse", (0, auth_1.requireRole)("employer"), async (req, res) => {
     }
     const { data: profiles, error } = await query;
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     const results = profiles
         .map((p) => {
@@ -141,7 +143,8 @@ router.get("/feed", (0, auth_1.requireRole)("client"), async (req, res) => {
     }
     const { data, error } = await query;
     if (error)
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
     const items = data ?? [];
     const hasMore = items.length > limit;
     const feed = hasMore ? items.slice(0, limit) : items;
@@ -166,7 +169,8 @@ router.get("/:studentId", async (req, res) => {
         .eq("status", "verified")
         .order("created_at", { ascending: false });
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     // Also return the student's profile
     const { data: profile } = await supabase_1.supabaseAdmin

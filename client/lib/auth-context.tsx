@@ -13,7 +13,7 @@ export const ROLE_DASHBOARD: Record<UserRole, string> = {
 };
 
 interface AuthState {
-  user: { email: string } | null;
+  user: { email: string; full_name: string | null } | null;
   role: UserRole | null;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -42,6 +42,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { getToken, isSignedIn } = useClerkAuth();
   const [syncing, setSyncing] = useState(false);
   const [syncAttempted, setSyncAttempted] = useState(false);
+  const [wasSignedIn, setWasSignedIn] = useState(false);
+
+  // Track sign-in state — detect when a previously active session disappears (expiry/revocation)
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (isSignedIn) {
+      setWasSignedIn(true);
+    } else if (wasSignedIn) {
+      // User was signed in but now isn't — session expired or was revoked
+      signOut({ redirectUrl: "/login" });
+    }
+  }, [isSignedIn, isLoaded, wasSignedIn, signOut]);
+
+  // Listen for 401 events dispatched by api.ts when the server rejects a token
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      signOut({ redirectUrl: "/login" });
+    };
+    window.addEventListener("session-expired", handleSessionExpired);
+    return () => window.removeEventListener("session-expired", handleSessionExpired);
+  }, [signOut]);
 
   // Auto-sync: when user is signed in but publicMetadata.role is not yet set
   // (happens after email-link verification callback), sync using unsafeMetadata.role.
@@ -82,14 +103,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const role = normalizeRole((user?.publicMetadata?.role as string) ?? null);
   const loading = !isLoaded || syncing;
   const email = user?.emailAddresses?.[0]?.emailAddress ?? null;
+  const fullName = user?.fullName ?? (user?.unsafeMetadata?.full_name as string | undefined) ?? null;
 
   return (
     <AuthContext.Provider
       value={{
-        user: email ? { email } : null,
+        user: email ? { email, full_name: fullName } : null,
         role,
         loading,
-        signOut: () => signOut(),
+        signOut: () => signOut({ redirectUrl: "/login" }),
       }}
     >
       {children}

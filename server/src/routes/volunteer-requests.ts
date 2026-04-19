@@ -4,12 +4,17 @@ import { AuthRequest, requireRole } from "../middleware/auth";
 
 const router = Router();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // POST /api/volunteer-requests — volunteer expresses interest in a student
 router.post("/", requireRole("client"), async (req: AuthRequest, res: Response) => {
   const { student_id, message } = req.body as { student_id?: string; message?: string };
 
-  if (!student_id) {
-    return res.status(400).json({ error: "student_id is required" });
+  if (!student_id || !UUID_RE.test(student_id)) {
+    return res.status(400).json({ error: "Valid student_id is required" });
+  }
+  if (message !== undefined && (typeof message !== "string" || message.length > 500)) {
+    return res.status(400).json({ error: "message must be at most 500 characters" });
   }
 
   // Confirm target is actually a student
@@ -39,7 +44,8 @@ router.post("/", requireRole("client"), async (req: AuthRequest, res: Response) 
     .single();
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 
   return res.status(201).json({ request: data });
@@ -54,7 +60,8 @@ router.delete("/:id", requireRole("client"), async (req: AuthRequest, res: Respo
     .eq("volunteer_id", req.userId!);
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 
   return res.status(204).send();
@@ -72,7 +79,8 @@ router.get("/my", requireRole("client"), async (req: AuthRequest, res: Response)
     .order("created_at", { ascending: false });
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 
   return res.json({ requests: data ?? [] });
@@ -90,7 +98,8 @@ router.get("/incoming", requireRole("student"), async (req: AuthRequest, res: Re
     .order("created_at", { ascending: false });
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 
   return res.json({ requests: data ?? [] });

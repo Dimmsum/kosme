@@ -62,7 +62,7 @@ export default function EmployerLayout({
   }
 
   const initials =
-    (user.user_metadata?.full_name as string | undefined)
+    user.full_name
       ?.split(" ")
       .map((n) => n[0])
       .join("")
@@ -70,7 +70,7 @@ export default function EmployerLayout({
       .toUpperCase() ?? "EM";
 
   const displayName =
-    (user.user_metadata?.full_name as string | undefined) ??
+    user.full_name ??
     user.email ??
     "Employer";
 

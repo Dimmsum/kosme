@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("dotenv/config");
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const waitlist_1 = __importDefault(require("./routes/waitlist"));
 const auth_1 = __importDefault(require("./routes/auth"));
 const profile_1 = __importDefault(require("./routes/profile"));
@@ -19,7 +20,6 @@ const volunteer_requests_1 = __importDefault(require("./routes/volunteer-request
 const auth_2 = require("./middleware/auth");
 const app = (0, express_1.default)();
 const PORT = process.env.PORT ?? 3001;
-// Parse allowed origins from environment or use defaults
 const defaultOrigins = [
     "http://localhost:3000",
     "https://kosme.vercel.app",
@@ -31,21 +31,45 @@ const envOrigins = process.env.ALLOWED_ORIGINS
 const allowedOrigins = [...defaultOrigins, ...envOrigins];
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
-        // Allow requests with no origin (e.g. curl, mobile apps)
+        // Block requests with no Origin header (non-browser clients aren't expected in production)
         if (!origin)
-            return callback(null, true);
-        // Check exact match
+            return callback(new Error("Not allowed by CORS"));
         if (allowedOrigins.includes(origin))
             return callback(null, true);
-        // Allow Vercel preview deployments for this project
-        if (/^https:\/\/kosme[a-z0-9-]*\.vercel\.app$/.test(origin))
+        // Allow Vercel preview deployments for this project (kosme-* pattern)
+        if (/^https:\/\/kosme-[a-z0-9-]+\.vercel\.app$/.test(origin))
             return callback(null, true);
         return callback(new Error("Not allowed by CORS"));
     },
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
 }));
-app.use(express_1.default.json());
+app.use(express_1.default.json({ limit: "1mb" }));
+// Global rate limit — applied to all routes
+const globalLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60 * 1000, // 1 minute
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests, please slow down." },
+});
+// Stricter limit for auth endpoints
+const authLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many auth attempts, please try again later." },
+});
+// Limit for file uploads
+const uploadLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Upload limit reached, please try again later." },
+});
+app.use(globalLimiter);
 // Public routes
 app.get("/health", (_req, res) => {
     res.json({
@@ -55,9 +79,10 @@ app.get("/health", (_req, res) => {
     });
 });
 app.use("/api/waitlist", waitlist_1.default);
-app.use("/api/auth", auth_1.default);
-// Protected routes — all require a valid Supabase JWT
+app.use("/api/auth", authLimiter, auth_1.default);
+// Protected routes — all require a valid Clerk JWT
 app.use("/api/profile", auth_2.requireAuth, profile_1.default);
+app.use("/api/services/:id/photos", auth_2.requireAuth, uploadLimiter, services_1.default);
 app.use("/api/services", auth_2.requireAuth, services_1.default);
 app.use("/api/confirmations", auth_2.requireAuth, confirmations_1.default);
 app.use("/api/verifications", auth_2.requireAuth, verifications_1.default);

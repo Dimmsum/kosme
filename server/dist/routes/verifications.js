@@ -16,7 +16,8 @@ router.get("/students", (0, auth_1.requireRole)("educator"), async (req, res) =>
         .eq("role", "student")
         .order("full_name");
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     const students = data.map((p) => {
         const services = p.services ?? [];
@@ -72,7 +73,8 @@ router.get("/pending", (0, auth_1.requireRole)("educator"), async (req, res) => 
         .eq("status", "awaiting_educator")
         .order("created_at", { ascending: false });
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.json({ pending: data });
 });
@@ -91,7 +93,8 @@ router.get("/history", (0, auth_1.requireRole)("educator"), async (req, res) => 
         .eq("educator_id", req.userId)
         .order("created_at", { ascending: false });
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.json({ history: data });
 });

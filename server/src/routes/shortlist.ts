@@ -19,7 +19,8 @@ router.get("/", requireRole("employer"), async (req: AuthRequest, res: Response)
     .order("created_at", { ascending: false });
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 
   // Enrich with verified service count + specialisations per student
@@ -72,7 +73,8 @@ router.post("/", requireRole("employer"), async (req: AuthRequest, res: Response
     .single();
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 
   return res.status(201).json({ entry: data });
@@ -89,7 +91,8 @@ router.delete("/:studentId", requireRole("employer"), async (req: AuthRequest, r
     .eq("student_id", studentId);
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 
   return res.status(204).send();

@@ -4,11 +4,15 @@ const express_1 = require("express");
 const supabase_1 = require("../lib/supabase");
 const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // POST /api/volunteer-requests — volunteer expresses interest in a student
 router.post("/", (0, auth_1.requireRole)("client"), async (req, res) => {
     const { student_id, message } = req.body;
-    if (!student_id) {
-        return res.status(400).json({ error: "student_id is required" });
+    if (!student_id || !UUID_RE.test(student_id)) {
+        return res.status(400).json({ error: "Valid student_id is required" });
+    }
+    if (message !== undefined && (typeof message !== "string" || message.length > 500)) {
+        return res.status(400).json({ error: "message must be at most 500 characters" });
     }
     // Confirm target is actually a student
     const { data: profile, error: profileError } = await supabase_1.supabaseAdmin
@@ -31,7 +35,8 @@ router.post("/", (0, auth_1.requireRole)("client"), async (req, res) => {
         .select("id, student_id, volunteer_id, message, status, created_at")
         .single();
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.status(201).json({ request: data });
 });
@@ -43,7 +48,8 @@ router.delete("/:id", (0, auth_1.requireRole)("client"), async (req, res) => {
         .eq("id", req.params.id)
         .eq("volunteer_id", req.userId);
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.status(204).send();
 });
@@ -58,7 +64,8 @@ router.get("/my", (0, auth_1.requireRole)("client"), async (req, res) => {
         .eq("volunteer_id", req.userId)
         .order("created_at", { ascending: false });
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.json({ requests: data ?? [] });
 });
@@ -73,7 +80,8 @@ router.get("/incoming", (0, auth_1.requireRole)("student"), async (req, res) => 
         .eq("student_id", req.userId)
         .order("created_at", { ascending: false });
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("DB error:", error);
+        return res.status(500).json({ error: "Internal server error" });
     }
     return res.json({ requests: data ?? [] });
 });

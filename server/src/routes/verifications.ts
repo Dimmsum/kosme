@@ -22,7 +22,8 @@ router.get(
       .order("full_name");
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
     }
 
     type ProfileRow = {
@@ -109,7 +110,8 @@ router.get(
       .order("created_at", { ascending: false });
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
     }
 
     return res.json({ pending: data });
@@ -137,7 +139,8 @@ router.get(
       .order("created_at", { ascending: false });
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal server error" });
     }
 
     return res.json({ history: data });
