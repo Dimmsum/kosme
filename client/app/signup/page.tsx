@@ -212,7 +212,7 @@ export default function SignupPage() {
                       <button
                         key={id}
                         type="button"
-                        onClick={() => setSelectedRole(id)}
+                        onClick={() => id === "client" ? router.push("/clients") : setSelectedRole(id)}
                         aria-pressed={isSelected}
                         className={`flex flex-col items-start rounded-2xl border-2 p-6 text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-k-primary focus-visible:ring-offset-2 ${
                           isSelected
@@ -397,7 +397,7 @@ export default function SignupPage() {
                     </div>
                   </div>
 
-                  <div id="clerk-captcha" />
+                  {/* <div id="clerk-captcha" /> */}
 
                   <button
                     type="submit"
