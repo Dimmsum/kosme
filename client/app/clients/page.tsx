@@ -15,11 +15,8 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Reveal from "@/components/Reveal";
 import SectionTag from "@/components/SectionTag";
-import { supabase } from "@/lib/supabase";
-
-const { data: { publicUrl: HERO_VIDEO_URL } } = supabase.storage
-  .from("videos")
-  .getPublicUrl("Kosme.mp4");
+const HERO_VIDEO_SRC =
+  "https://drive.google.com/file/d/1vsniiouFSDnnwahN0fet3lqFEiV3GwBJ/preview";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -285,48 +282,44 @@ export default function ClientsPage() {
       <Nav />
 
       {/* Hero */}
-      <section className="relative w-full overflow-hidden pt-16 md:pt-20">
-        {/* Video — maintains native aspect ratio */}
+      <section className="w-full overflow-hidden pt-16 md:pt-20">
+        {/* Video embed */}
         <motion.div
           className="relative aspect-video w-full"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1, delay: 0.2 }}
         >
-          {/* Skeleton shown while video buffering */}
+          {/* Skeleton shown while iframe loads */}
           {!videoLoaded && (
             <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-k-primary via-k-primary-light to-[#7A2058]" />
           )}
-          <video
-            src={HERO_VIDEO_URL}
-            autoPlay
-            loop
-            muted
-            playsInline
-            onCanPlay={() => setVideoLoaded(true)}
-            className={`h-full w-full object-cover transition-opacity duration-700 ${videoLoaded ? "opacity-100" : "opacity-0"}`}
+          <iframe
+            src={HERO_VIDEO_SRC}
+            allow="autoplay"
+            allowFullScreen
+            title="Kosmè introduction video"
+            onLoad={() => setVideoLoaded(true)}
+            className={`h-full w-full transition-opacity duration-700 ${videoLoaded ? "opacity-100" : "opacity-0"}`}
           />
         </motion.div>
 
-        {/* Dark overlay for text legibility */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-
-        {/* CTA overlay — centered */}
+        {/* CTAs below the embed */}
         <motion.div
-          className="absolute inset-0 flex flex-col items-center justify-center gap-5"
+          className="flex flex-col items-center gap-4 py-10 sm:flex-row sm:justify-center sm:py-12"
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.5, ease }}
         >
           <a
             href="#signup"
-            className="inline-flex items-center justify-center rounded-full bg-white px-10 py-4 text-sm font-medium tracking-wide text-k-primary no-underline shadow-[0_4px_24px_rgba(0,0,0,0.3)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
+            className="inline-flex items-center justify-center rounded-full bg-k-primary px-10 py-4 text-sm font-medium tracking-wide text-k-white no-underline shadow-[0_4px_20px_rgba(59,10,42,0.25)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-k-primary-light hover:shadow-[0_8px_32px_rgba(59,10,42,0.3)]"
           >
             Sign up now
           </a>
           <a
             href="#how"
-            className="inline-flex items-center gap-2 text-sm font-normal tracking-wide text-white no-underline drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)] transition-[gap] duration-200 hover:gap-3.5"
+            className="inline-flex items-center gap-2 text-sm font-normal tracking-wide text-k-black no-underline transition-[gap] duration-200 hover:gap-3.5"
           >
             How it works <ArrowRight size={15} />
           </a>
