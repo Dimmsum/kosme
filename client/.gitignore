@@ -1,3 +1,6 @@
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+# large video assets — hosted in Supabase Storage
+/public/*.mp4

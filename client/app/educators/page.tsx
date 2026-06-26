@@ -33,19 +33,19 @@ const features = [
 
 const pendingSubmissions = [
   {
-    student: "Amara Osei",
+    student: "Student A",
     service: "Full Colour Application",
-    date: "19 Mar 2025",
+    date: "Day 1",
   },
   {
-    student: "Jake Hendry",
+    student: "Student B",
     service: "Scalp Treatment & Massage",
-    date: "21 Mar 2025",
+    date: "Day 3",
   },
   {
-    student: "Priya Sharma",
+    student: "Student C",
     service: "Blow-dry & Finish",
-    date: "22 Mar 2025",
+    date: "Day 4",
   },
 ];
 
@@ -55,48 +55,8 @@ export default function EducatorsPage() {
       <Nav />
 
       {/* Hero */}
-      <section className="grid min-h-screen grid-cols-1 overflow-hidden md:grid-cols-2">
-        {/* Right — gradient block */}
-        <motion.div
-          className="relative order-first min-h-[360px] overflow-hidden sm:min-h-[440px] md:order-none md:min-h-0"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 0.2 }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-k-primary via-k-primary-light to-[#7A2058]" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <motion.div
-              className="grid grid-cols-2 gap-3 p-8"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 0.22, scale: 1 }}
-              transition={{ duration: 1.2, delay: 0.5, ease }}
-            >
-              {[...Array(4)].map((_, i) => (
-                <div
-                  key={i}
-                  className="h-20 w-20 rounded-2xl border border-white/30 sm:h-28 sm:w-28"
-                />
-              ))}
-            </motion.div>
-          </div>
-          <motion.div
-            className="absolute bottom-8 left-8 right-8 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, delay: 0.9, ease }}
-          >
-            <p className="font-serif text-base italic text-white/80 leading-snug">
-              &ldquo;I went from chasing paper sign-offs to approving verified
-              records in seconds.&rdquo;
-            </p>
-            <p className="mt-2 text-xs text-white/40 tracking-wide">
-              — Dr. Fiona Walsh, Senior Lecturer
-            </p>
-          </motion.div>
-        </motion.div>
-
-        {/* Left — content */}
-        <div className="relative z-10 flex flex-col justify-center px-4 pb-16 pt-10 sm:px-6 sm:pb-20 sm:pt-12 md:px-14 md:pb-20 md:pt-[120px]">
+      <section className="flex min-h-screen flex-col justify-center overflow-hidden">
+        <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 pb-16 pt-24 sm:px-8 sm:pb-20 sm:pt-28 md:px-12 md:pb-20 md:pt-32">
           <motion.div
             initial={{ opacity: 0, y: 32 }}
             animate={{ opacity: 1, y: 0 }}

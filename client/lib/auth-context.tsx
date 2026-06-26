@@ -29,7 +29,7 @@ const AuthContext = createContext<AuthState>({
 export function normalizeRole(raw: string | null | undefined): UserRole | null {
   if (!raw) return null;
   const r = raw.toLowerCase();
-  if (r === "volunteer") return "client";
+  if (r === "volunteer") return "client"; // backward compat
   if (r === "student" || r === "educator" || r === "client" || r === "employer") {
     return r as UserRole;
   }
@@ -40,76 +40,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const { getToken, isSignedIn } = useClerkAuth();
-  const [syncing, setSyncing] = useState(false);
-  const [syncAttempted, setSyncAttempted] = useState(false);
+
+  const [dbRole, setDbRole] = useState<UserRole | null>(null);
+  const [dbFullName, setDbFullName] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileFetched, setProfileFetched] = useState(false);
   const [wasSignedIn, setWasSignedIn] = useState(false);
 
-  // Track sign-in state — detect when a previously active session disappears (expiry/revocation)
+  // Detect session expiry/revocation and redirect to login
   useEffect(() => {
     if (!isLoaded) return;
     if (isSignedIn) {
       setWasSignedIn(true);
     } else if (wasSignedIn) {
-      // User was signed in but now isn't — session expired or was revoked
       signOut({ redirectUrl: "/login" });
     }
   }, [isSignedIn, isLoaded, wasSignedIn, signOut]);
 
   // Listen for 401 events dispatched by api.ts when the server rejects a token
   useEffect(() => {
-    const handleSessionExpired = () => {
-      signOut({ redirectUrl: "/login" });
-    };
+    const handleSessionExpired = () => signOut({ redirectUrl: "/login" });
     window.addEventListener("session-expired", handleSessionExpired);
     return () => window.removeEventListener("session-expired", handleSessionExpired);
   }, [signOut]);
 
-  // Auto-sync: when user is signed in but publicMetadata.role is not yet set
-  // (happens after email-link verification callback), sync using unsafeMetadata.role.
-  // Only attempted once per session to avoid infinite loops when the sync fails.
+  // When user signs in, fetch their role from user_profiles (DB is source of truth)
   useEffect(() => {
-    if (!isSignedIn || !user || syncing || syncAttempted) return;
-    const pubRole = user.publicMetadata?.role as string | undefined;
-    const unsafeRole = user.unsafeMetadata?.role as string | undefined;
-    const unsafeName = user.unsafeMetadata?.full_name as string | undefined;
-    if (!pubRole && unsafeRole && unsafeName) {
-      setSyncing(true);
-      setSyncAttempted(true);
-      (async () => {
-        try {
-          const token = await getToken();
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/sync`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ role: unsafeRole, full_name: unsafeName }),
-          });
-          if (!res.ok) {
-            console.error("Auto-sync failed:", res.status, await res.text());
-          } else {
-            await user.reload(); // refresh publicMetadata from Clerk
-          }
-        } catch (err) {
-          console.error("Auto-sync error:", err);
-        } finally {
-          setSyncing(false);
-        }
-      })();
-    } else if (!pubRole) {
-      // No unsafeMetadata to sync from — mark as attempted so we don't loop
-      setSyncAttempted(true);
-    }
-  }, [isSignedIn, user, syncing, syncAttempted, getToken]);
+    if (!isSignedIn || profileFetched || profileLoading) return;
 
-  const role = normalizeRole((user?.publicMetadata?.role as string) ?? null);
-  const loading = !isLoaded || syncing;
+    setProfileLoading(true);
+    (async () => {
+      try {
+        const token = await getToken();
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+        const res = await fetch(`${apiUrl}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json() as { role: string; full_name: string };
+          setDbRole(normalizeRole(data.role));
+          setDbFullName(data.full_name);
+        } else {
+          // Profile not found — fall back to Clerk publicMetadata if available
+          const pubRole = user?.publicMetadata?.role as string | undefined;
+          if (pubRole) setDbRole(normalizeRole(pubRole));
+        }
+      } catch {
+        // Network failure — fall back to Clerk publicMetadata
+        const pubRole = user?.publicMetadata?.role as string | undefined;
+        if (pubRole) setDbRole(normalizeRole(pubRole));
+      } finally {
+        setProfileFetched(true);
+        setProfileLoading(false);
+      }
+    })();
+  }, [isSignedIn, profileFetched, profileLoading, getToken, user]);
+
+  // Reset profile state when user signs out
+  useEffect(() => {
+    if (!isSignedIn && profileFetched) {
+      setDbRole(null);
+      setDbFullName(null);
+      setProfileFetched(false);
+    }
+  }, [isSignedIn, profileFetched]);
+
   const email = user?.emailAddresses?.[0]?.emailAddress ?? null;
-  const fullName = user?.fullName ?? (user?.unsafeMetadata?.full_name as string | undefined) ?? null;
+  const fullName = dbFullName ?? user?.fullName ?? null;
+  const loading = !isLoaded || profileLoading || (!!isSignedIn && !profileFetched);
 
   return (
     <AuthContext.Provider
       value={{
         user: email ? { email, full_name: fullName } : null,
-        role,
+        role: dbRole,
         loading,
         signOut: () => signOut({ redirectUrl: "/login" }),
       }}
