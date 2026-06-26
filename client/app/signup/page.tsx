@@ -297,8 +297,6 @@ export default function SignupPage() {
                 )}
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-                  {/* Required by Clerk bot protection in custom flows */}
-                  <div id="clerk-captcha" />
                   {/* Full name */}
                   <div className="flex flex-col gap-1.5">
                     <label
@@ -398,6 +396,8 @@ export default function SignupPage() {
                       </button>
                     </div>
                   </div>
+
+                  <div id="clerk-captcha" />
 
                   <button
                     type="submit"
