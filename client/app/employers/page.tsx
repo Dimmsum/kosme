@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle, XCircle, ArrowRight } from "lucide-react";
+import { CheckCircle, XCircle, ArrowRight, Camera } from "lucide-react";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Reveal from "@/components/Reveal";
@@ -32,45 +32,8 @@ export default function EmployersPage() {
       <Nav />
 
       {/* Hero */}
-      <section className="grid min-h-screen grid-cols-1 overflow-hidden md:grid-cols-2">
-        {/* Right — gradient block */}
-        <motion.div
-          className="relative order-first min-h-[360px] overflow-hidden sm:min-h-[440px] md:order-none md:min-h-0"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 0.2 }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-k-primary via-k-primary-light to-[#7A2058]" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <motion.div
-              className="relative"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 0.2, y: 0 }}
-              transition={{ duration: 1.2, delay: 0.5, ease }}
-            >
-              <div className="h-36 w-56 rounded-3xl border-2 border-white/40 sm:h-48 sm:w-72" />
-              <div className="absolute -bottom-5 -right-5 h-24 w-36 rounded-2xl border border-white/20 sm:h-32 sm:w-48" />
-              <div className="absolute -top-5 -left-5 h-20 w-32 rounded-2xl border border-white/20 sm:h-24 sm:w-40" />
-            </motion.div>
-          </div>
-          <motion.div
-            className="absolute bottom-8 left-8 right-8 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, delay: 0.9, ease }}
-          >
-            <p className="font-serif text-base italic text-white/80 leading-snug">
-              &ldquo;We hired two graduates based entirely on their Kosmè
-              portfolios. The evidence spoke for itself.&rdquo;
-            </p>
-            <p className="mt-2 text-xs text-white/40 tracking-wide">
-              — Salon Owner, London
-            </p>
-          </motion.div>
-        </motion.div>
-
-        {/* Left — content */}
-        <div className="relative z-10 flex flex-col justify-center px-4 pb-16 pt-10 sm:px-6 sm:pb-20 sm:pt-12 md:px-14 md:pb-20 md:pt-[120px]">
+      <section className="flex min-h-screen flex-col justify-center overflow-hidden">
+        <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 pb-16 pt-24 sm:px-8 sm:pb-20 sm:pt-28 md:px-12 md:pb-20 md:pt-32">
           <motion.div
             initial={{ opacity: 0, y: 32 }}
             animate={{ opacity: 1, y: 0 }}
@@ -151,10 +114,10 @@ export default function EmployersPage() {
                     <div className="h-11 w-11 rounded-full bg-gradient-to-br from-k-primary to-k-primary-light" />
                     <div>
                       <p className="text-sm font-medium text-k-black">
-                        Sophie Marchetti
+                        Example Student
                       </p>
                       <p className="text-xs text-k-gray-400">
-                        London College of Beauty, Level 3
+                        Beauty College, Level 3
                       </p>
                     </div>
                   </div>
@@ -163,22 +126,24 @@ export default function EmployersPage() {
                   </span>
                 </div>
 
-                {/* Before / After placeholders */}
+                {/* Before / After evidence slots */}
                 <div className="mb-5 grid grid-cols-2 gap-3">
                   <div className="flex flex-col overflow-hidden rounded-2xl">
-                    <div className="flex h-28 items-center justify-center bg-k-gray-200 sm:h-36">
-                      <span className="text-xs font-medium uppercase tracking-[0.08em] text-k-gray-400">
-                        Before
+                    <div className="flex h-28 flex-col items-center justify-center gap-2 bg-k-gray-100 sm:h-36">
+                      <Camera size={20} className="text-k-gray-400" />
+                      <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-k-gray-400">
+                        Before photo
                       </span>
                     </div>
-                    <span className="bg-k-gray-100 py-1.5 text-center text-[10px] font-medium uppercase tracking-[0.08em] text-k-gray-400">
+                    <span className="bg-k-gray-200 py-1.5 text-center text-[10px] font-medium uppercase tracking-[0.08em] text-k-gray-400">
                       Before
                     </span>
                   </div>
                   <div className="flex flex-col overflow-hidden rounded-2xl">
-                    <div className="flex h-28 items-center justify-center bg-k-primary/10 sm:h-36">
-                      <span className="text-xs font-medium uppercase tracking-[0.08em] text-k-primary/50">
-                        After
+                    <div className="flex h-28 flex-col items-center justify-center gap-2 bg-k-primary/8 sm:h-36">
+                      <Camera size={20} className="text-k-primary/40" />
+                      <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-k-primary/50">
+                        After photo
                       </span>
                     </div>
                     <span className="bg-k-primary/5 py-1.5 text-center text-[10px] font-medium uppercase tracking-[0.08em] text-k-primary/50">
@@ -203,7 +168,7 @@ export default function EmployersPage() {
                 <div className="flex items-center gap-2 border-t border-k-gray-200 pt-4">
                   <CheckCircle size={14} className="text-emerald-500" />
                   <span className="text-xs font-light text-k-gray-600">
-                    Verified by Dr. Fiona Walsh · 19 Mar 2025
+                    Verified by educator · on completion
                   </span>
                 </div>
               </div>

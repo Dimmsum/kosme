@@ -5,6 +5,36 @@ import { supabaseAdmin } from "../lib/supabase";
 
 const router = Router();
 
+// GET /api/auth/me
+// Returns the user's role and name from user_profiles — DB is the source of truth.
+router.get("/me", async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const token = authHeader.slice(7);
+
+  let clerkId: string;
+  try {
+    const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+    clerkId = payload.sub;
+  } catch {
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("user_profiles")
+    .select("role, full_name")
+    .eq("clerk_id", clerkId)
+    .single();
+
+  if (error || !data) {
+    return res.status(404).json({ error: "Profile not found" });
+  }
+
+  return res.json({ role: data.role, full_name: data.full_name });
+});
+
 // POST /api/auth/sync
 // Called by the client after Clerk signup/login to create the user_profiles row.
 // Does NOT use requireAuth middleware because the profile may not exist yet.

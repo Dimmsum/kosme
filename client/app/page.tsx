@@ -1,4 +1,5 @@
 import Nav from "@/components/Nav";
+import VideoPopup from "@/components/VideoPopup";
 import Hero from "@/components/Hero";
 import MarqueeStrip from "@/components/MarqueeStrip";
 import WhySection from "@/components/WhySection";
@@ -12,6 +13,7 @@ import Footer from "@/components/Footer";
 export default function Home() {
   return (
     <>
+      <VideoPopup />
       <Nav />
       <main>
         <Hero />

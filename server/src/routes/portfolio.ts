@@ -205,8 +205,10 @@ router.get(
     }
 
     const { data, error } = await query;
-    if (error) console.error("DB error:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    if (error) {
+      console.error("DB error:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
 
     const items = data ?? [];
     const hasMore = items.length > limit;

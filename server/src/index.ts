@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import waitlistRouter from "./routes/waitlist";
+import clientSignupRouter from "./routes/client-signup";
 import authRouter from "./routes/auth";
 import profileRouter from "./routes/profile";
 import servicesRouter from "./routes/services";
@@ -87,6 +88,7 @@ app.get("/health", (_req, res) => {
   });
 });
 app.use("/api/waitlist", waitlistRouter);
+app.use("/api/client-signup", clientSignupRouter);
 app.use("/api/auth", authLimiter, authRouter);
 
 // Protected routes — all require a valid Clerk JWT

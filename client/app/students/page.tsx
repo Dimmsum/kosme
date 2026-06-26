@@ -85,44 +85,9 @@ export default function StudentsPage() {
     <>
       <Nav />
 
-      {/* Hero — full-viewport split */}
-      <section className="grid min-h-screen grid-cols-1 overflow-hidden md:grid-cols-2">
-        {/* Right — gradient block (order-first on mobile) */}
-        <motion.div
-          className="relative order-first min-h-[360px] overflow-hidden sm:min-h-[440px] md:order-none md:min-h-0"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 0.2 }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-k-primary via-k-primary-light to-[#7A2058]" />
-          {/* Decorative abstract shapes */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <motion.div
-              className="relative h-48 w-48 sm:h-64 sm:w-64 md:h-80 md:w-80"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 0.18, scale: 1 }}
-              transition={{ duration: 1.2, delay: 0.5, ease }}
-            >
-              <div className="absolute inset-0 rounded-full border-2 border-k-accent-light" />
-              <div className="absolute inset-8 rounded-full border border-k-accent-light/60" />
-              <div className="absolute inset-16 rounded-full bg-k-accent/30" />
-            </motion.div>
-          </div>
-          <motion.div
-            className="absolute bottom-8 left-8 right-8 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, delay: 0.9, ease }}
-          >
-            <p className="font-serif text-base italic text-white/80 leading-snug">
-              &ldquo;My verified portfolio landed me my first salon role before I even graduated.&rdquo;
-            </p>
-            <p className="mt-2 text-xs text-white/40 tracking-wide">— Maya T., Level 3 Beauty Student</p>
-          </motion.div>
-        </motion.div>
-
-        {/* Left — content */}
-        <div className="relative z-10 flex flex-col justify-center px-4 pb-16 pt-10 sm:px-6 sm:pb-20 sm:pt-12 md:px-14 md:pb-20 md:pt-[120px]">
+      {/* Hero */}
+      <section className="flex min-h-screen flex-col justify-center overflow-hidden">
+        <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 pb-16 pt-24 sm:px-8 sm:pb-20 sm:pt-28 md:px-12 md:pb-20 md:pt-32">
           <motion.div
             initial={{ opacity: 0, y: 32 }}
             animate={{ opacity: 1, y: 0 }}
