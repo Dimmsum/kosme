@@ -14,9 +14,31 @@ import shortlistRouter from "./routes/shortlist";
 import dashboardRouter from "./routes/dashboard";
 import volunteerRequestsRouter from "./routes/volunteer-requests";
 import { requireAuth } from "./middleware/auth";
+import { supabaseAdmin } from "./lib/supabase";
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
+
+// Health-check routes registered before CORS/rate-limit middleware so
+// server-to-server monitors (no Origin header) can reach them.
+app.get("/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    service: "kosmee-api",
+    timestamp: new Date().toISOString(),
+  });
+});
+app.get("/api/keep-alive", async (_req, res) => {
+  try {
+    const { error } = await supabaseAdmin
+      .from("roles")
+      .select("id", { count: "exact", head: true });
+    if (error) throw error;
+    res.json({ status: "ok", db: "reachable", timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: "error", db: "unreachable" });
+  }
+});
 
 const defaultOrigins = [
   "http://localhost:3000",
@@ -80,13 +102,6 @@ const uploadLimiter = rateLimit({
 app.use(globalLimiter);
 
 // Public routes
-app.get("/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    service: "kosmee-api",
-    timestamp: new Date().toISOString(),
-  });
-});
 app.use("/api/waitlist", waitlistRouter);
 app.use("/api/client-signup", clientSignupRouter);
 app.use("/api/auth", authLimiter, authRouter);
