@@ -25,11 +25,15 @@ const router = Router();
 router.get(
   "/clients",
   requireRole("student"),
-  async (_req: AuthRequest, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
+    // Demo students only see demo volunteer clients (and vice versa) — keeps
+    // a real person's name from ever showing up as a selectable "client" on
+    // a public demo account, and keeps demo filler out of real students' lists.
     const { data, error } = await supabaseAdmin
       .from("user_profiles")
       .select("id, full_name")
       .eq("role", "client")
+      .eq("is_demo", req.isDemo ?? false)
       .order("full_name");
 
     if (error) {
@@ -247,7 +251,7 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
     .from("services")
     .select(
       `
-      id, name, category_id, notes, status, created_at, updated_at,
+      id, name, category_id, notes, status, created_at, updated_at, is_demo,
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
       service_photos ( id, type, url, created_at ),
@@ -262,14 +266,16 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(404).json({ error: "Service not found" });
   }
 
-  // Access check: student owner, assigned client, or educator/employer
+  // Access check: student owner, assigned client, or educator/employer —
+  // and a demo account may only ever reach demo services, never real ones.
   const student = Array.isArray(data.student) ? data.student[0] : data.student;
   const client = Array.isArray(data.client) ? data.client[0] : data.client;
   const isOwner = (student as { id: string } | null)?.id === req.userId;
   const isClient = (client as { id: string } | null)?.id === req.userId;
   const isPrivileged = ["educator", "employer"].includes(req.userRole ?? "");
+  const demoBoundaryOk = (data.is_demo ?? false) === (req.isDemo ?? false);
 
-  if (!isOwner && !isClient && !isPrivileged) {
+  if (!demoBoundaryOk || (!isOwner && !isClient && !isPrivileged)) {
     return res.status(403).json({ error: "Forbidden" });
   }
 

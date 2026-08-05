@@ -3,18 +3,20 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useUser, useClerk, useAuth as useClerkAuth } from "@clerk/nextjs";
 
-export type UserRole = "student" | "educator" | "client" | "employer";
+export type UserRole = "student" | "educator" | "client" | "employer" | "super_admin";
 
 export const ROLE_DASHBOARD: Record<UserRole, string> = {
   student: "/student/dashboard",
   educator: "/educator/dashboard",
   client: "/volunteer/dashboard",
   employer: "/employer/dashboard",
+  super_admin: "/admin/dashboard",
 };
 
 interface AuthState {
   user: { email: string; full_name: string | null } | null;
   role: UserRole | null;
+  isDemo: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -22,6 +24,7 @@ interface AuthState {
 const AuthContext = createContext<AuthState>({
   user: null,
   role: null,
+  isDemo: false,
   loading: true,
   signOut: async () => {},
 });
@@ -30,7 +33,7 @@ export function normalizeRole(raw: string | null | undefined): UserRole | null {
   if (!raw) return null;
   const r = raw.toLowerCase();
   if (r === "volunteer") return "client"; // backward compat
-  if (r === "student" || r === "educator" || r === "client" || r === "employer") {
+  if (r === "student" || r === "educator" || r === "client" || r === "employer" || r === "super_admin") {
     return r as UserRole;
   }
   return null;
@@ -43,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [dbRole, setDbRole] = useState<UserRole | null>(null);
   const [dbFullName, setDbFullName] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileFetched, setProfileFetched] = useState(false);
   const [wasSignedIn, setWasSignedIn] = useState(false);
@@ -78,9 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         if (res.ok) {
-          const data = await res.json() as { role: string; full_name: string };
+          const data = await res.json() as { role: string; full_name: string; is_demo?: boolean };
           setDbRole(normalizeRole(data.role));
           setDbFullName(data.full_name);
+          setIsDemo(data.is_demo ?? false);
         } else {
           // Profile not found — fall back to Clerk publicMetadata if available
           const pubRole = user?.publicMetadata?.role as string | undefined;
@@ -102,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isSignedIn && profileFetched) {
       setDbRole(null);
       setDbFullName(null);
+      setIsDemo(false);
       setProfileFetched(false);
     }
   }, [isSignedIn, profileFetched]);
@@ -115,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user: email ? { email, full_name: fullName } : null,
         role: dbRole,
+        isDemo,
         loading,
         signOut: () => signOut({ redirectUrl: "/login" }),
       }}

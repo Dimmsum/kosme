@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import waitlistRouter from "./routes/waitlist";
 import clientSignupRouter from "./routes/client-signup";
 import authRouter from "./routes/auth";
+import demoRouter from "./routes/demo";
 import profileRouter from "./routes/profile";
 import servicesRouter from "./routes/services";
 import confirmationsRouter from "./routes/confirmations";
@@ -13,7 +14,8 @@ import portfolioRouter from "./routes/portfolio";
 import shortlistRouter from "./routes/shortlist";
 import dashboardRouter from "./routes/dashboard";
 import volunteerRequestsRouter from "./routes/volunteer-requests";
-import { requireAuth } from "./middleware/auth";
+import adminRouter from "./routes/admin";
+import { requireAuth, requireRole } from "./middleware/auth";
 import { supabaseAdmin } from "./lib/supabase";
 
 const app = express();
@@ -99,12 +101,23 @@ const uploadLimiter = rateLimit({
   message: { error: "Upload limit reached, please try again later." },
 });
 
+// Limit for demo login — public/unauthenticated, so it needs its own guard
+// against being used to mint Clerk sign-in tokens in bulk.
+const demoLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many demo login attempts, please try again later." },
+});
+
 app.use(globalLimiter);
 
 // Public routes
 app.use("/api/waitlist", waitlistRouter);
 app.use("/api/client-signup", clientSignupRouter);
 app.use("/api/auth", authLimiter, authRouter);
+app.use("/api/demo", demoLimiter, demoRouter);
 
 // Protected routes — all require a valid Clerk JWT
 app.use("/api/profile", requireAuth, profileRouter);
@@ -116,6 +129,7 @@ app.use("/api/portfolio", requireAuth, portfolioRouter);
 app.use("/api/shortlist", requireAuth, shortlistRouter);
 app.use("/api/dashboard", requireAuth, dashboardRouter);
 app.use("/api/volunteer-requests", requireAuth, volunteerRequestsRouter);
+app.use("/api/admin", requireAuth, requireRole("super_admin"), adminRouter);
 
 app.listen(PORT, () => {
   console.log(`Kosmee API running on http://localhost:${PORT}`);

@@ -1,38 +1,57 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
-import { LayoutDashboard, Search, Heart, User, LogOut } from "lucide-react";
+import {
+  LayoutDashboard,
+  UserCheck,
+  Building2,
+  GraduationCap,
+  Users,
+  Briefcase,
+  ClipboardList,
+  Flag,
+  History,
+  FolderOpen,
+  BarChart3,
+  Bell,
+  Settings,
+  Sparkles,
+  LogOut,
+} from "lucide-react";
 import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
-import DemoBanner from "@/components/DemoBanner";
 
 const navItems = [
-  { href: "/employer/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/employer/browse", label: "Browse", icon: Search },
-  { href: "/employer/shortlist", label: "Shortlist", icon: Heart },
-  { href: "/employer/profile", label: "Profile", icon: User },
+  { href: "/admin/dashboard", label: "Dashboard Overview", icon: LayoutDashboard },
+  { href: "/admin/users", label: "User Verification", icon: UserCheck },
+  { href: "/admin/institutions", label: "Institutions & Cohorts", icon: Building2 },
+  { href: "/admin/educators", label: "Educator Assignments", icon: GraduationCap },
+  { href: "/admin/clients", label: "Volunteer Clients", icon: Users },
+  { href: "/admin/employers", label: "Employers", icon: Briefcase },
+  { href: "/admin/submissions", label: "Practical Submissions", icon: ClipboardList },
+  { href: "/admin/flags", label: "Flagged Issues", icon: Flag },
+  { href: "/admin/audit", label: "Audit Trail", icon: History },
+  { href: "/admin/portfolios", label: "Portfolio Oversight", icon: FolderOpen },
+  { href: "/admin/reports", label: "Reports & Analytics", icon: BarChart3 },
+  { href: "/admin/alerts", label: "Alerts", icon: Bell },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/admin/demo", label: "Demo Mode", icon: Sparkles },
 ];
 
-export default function EmployerLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, role, loading, signOut } = useAuth();
   const rolePending = !!user && role === null;
-  const roleMismatch = !!user && !!role && role !== "employer";
+  const roleMismatch = !!user && !!role && role !== "super_admin";
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
       return;
     }
-
     if (!loading && roleMismatch) {
       router.replace(ROLE_DASHBOARD[role]);
     }
@@ -68,17 +87,14 @@ export default function EmployerLayout({
       .map((n) => n[0])
       .join("")
       .slice(0, 2)
-      .toUpperCase() ?? "EM";
+      .toUpperCase() ?? "SA";
 
-  const displayName =
-    user.full_name ??
-    user.email ??
-    "Employer";
+  const displayName = user.full_name ?? user.email ?? "Super Admin";
 
   return (
     <div className="flex min-h-screen bg-k-gray-100">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex md:w-[240px] md:flex-col md:fixed md:inset-y-0 bg-k-white border-r border-k-gray-200">
+      <aside className="hidden md:flex md:w-[264px] md:flex-col md:fixed md:inset-y-0 bg-k-white border-r border-k-gray-200">
         <div className="flex h-16 items-center px-6 border-b border-k-gray-200">
           <Link href="/" className="block">
             <Image
@@ -92,11 +108,9 @@ export default function EmployerLayout({
           </Link>
         </div>
 
-        <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
           {navItems.map(({ href, label, icon: Icon }) => {
-            const active =
-              pathname === href ||
-              (href !== "/employer/dashboard" && pathname.startsWith(href));
+            const active = pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}
@@ -117,15 +131,13 @@ export default function EmployerLayout({
         <div className="border-t border-k-gray-200 px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-full bg-k-primary/10 flex items-center justify-center">
-              <span className="text-sm font-semibold text-k-primary">
-                {initials}
-              </span>
+              <span className="text-sm font-semibold text-k-primary">{initials}</span>
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-k-black leading-tight">
                 {displayName}
               </p>
-              <p className="text-xs text-k-gray-400">Employer</p>
+              <p className="text-xs text-k-gray-400">Super Admin</p>
             </div>
             <button
               onClick={signOut}
@@ -138,31 +150,28 @@ export default function EmployerLayout({
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 md:ml-[240px] pb-24 md:pb-0"><DemoBanner />{children}</main>
-
-      {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-k-gray-200 bg-k-white px-1 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 md:hidden">
-        <div className="flex items-center gap-1 overflow-x-auto px-1">
+      {/* Mobile top nav — horizontally scrollable pill strip (too many
+          modules for a fixed bottom grid like the other role layouts) */}
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center gap-2 overflow-x-auto border-b border-k-gray-200 bg-k-white px-3 py-2 md:hidden">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active =
-            pathname === href ||
-            (href !== "/employer/dashboard" && pathname.startsWith(href));
+          const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={href}
               href={href}
-              className={`flex min-w-[74px] flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 no-underline transition-colors duration-150 ${
-                active ? "text-k-primary" : "text-k-gray-400"
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium no-underline transition-colors duration-150 ${
+                active ? "bg-k-primary text-k-white" : "bg-k-gray-100 text-k-gray-600"
               }`}
             >
-              <Icon size={18} />
-              <span className="text-[10px] font-medium">{label}</span>
+              <Icon size={14} />
+              {label}
             </Link>
           );
         })}
-        </div>
       </nav>
+
+      {/* Main content */}
+      <main className="flex-1 md:ml-[264px] pt-14 md:pt-0">{children}</main>
     </div>
   );
 }

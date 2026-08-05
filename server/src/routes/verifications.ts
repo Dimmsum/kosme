@@ -9,6 +9,8 @@ router.get(
   "/students",
   requireRole("educator"),
   async (req: AuthRequest, res: Response) => {
+    // A demo educator only browses demo students; a real educator never sees
+    // demo students mixed into their real roster.
     const { data, error } = await supabaseAdmin
       .from("user_profiles")
       .select(
@@ -19,6 +21,7 @@ router.get(
     `,
       )
       .eq("role", "student")
+      .eq("is_demo", req.isDemo ?? false)
       .order("full_name");
 
     if (error) {
@@ -64,6 +67,7 @@ router.get(
       .select("id, full_name, institution_id, institutions ( name )")
       .eq("id", studentId)
       .eq("role", "student")
+      .eq("is_demo", req.isDemo ?? false)
       .single();
 
     if (profileError || !profile) {
@@ -81,6 +85,7 @@ router.get(
     `,
       )
       .eq("student_id", studentId)
+      .eq("is_demo", req.isDemo ?? false)
       .order("created_at", { ascending: false });
 
     if (servicesError) {
@@ -107,6 +112,7 @@ router.get(
     `,
       )
       .eq("status", "awaiting_educator")
+      .eq("is_demo", req.isDemo ?? false)
       .order("created_at", { ascending: false });
 
     if (error) {

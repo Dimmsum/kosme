@@ -116,7 +116,9 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     const { specialisation, institution_id } = req.query;
 
-    // Get all students who have at least one verified service
+    // Get all students who have at least one verified service. A demo
+    // employer only ever browses demo students, and real employers never see
+    // demo students mixed into their search results.
     let query = supabaseAdmin
       .from("user_profiles")
       .select(
@@ -128,6 +130,7 @@ router.get(
       )
     `,
       )
+      .eq("is_demo", req.isDemo ?? false)
       .not("services", "is", null);
 
     if (institution_id) {
@@ -197,6 +200,7 @@ router.get(
     `,
       )
       .eq("status", "verified")
+      .eq("is_demo", req.isDemo ?? false)
       .order("created_at", { ascending: false })
       .limit(limit + 1);
 
@@ -228,6 +232,18 @@ router.get("/:studentId", async (req: AuthRequest, res: Response) => {
     return res.status(403).json({ error: "Forbidden" });
   }
 
+  // Also return the student's profile — checked first so demo viewers can't
+  // reach a real student's portfolio (and vice versa) by guessing an id.
+  const { data: profile } = await supabaseAdmin
+    .from("user_profiles")
+    .select("id, full_name, institution_id, institutions ( name ), is_demo")
+    .eq("id", studentId)
+    .single();
+
+  if (!profile || (profile.is_demo ?? false) !== (req.isDemo ?? false)) {
+    return res.status(404).json({ error: "Student not found" });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("services")
     .select(
@@ -245,13 +261,6 @@ router.get("/:studentId", async (req: AuthRequest, res: Response) => {
     console.error("DB error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
-
-  // Also return the student's profile
-  const { data: profile } = await supabaseAdmin
-    .from("user_profiles")
-    .select("id, full_name, institution_id, institutions ( name )")
-    .eq("id", studentId)
-    .single();
 
   return res.json({ student: profile, portfolio: data });
 });

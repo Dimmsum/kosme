@@ -41,10 +41,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     }
 
     if (role === "educator") {
+      // Demo educators only ever see demo services, and real educators never
+      // see demo services — keeps the public demo login from exposing real
+      // student submissions (or polluting real educators' queues with demo noise).
       const { count: pending } = await supabaseAdmin
         .from("services")
         .select("*", { count: "exact", head: true })
-        .eq("status", "awaiting_educator");
+        .eq("status", "awaiting_educator")
+        .eq("is_demo", req.isDemo ?? false);
 
       const { count: totalVerified } = await supabaseAdmin
         .from("verifications")
@@ -116,6 +120,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         .from("services")
         .select("student_id")
         .eq("status", "verified")
+        .eq("is_demo", req.isDemo ?? false)
         .gte("updated_at", thirtyDaysAgo.toISOString());
 
       const newGraduateIds = new Set((recentVerified ?? []).map((s) => s.student_id));

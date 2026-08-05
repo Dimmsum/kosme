@@ -5,6 +5,7 @@ import { supabaseAdmin } from "../lib/supabase";
 export interface AuthRequest extends Request {
   userId?: string;
   userRole?: string;
+  isDemo?: boolean;
 }
 
 export async function requireAuth(
@@ -30,7 +31,7 @@ export async function requireAuth(
   // Look up the DB profile by clerk_id to get the UUID primary key and role
   const { data: profile, error } = await supabaseAdmin
     .from("user_profiles")
-    .select("id, role")
+    .select("id, role, is_demo")
     .eq("clerk_id", clerkId)
     .single();
 
@@ -43,6 +44,7 @@ export async function requireAuth(
 
   req.userId = profile.id;       // UUID — all existing routes stay unchanged
   req.userRole = profile.role;
+  req.isDemo = profile.is_demo ?? false;
   next();
 }
 

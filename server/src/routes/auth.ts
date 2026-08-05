@@ -24,7 +24,7 @@ router.get("/me", async (req: Request, res: Response) => {
 
   const { data, error } = await supabaseAdmin
     .from("user_profiles")
-    .select("role, full_name")
+    .select("role, full_name, is_demo")
     .eq("clerk_id", clerkId)
     .single();
 
@@ -32,7 +32,7 @@ router.get("/me", async (req: Request, res: Response) => {
     return res.status(404).json({ error: "Profile not found" });
   }
 
-  return res.json({ role: data.role, full_name: data.full_name });
+  return res.json({ role: data.role, full_name: data.full_name, is_demo: data.is_demo ?? false });
 });
 
 // POST /api/auth/sync

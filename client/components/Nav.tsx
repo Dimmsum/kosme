@@ -118,6 +118,12 @@ export default function Nav() {
 
         <div className="hidden items-center gap-4 md:flex">
           <Link
+            href="/demo"
+            className="text-sm font-normal text-k-gray-600 tracking-wide no-underline transition-colors duration-200 hover:text-k-black"
+          >
+            Try the demo
+          </Link>
+          <Link
             href="/login"
             className="text-sm font-normal text-k-gray-600 tracking-wide no-underline transition-colors duration-200 hover:text-k-black"
           >
@@ -184,6 +190,13 @@ export default function Nav() {
             )}
 
             <div className="mt-2 flex flex-col gap-2 border-t border-k-gray-200 pt-3">
+              <Link
+                href="/demo"
+                onClick={() => setMobileOpen(false)}
+                className="inline-flex items-center justify-center rounded-full border border-k-gray-200 px-6 py-3 text-sm font-medium text-k-black no-underline transition-all duration-200 hover:border-k-primary hover:text-k-primary"
+              >
+                Try the demo
+              </Link>
               <Link
                 href="/login"
                 onClick={() => setMobileOpen(false)}

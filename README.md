@@ -84,3 +84,56 @@ Defined in `tailwind.config.ts` and available as Tailwind classes:
 - **Role cards** — Edit the `roles` array in `RolesSection.tsx`
 - **Testimonials** — Edit the `testimonials` array in `Testimonials.tsx`
 # kosme
+
+## Demo login
+
+Anyone can browse the platform without an account via **/demo** — pick
+Student, Educator, Volunteer Client, or Employer and you're dropped straight
+into a live dashboard as a seeded demo account. There is no demo super admin;
+demo accounts are ordinary roles only.
+
+How it works:
+- `POST /api/demo/login` issues a short-lived Clerk sign-in token for the
+  seeded demo account of the requested role (`server/src/routes/demo.ts`).
+  The client exchanges it via `signIn.create({ strategy: "ticket", ticket })`
+  — no shared password is ever exposed.
+- Demo data is isolated from real data with a `user_profiles.is_demo` /
+  `services.is_demo` flag: demo accounts only ever see demo-flagged records
+  (and real accounts never see demo ones), enforced in the relevant list
+  endpoints (dashboard, verifications, portfolio browse/feed, service client
+  picker).
+- A persistent banner appears on every dashboard while signed in as a demo
+  account, with one-click "switch role" and "exit demo" actions.
+
+One-time setup (after running `supabase/migrations/0013_demo_accounts.sql`):
+
+```bash
+cd server
+npm run seed:demo
+```
+
+This creates one real Clerk user per demo role (`demo-student@kosme.app`,
+`demo-educator@kosme.app`, `demo-client@kosme.app`, `demo-employer@kosme.app`),
+marks their `user_profiles` row `is_demo = true`, and records the mapping in
+`public.demo_accounts`. Safe to re-run — it upserts rather than duplicating.
+
+## Super Admin
+
+The Super Admin dashboard lives at **/admin** (redirects to `/admin/dashboard`)
+and is gated by the `super_admin` role — it is never reachable via the demo
+login or self-service `/signup`. It's the only role that can eventually
+manage institutions, programmes, cohorts, and platform-wide settings (Phase 2
+of `docs/ROADMAP.md`); for now it shows live headline stats plus stub pages
+for the modules still to be built.
+
+One-time setup (after running `supabase/migrations/0014_admin_role.sql`):
+
+```bash
+cd server
+SUPER_ADMIN_EMAIL=you@kosme.app SUPER_ADMIN_PASSWORD='a-strong-password-12+chars' \
+SUPER_ADMIN_NAME="Your Name" npm run seed:super-admin
+```
+
+Then log in normally at `/login` with that email/password. Safe to re-run —
+it upserts the role rather than duplicating the account, though it won't
+change an existing account's password.

@@ -384,6 +384,12 @@ export default function LoginPage() {
                     Sign up →
                   </Link>
                 </p>
+                <p className="mt-2 text-center text-sm font-light text-k-gray-400">
+                  Just looking around?{" "}
+                  <Link href="/demo" className="font-medium text-k-primary no-underline transition-colors duration-200 hover:text-k-primary-light">
+                    Try the demo →
+                  </Link>
+                </p>
               </>
             )}
           </div>

@@ -7,6 +7,16 @@ work.
 
 **Legend:** ✅ exists · 🔶 partially exists · ⬜ not started
 
+> **Maintenance instruction (for the AI / whoever picks up this file):**
+> This roadmap is a living checklist, not a one-time snapshot. Whenever you
+> finish a work item from this document, **update this file in the same
+> turn**: flip its `⬜` to `✅` (or `🔶` if only partially done), add a short
+> note on *what* was built and *where* (file paths, routes), and update the
+> phase's "Current state" section and the MVP list entry if it's on that
+> list. Don't wait to be asked — treat "done" as including the roadmap edit.
+> If a work item turns out to already exist or to not be needed, say so
+> inline rather than deleting the line, so the history of the decision isn't lost.
+
 ---
 
 ## Phase 1 — Super Admin Login & Dashboard Access (URGENT)
@@ -15,42 +25,83 @@ work.
 
 ### Current state
 - Roles are DB-driven: `public.roles` lookup table + `user_profiles.role`
-  (`supabase/migrations/0002_user_roles.sql`, `0005_merge_profile_role.sql`).
-  Current roles: `student`, `educator`, `client`, `employer`.
+  (`supabase/migrations/0002_user_roles.sql`, `0005_merge_profile_role.sql`,
+  `0014_admin_role.sql`). Current roles: `student`, `educator`, `client`,
+  `employer`, `super_admin`.
 - Auth is Clerk (`client/lib/auth-context.tsx`), with role fetched from the
   server (`GET /api/auth/me`) after sign-in, and `ROLE_DASHBOARD` mapping
-  used to redirect post-login.
-- Route protection is `clerkMiddleware` (`client/middleware.ts`) — currently
-  only checks *authenticated or not*, not role.
-- Per-role dashboards already exist under `client/app/{student,educator,volunteer,employer}`.
+  used to redirect post-login (`super_admin` → `/admin/dashboard`).
+- Route protection is `clerkMiddleware` (`client/middleware.ts`) — checks
+  *authenticated or not* only; per-role gating (including `/admin`) happens
+  client-side in each role's `layout.tsx`, same pattern as every other role.
+  Real enforcement is server-side (`requireRole` on every API route) — the
+  client check is UX only, so this is not a security gap.
+- Per-role dashboards exist under
+  `client/app/{student,educator,volunteer,employer,admin}`.
 
 ### Work items
-1. **Database**
-   - ⬜ Add `super_admin` to `public.roles` (new migration `0013_admin_role.sql`).
-   - ⬜ Decide RLS strategy for admin: either a blanket "role = super_admin bypasses RLS"
-     policy per table, or a Postgres role with `BYPASSRLS` used only by the
-     server's service-role client (simpler, safer — no policy sprawl).
-2. **Server (`server/src`)**
-   - ⬜ Extend `middleware/auth.ts` to expose `role` on the request context and
-     add a `requireRole("super_admin")` guard usable per-route.
-   - ⬜ Add `routes/admin.ts` (or a namespaced `routes/admin/*`) as the mount
-     point for all Phase 2+ admin endpoints.
-3. **Client (`client/app`)**
-   - ⬜ Add `super_admin` to `UserRole` type and `ROLE_DASHBOARD` in
-     `auth-context.tsx` → `/admin/dashboard` (aligns with existing
-     `/student/dashboard` pattern rather than introducing a second URL shape
-     like `/super-admin/dashboard`).
-   - ⬜ New route group `client/app/admin/` with a dashboard shell + nested
-     module pages (list below).
-   - ⬜ Update `middleware.ts` matcher/guard so `/admin/*` requires the
-     `super_admin` role specifically (not just "signed in") — a non-admin
-     hitting `/admin` should redirect to their own dashboard, not see a 403 page.
-4. **Demo login**
-   - ⬜ Seed one Clerk user (or a Clerk "demo" org/testing token) with
-     `role = super_admin` in `user_profiles`, documented in README for local
-     dev and stakeholder demos. If Clerk test-mode credentials aren't
-     desirable long-term, gate behind `NEXT_PUBLIC_DEMO_MODE` (ties into
-     Phase 1's "Demo Mode" module below).
+1. **Database** — ✅ done (2026-08-05)
+   - `supabase/migrations/0014_admin_role.sql` adds `super_admin` to
+     `public.roles`.
+   - RLS decision: **no new RLS policies added.** Every server route already
+     reads/writes through the Supabase service-role client (bypasses RLS
+     entirely); authorization is enforced in Express (`requireRole`), not
+     Postgres. Documented inline in the migration — revisit only if a
+     client-side Supabase key ever queries these tables directly.
+2. **Server (`server/src`)** — ✅ done (2026-08-05)
+   - `middleware/auth.ts` already exposed `role` + a generic `requireRole(...roles)`
+     guard (built for the demo-isolation work); reused as-is for `super_admin`.
+   - `routes/admin.ts` — mount point for admin endpoints, currently one route:
+     `GET /api/admin/overview` (headline counts: students/educators/clients/
+     employers/institutions/pending verifications/verified services, demo
+     data excluded). Mounted in `index.ts` as
+     `app.use("/api/admin", requireAuth, requireRole("super_admin"), adminRouter)`.
+   - `scripts/seed-super-admin.ts` (`npm run seed:super-admin`) — the *only*
+     way to provision a `super_admin` account (reads `SUPER_ADMIN_EMAIL` /
+     `SUPER_ADMIN_PASSWORD` / `SUPER_ADMIN_NAME` env vars). `super_admin` is
+     excluded from `routes/auth.ts`'s self-service `validRoles` list, so
+     `/signup` can never grant it.
+3. **Client (`client/app`)** — ✅ done (2026-08-05)
+   - `super_admin` added to `UserRole` and `ROLE_DASHBOARD` (→ `/admin/dashboard`)
+     in `auth-context.tsx`.
+   - `client/app/admin/layout.tsx` — sidebar shell (desktop) + horizontally
+     scrollable pill nav (mobile) listing all 14 modules; same
+     loading/role-mismatch-redirect pattern as the other four role layouts.
+   - `client/app/admin/dashboard/page.tsx` — real page wired to
+     `GET /api/admin/overview`.
+   - 13 module stub pages (`users`, `institutions`, `educators`, `clients`,
+     `employers`, `submissions`, `flags`, `audit`, `portfolios`, `reports`,
+     `alerts`, `settings`, `demo`) using a shared `components/admin/ModuleStub.tsx`,
+     each labeled with which phase actually builds it out. `admin/demo`
+     is the one exception — it's a real info card linking to the already-live
+     `/demo` picker, not a stub.
+   - `client/app/admin/page.tsx` redirects `/admin` → `/admin/dashboard`.
+   - Did **not** add role-specific matching to `middleware.ts` — see "Current
+     state" above for why that's consistent with the rest of the app rather
+     than a gap.
+4. **Demo login** — ✅ done (2026-08-05), scoped to general browsing, **not**
+   super_admin per explicit product decision:
+   - `supabase/migrations/0013_demo_accounts.sql` — `is_demo` flag on
+     `user_profiles`/`services` (trigger-synced), `demo_accounts` mapping
+     table with a `CHECK (role <> 'super_admin')` guard, seeded demo
+     institution/programme.
+   - `server/src/scripts/seed-demo-accounts.ts` (`npm run seed:demo`) —
+     creates one real Clerk user per demo role (student/educator/client/employer).
+   - `server/src/routes/demo.ts` + `index.ts` — public `GET /api/demo/roles`,
+     `POST /api/demo/login` issues a short-lived Clerk sign-in token
+     (`signInTokens.createSignInToken`), rate-limited.
+   - `client/app/demo/page.tsx` — public role picker; exchanges the ticket via
+     `signIn.create({ strategy: "ticket", ticket })`.
+   - Data isolation: `dashboard.ts`, `verifications.ts`, `portfolio.ts`,
+     `services.ts` filter list/browse queries on `is_demo` so demo accounts
+     only ever see demo data and vice versa (services use service-role
+     Supabase client, so this had to be enforced in-route, not via RLS).
+   - `client/components/DemoBanner.tsx` — sticky "browsing as demo X · switch
+     role · exit" bar wired into all four dashboard layouts.
+   - Entry points: `/demo` linked from `Nav.tsx` (desktop + mobile) and the
+     login page; `/demo(.*)` added to `middleware.ts` public routes.
+   - **Not yet run against a live environment** — still needs the migration
+     applied and `npm run seed:demo` executed with real Clerk/Supabase env vars.
 
 ### Super Admin dashboard modules (shell only in Phase 1 — most are stubs wired to Phase 2/3 data)
 | Module | Route (proposed) | Depends on |
@@ -68,11 +119,15 @@ work.
 | Reports & Analytics | `/admin/reports` | Phase 4/5 data |
 | Alerts | `/admin/alerts` | Phase 4 |
 | Settings | `/admin/settings` | Phase 2 config tables |
-| Demo Mode | `/admin/demo` | flag/toggle, see below |
+| Demo Mode | `/demo` | ✅ built — public role picker (student/educator/client/employer), Clerk sign-in-token login, isolated demo dataset, banner with switch-role/exit. Not super-admin-capable by design. |
 
-**Phase 1 exit criteria:** Super Admin can log in with a demo account, land on
-`/admin/dashboard`, and see every module in the left nav — even if most pages
-are empty states pointing at "coming in Phase X".
+**Phase 1 exit criteria:** ✅ met (2026-08-05, pending a live-environment run).
+A Super Admin can log in, land on `/admin/dashboard` with real headline
+stats, and see every module in the nav — most pages are empty states pointing
+at "coming in Phase X", per the original criteria. Still needed before this
+is actually usable: apply `0014_admin_role.sql` and run
+`npm run seed:super-admin` against the real Clerk/Supabase project (not yet
+done — no live environment access from this session).
 
 ---
 
@@ -269,7 +324,7 @@ and must sit alongside, never inside, the approval decision.
 The email is explicit that these are the MVP cut — everything else in the
 phases above beyond this list is post-MVP polish/expansion:
 
-1. Super Admin login & dashboard access (Phase 1)
+1. Super Admin login & dashboard access (Phase 1) — ✅ done, see `/admin`
 2. Admin control centre (Phase 2)
 3. Student service logging + recommended duration + start/stop timer (Phase 3, Phase 4 partial)
 4. Educator alerts (Phase 4)
@@ -280,7 +335,7 @@ phases above beyond this list is post-MVP polish/expansion:
 9. Consent tracking (Phase 5/6)
 10. Basic reports (Phase 1 "Reports & Analytics" module, minimal — counts/aggregates, not full analytics)
 11. KAI placeholders (Phase 7)
-12. Demo mode (Phase 1)
+12. Demo mode (Phase 1) — ✅ done, see `/demo`
 
 **Explicitly post-MVP:** advanced AI (real KAI model integration),
 student-client matching (KAI Match), and any deep analytics beyond basic
