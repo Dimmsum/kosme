@@ -61,12 +61,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isSignedIn, isLoaded, wasSignedIn, signOut]);
 
-  // Listen for 401 events dispatched by api.ts when the server rejects a token
+  // Listen for 401 events dispatched by api.ts when the server rejects a token.
+  // A 401 does NOT always mean the Clerk session is gone — it can also be a
+  // server-side auth failure (e.g. the API verifying against the wrong Clerk
+  // instance, clock skew, or a transient error). Signing out on every 401 would
+  // force-logout a perfectly valid session, so we confirm the session is
+  // actually gone (Clerk can no longer mint a token) before redirecting.
   useEffect(() => {
-    const handleSessionExpired = () => signOut({ redirectUrl: "/login" });
+    const handleSessionExpired = async () => {
+      try {
+        const token = await getToken();
+        if (token) {
+          // Session is still valid — the 401 was server-side, not expiry.
+          console.warn(
+            "Received 401 from API but Clerk session is still valid — not signing out. " +
+              "Check that the server's CLERK_SECRET_KEY matches this frontend's Clerk instance.",
+          );
+          return;
+        }
+      } catch {
+        // getToken threw — treat as no valid session below.
+      }
+      signOut({ redirectUrl: "/login" });
+    };
     window.addEventListener("session-expired", handleSessionExpired);
     return () => window.removeEventListener("session-expired", handleSessionExpired);
-  }, [signOut]);
+  }, [signOut, getToken]);
 
   // When user signs in, fetch their role from user_profiles (DB is source of truth)
   useEffect(() => {

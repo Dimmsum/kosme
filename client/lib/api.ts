@@ -16,6 +16,11 @@ async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
+// A 401 is advisory only: it signals the server rejected the token, which may be
+// a genuine session expiry OR a server-side auth failure (wrong Clerk instance,
+// clock skew, transient error). The listener in auth-context.tsx re-checks the
+// Clerk session before deciding to sign out — this event never force-logs-out on
+// its own.
 function handleExpiry(res: Response): void {
   if (res.status === 401) {
     window.dispatchEvent(new Event("session-expired"));

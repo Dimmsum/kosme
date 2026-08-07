@@ -1,9 +1,16 @@
 import { Router, Response } from "express";
-import { supabaseAdmin } from "../lib/supabase";
-import { AuthRequest } from "../middleware/auth";
+import { supabaseAdmin } from "../../lib/supabase";
+import { AuthRequest } from "../../middleware/auth";
+import institutionsRouter from "./institutions";
+import programmesRouter from "./programmes";
+import cohortsRouter from "./cohorts";
+import serviceCatalogRouter from "./service-catalog";
+import educatorAssignmentsRouter from "./educator-assignments";
+import usersRouter from "./users";
 
 // Mounted at /api/admin in index.ts, behind requireAuth + requireRole("super_admin")
-// — every route here already assumes the caller is a verified super admin.
+// — every route here (and in every sub-router below) already assumes the caller
+// is a verified super admin.
 const router = Router();
 
 // GET /api/admin/overview — headline counts for the Dashboard Overview module.
@@ -45,5 +52,13 @@ router.get("/overview", async (_req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to load admin overview" });
   }
 });
+
+// Phase 2 — Admin Control Centre CRUD sub-routers.
+router.use("/institutions", institutionsRouter);
+router.use("/programmes", programmesRouter);
+router.use("/cohorts", cohortsRouter);
+router.use("/service-catalog", serviceCatalogRouter);
+router.use("/educator-assignments", educatorAssignmentsRouter);
+router.use("/users", usersRouter);
 
 export default router;

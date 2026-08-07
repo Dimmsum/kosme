@@ -135,30 +135,41 @@ done — no live environment access from this session).
 
 **Goal:** Super Admin manages the structural data every later phase depends on.
 
-### New schema (new migration(s), e.g. `0014_admin_control_centre.sql`)
-- ⬜ `institutions` — id, name, contact info, active flag
-- ⬜ `programmes` — id, institution_id, name, description
-- ⬜ `cohorts` — id, programme_id, name, start_date, end_date
-- ⬜ `service_categories` — id, name (e.g. "Facial", "Nails", "Makeup")
-- ⬜ `service_types` — id, category_id, name, `recommended_duration_min`,
-  `recommended_duration_max`, `required_practical_hours`,
-  `required_practical_count`
-- ⬜ `educator_assignments` — educator_id, cohort_id (or programme_id),
-  scoped so an educator only sees/approves students in their assigned cohorts
-- ⬜ Extend `user_profiles` (or a join table) so students carry
-  `institution_id`, `programme_id`, `cohort_id`
+### New schema — ✅ done (2026-08-07), `supabase/migrations/0015_admin_control_centre.sql`
+- ✅ `institutions` — **extended** (already existed from 0003): added
+  `contact_email`, `contact_phone`, `is_active`.
+- ✅ `programmes` — **extended** (already existed from 0003): added `description`.
+- ✅ `cohorts` — new: id, programme_id (FK, cascade), name, start_date, end_date.
+- ✅ `service_categories` — reused as-is (0003/0010 seeded lookup); no recreate.
+- ✅ `service_types` — new: id, category_id (FK), name, `recommended_duration_min`,
+  `recommended_duration_max`, `required_practical_hours`, `required_practical_count`.
+- ✅ `educator_assignments` — new: id, educator_id (FK), cohort_id (FK),
+  `UNIQUE(educator_id, cohort_id)`. Scoping to what an educator sees/approves is
+  read in later phases; this table is the source of the mapping.
+- ✅ Extend `user_profiles`: added `programme_id`, `cohort_id`, and a
+  `status` (`active`|`suspended`) flag. `institution_id` already existed (0003).
+- RLS: new tables `ENABLE ROW LEVEL SECURITY` with **no policies** (service-role
+  access only), consistent with the 0014 decision — documented in the migration.
 
 ### Work items
-1. ⬜ CRUD API routes: `admin/institutions.ts`, `admin/programmes.ts`,
-   `admin/cohorts.ts`, `admin/service-catalog.ts`, `admin/educator-assignments.ts`.
+1. **CRUD API routes** — ✅ done (2026-08-07). Restructured `server/src/routes/admin.ts`
+   into a `server/src/routes/admin/` directory (aggregator `index.ts` keeps
+   `GET /overview` and mounts sub-routers under the same `requireRole("super_admin")`
+   guard): `institutions.ts`, `programmes.ts`, `cohorts.ts`, `service-catalog.ts`
+   (categories **and** types), `educator-assignments.ts`, `users.ts`. Shared UUID
+   validation moved to `server/src/lib/validation.ts`. **Not yet run against a live
+   Supabase project** — needs `0015` applied.
 2. ⬜ CRUD UI under `/admin/institutions`, `/admin/programmes-cohorts`,
    `/admin/service-catalog`, `/admin/educators` — tables + create/edit forms.
-3. ⬜ User management (`/admin/users`): list all users, filter by role/status,
-   assign institution/programme/cohort, verify or suspend accounts.
-4. 🔶 Reuse existing `service_categories`-like data if any already lives in
-   `supabase/migrations/0010_category_max_required.sql` — **check this
-   migration before creating new tables**, it may already partially cover
-   service category + required-hours fields.
+   (Backend endpoints above are ready to wire up.)
+3. **User management API** — ✅ done (2026-08-07), `admin/users.ts`: list with
+   `?role=`/`?status=`/`?institution_id=`/`?q=`/`?include_demo=` filters, `GET /:id`
+   with names embedded, `PATCH /:id` to assign institution/programme/cohort and set
+   status. Role changes (esp. to/from `super_admin`) are **rejected** here by design —
+   only `seed-super-admin.ts` can grant that role. UI (`/admin/users`) is ⬜.
+4. ✅ Checked `0010_category_max_required.sql` — `service_categories` (with
+   `max_required`) already existed and is reused; `service_types` (duration/hours)
+   is the net-new table added in `0015`.
 
 **Dependency note:** Phase 3 (Kosmè Verify) reads `service_types` for
 duration/hours, and Phase 4 alerting logic reads the same recommended
