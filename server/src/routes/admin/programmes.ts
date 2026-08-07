@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { supabaseAdmin } from "../../lib/supabase";
 import { AuthRequest } from "../../middleware/auth";
 import { isUuid } from "../../lib/validation";
+import { logAudit } from "../../lib/audit";
 
 // Mounted at /api/admin/programmes (super_admin only).
 const router = Router();
@@ -84,6 +85,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to create programme" });
   }
 
+  await logAudit(req.userId, "create", "programme", data.id, { name: data.name, institution_id });
   return res.status(201).json({ programme: data });
 });
 
@@ -126,6 +128,7 @@ router.patch("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(error ? 500 : 404).json({ error: error ? "Failed to update programme" : "Programme not found" });
   }
 
+  await logAudit(req.userId, "update", "programme", data.id, updates);
   return res.json({ programme: data });
 });
 
@@ -141,6 +144,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to delete programme" });
   }
 
+  await logAudit(req.userId, "delete", "programme", req.params.id, null);
   return res.json({ ok: true });
 });
 

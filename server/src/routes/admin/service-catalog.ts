@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { supabaseAdmin } from "../../lib/supabase";
 import { AuthRequest } from "../../middleware/auth";
 import { isUuid } from "../../lib/validation";
+import { logAudit } from "../../lib/audit";
 
 // Mounted at /api/admin/service-catalog (super_admin only). Manages both lookup
 // levels: service_categories (text-PK lookup, seeded in 0003) and service_types
@@ -58,6 +59,7 @@ router.post("/categories", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to create service category" });
   }
 
+  await logAudit(req.userId, "create", "service_category", data.id, { label: data.label });
   return res.status(201).json({ category: data });
 });
 
@@ -94,6 +96,7 @@ router.patch("/categories/:id", async (req: AuthRequest, res: Response) => {
     return res.status(error ? 500 : 404).json({ error: error ? "Failed to update service category" : "Service category not found" });
   }
 
+  await logAudit(req.userId, "update", "service_category", data.id, updates);
   return res.json({ category: data });
 });
 
@@ -193,6 +196,7 @@ router.post("/types", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to create service type" });
   }
 
+  await logAudit(req.userId, "create", "service_type", data.id, { name: data.name, category_id });
   return res.status(201).json({ type: data });
 });
 
@@ -264,6 +268,7 @@ router.patch("/types/:id", async (req: AuthRequest, res: Response) => {
     return res.status(error ? 500 : 404).json({ error: error ? "Failed to update service type" : "Service type not found" });
   }
 
+  await logAudit(req.userId, "update", "service_type", data.id, updates);
   return res.json({ type: data });
 });
 
@@ -279,6 +284,7 @@ router.delete("/types/:id", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to delete service type" });
   }
 
+  await logAudit(req.userId, "delete", "service_type", req.params.id, null);
   return res.json({ ok: true });
 });
 

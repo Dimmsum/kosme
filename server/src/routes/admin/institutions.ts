@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { supabaseAdmin } from "../../lib/supabase";
 import { AuthRequest } from "../../middleware/auth";
 import { isUuid } from "../../lib/validation";
+import { logAudit } from "../../lib/audit";
 
 // Mounted at /api/admin/institutions (super_admin only — guard is on the parent mount).
 const router = Router();
@@ -87,6 +88,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to create institution" });
   }
 
+  await logAudit(req.userId, "create", "institution", data.id, { name: data.name });
   return res.status(201).json({ institution: data });
 });
 
@@ -141,6 +143,7 @@ router.patch("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(error ? 500 : 404).json({ error: error ? "Failed to update institution" : "Institution not found" });
   }
 
+  await logAudit(req.userId, "update", "institution", data.id, updates);
   return res.json({ institution: data });
 });
 
@@ -158,6 +161,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to delete institution" });
   }
 
+  await logAudit(req.userId, "delete", "institution", req.params.id, null);
   return res.json({ ok: true });
 });
 

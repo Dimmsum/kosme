@@ -19,6 +19,7 @@ import {
   Bell,
   Settings,
   Sparkles,
+  Scissors,
   LogOut,
 } from "lucide-react";
 import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
@@ -27,6 +28,7 @@ const navItems = [
   { href: "/admin/dashboard", label: "Dashboard Overview", icon: LayoutDashboard },
   { href: "/admin/users", label: "User Verification", icon: UserCheck },
   { href: "/admin/institutions", label: "Institutions & Cohorts", icon: Building2 },
+  { href: "/admin/service-catalog", label: "Service Catalog", icon: Scissors },
   { href: "/admin/educators", label: "Educator Assignments", icon: GraduationCap },
   { href: "/admin/clients", label: "Volunteer Clients", icon: Users },
   { href: "/admin/employers", label: "Employers", icon: Briefcase },

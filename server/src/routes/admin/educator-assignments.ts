@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { supabaseAdmin } from "../../lib/supabase";
 import { AuthRequest } from "../../middleware/auth";
 import { isUuid } from "../../lib/validation";
+import { logAudit } from "../../lib/audit";
 
 // Mounted at /api/admin/educator-assignments (super_admin only). Links an educator
 // (user_profiles with role='educator') to a cohort. A UNIQUE(educator_id, cohort_id)
@@ -78,6 +79,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to create educator assignment" });
   }
 
+  await logAudit(req.userId, "create", "educator_assignment", data.id, { educator_id, cohort_id });
   return res.status(201).json({ assignment: data });
 });
 
@@ -93,6 +95,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to delete educator assignment" });
   }
 
+  await logAudit(req.userId, "delete", "educator_assignment", req.params.id, null);
   return res.json({ ok: true });
 });
 

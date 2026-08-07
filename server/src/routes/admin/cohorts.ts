@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { supabaseAdmin } from "../../lib/supabase";
 import { AuthRequest } from "../../middleware/auth";
 import { isUuid } from "../../lib/validation";
+import { logAudit } from "../../lib/audit";
 
 // Mounted at /api/admin/cohorts (super_admin only).
 const router = Router();
@@ -91,6 +92,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to create cohort" });
   }
 
+  await logAudit(req.userId, "create", "cohort", data.id, { name: data.name, programme_id });
   return res.status(201).json({ cohort: data });
 });
 
@@ -150,6 +152,7 @@ router.patch("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(error ? 500 : 404).json({ error: error ? "Failed to update cohort" : "Cohort not found" });
   }
 
+  await logAudit(req.userId, "update", "cohort", data.id, updates);
   return res.json({ cohort: data });
 });
 
@@ -165,6 +168,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to delete cohort" });
   }
 
+  await logAudit(req.userId, "delete", "cohort", req.params.id, null);
   return res.json({ ok: true });
 });
 

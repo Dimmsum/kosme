@@ -159,14 +159,21 @@ done — no live environment access from this session).
    (categories **and** types), `educator-assignments.ts`, `users.ts`. Shared UUID
    validation moved to `server/src/lib/validation.ts`. **Not yet run against a live
    Supabase project** — needs `0015` applied.
-2. ⬜ CRUD UI under `/admin/institutions`, `/admin/programmes-cohorts`,
-   `/admin/service-catalog`, `/admin/educators` — tables + create/edit forms.
-   (Backend endpoints above are ready to wire up.)
+2. **CRUD UI** — ✅ done (2026-08-07). Shared admin primitives in
+   `client/components/admin/` (`AdminHeader`, `Modal`, `ConfirmDialog`,
+   `DataStates`, `FormControls`). Pages:
+   - `/admin/institutions` — 3-level master/detail (institutions → programmes →
+     cohorts) with create/edit/delete + institution activate/deactivate.
+   - `/admin/service-catalog` — categories + service types grouped by category
+     (new nav entry added to `client/app/admin/layout.tsx`).
+   - `/admin/educators` — educator list + assign/remove cohorts.
+   - `/admin/users` — filterable table + edit drawer (placement + status).
+   Added `apiPut` to `client/lib/api.ts`.
 3. **User management API** — ✅ done (2026-08-07), `admin/users.ts`: list with
    `?role=`/`?status=`/`?institution_id=`/`?q=`/`?include_demo=` filters, `GET /:id`
    with names embedded, `PATCH /:id` to assign institution/programme/cohort and set
    status. Role changes (esp. to/from `super_admin`) are **rejected** here by design —
-   only `seed-super-admin.ts` can grant that role. UI (`/admin/users`) is ⬜.
+   only `seed-super-admin.ts` can grant that role. UI at `/admin/users` (✅).
 4. ✅ Checked `0010_category_max_required.sql` — `service_categories` (with
    `max_required`) already existed and is reused; `service_types` (duration/hours)
    is the net-new table added in `0015`.
@@ -176,9 +183,34 @@ duration/hours, and Phase 4 alerting logic reads the same recommended
 duration fields — so Phase 2's schema should be finalized before Phase 3 UI
 is built against it, even if Phase 3 work starts in parallel.
 
-**Phase 2 exit criteria:** Super Admin can create an institution → programme →
-cohort → assign an educator → define a service category/type with recommended
-duration and required hours, entirely through the UI.
+**Phase 2 exit criteria:** ✅ met (2026-08-07, pending live run) — Super Admin can
+create an institution → programme → cohort → assign an educator → define a service
+category/type with recommended duration and required hours, entirely through the UI.
+
+### Super Admin build-out (2026-08-07) — subsystems + read views
+
+Beyond the Control Centre, the remaining admin modules were built out so the whole
+`/admin` surface is functional (backend behind the same `requireRole("super_admin")`
+mount; every mutation writes an `audit_log` row via `server/src/lib/audit.ts`):
+
+- **New schema** `supabase/migrations/0016_admin_subsystems.sql` — `audit_log`,
+  `flags`, `alerts`, `app_settings` (RLS on, no policies; seeds `kai_enabled=false`).
+- **Net-new subsystems (schema + API + UI):**
+  - Audit Trail — `admin/audit.ts` + `/admin/audit` (read-only feed, filters).
+  - Flagged Issues — `admin/flags.ts` + `/admin/flags` (raise / resolve / dismiss).
+  - Alerts — `admin/alerts.ts` + `/admin/alerts` (CRUD + active toggle, audience/severity).
+  - Settings — `admin/settings.ts` + `/admin/settings` (key/value JSONB, KAI flag toggle).
+  - KAI Insights placeholder card added to `/admin/dashboard`, gated on `kai_enabled`
+    (roadmap Phase 7 — assistive only).
+- **Read views over existing data (Phase 3/5/6 oversight, admin-side):**
+  - `/admin/clients` — `admin/clients.ts` (client_signups + volunteer_requests).
+  - `/admin/employers` — `admin/employers.ts` (employer profiles + shortlist counts).
+  - `/admin/submissions` — `admin/submissions.ts` (all services + verification/confirmation).
+  - `/admin/portfolios` — `admin/portfolios.ts` (students + verified-work detail).
+
+Requires migrations `0015` **and** `0016` applied to Supabase. The `/admin/reports`
+module remains a stub (Phase 4/5 analytics). These read views are admin oversight
+surfaces; the underlying student/educator/employer flows are still their own phases.
 
 ---
 

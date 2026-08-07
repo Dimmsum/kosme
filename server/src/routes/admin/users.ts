@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { supabaseAdmin } from "../../lib/supabase";
 import { AuthRequest } from "../../middleware/auth";
 import { isUuid } from "../../lib/validation";
+import { logAudit } from "../../lib/audit";
 
 // Mounted at /api/admin/users (super_admin only). Read + placement/status management
 // for user profiles. Role is NOT editable here — an account can only become (or
@@ -126,6 +127,7 @@ router.patch("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(error ? 500 : 404).json({ error: error ? "Failed to update user" : "User not found" });
   }
 
+  await logAudit(req.userId, "update", "user", req.params.id, updates);
   return res.json({ user: data });
 });
 

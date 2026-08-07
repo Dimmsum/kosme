@@ -56,6 +56,17 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "PUT",
+    headers: await authHeaders(),
+    body: JSON.stringify(body),
+  });
+  handleExpiry(res);
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
 export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
   const token = await getClerkToken();
   const res = await fetch(`${BASE}${path}`, {

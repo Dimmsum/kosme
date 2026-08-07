@@ -9,6 +9,7 @@ import {
   Building2,
   ClipboardList,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import { apiGet } from "@/lib/api";
 
@@ -32,9 +33,15 @@ const TILES: { key: keyof Overview; label: string; icon: typeof GraduationCap }[
   { key: "verified_services", label: "Verified Services", icon: CheckCircle2 },
 ];
 
+interface SettingRow {
+  key: string;
+  value: unknown;
+}
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<Overview | null>(null);
   const [error, setError] = useState("");
+  const [kaiEnabled, setKaiEnabled] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -45,6 +52,10 @@ export default function AdminDashboardPage() {
         setError("Failed to load dashboard stats.");
       }
     })();
+    // KAI insights surface is gated by the kai_enabled feature flag (roadmap Phase 7).
+    apiGet<{ settings: SettingRow[] }>("/api/admin/settings")
+      .then(({ settings }) => setKaiEnabled(settings.find((s) => s.key === "kai_enabled")?.value === true))
+      .catch(() => {});
   }, []);
 
   return (
@@ -77,11 +88,20 @@ export default function AdminDashboardPage() {
         ))}
       </div>
 
-      <p className="mt-10 text-sm font-light text-k-gray-400">
-        Institutions, programmes, cohorts, educator assignments, flagged
-        issues, audit trail, and full reporting land in Phase 2+ — see
-        docs/ROADMAP.md.
-      </p>
+      {/* KAI Insights placeholder (roadmap Phase 7 — assistive only, never verifies work) */}
+      <div className="mt-8 flex items-start gap-4 rounded-2xl border border-dashed border-k-gray-200 bg-k-white px-6 py-5">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-k-primary/10 text-k-primary">
+          <Sparkles size={20} />
+        </span>
+        <div>
+          <p className="text-sm font-medium text-k-black">KAI Insights</p>
+          <p className="mt-0.5 text-sm font-light text-k-gray-600">
+            {kaiEnabled
+              ? "Cohort insights are enabled — assistive summaries will appear here as the KAI integration lands."
+              : "Cohort insights coming soon. Enable the KAI feature flag in Settings to switch this surface on."}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

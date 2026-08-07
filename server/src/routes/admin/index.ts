@@ -7,6 +7,14 @@ import cohortsRouter from "./cohorts";
 import serviceCatalogRouter from "./service-catalog";
 import educatorAssignmentsRouter from "./educator-assignments";
 import usersRouter from "./users";
+import auditRouter from "./audit";
+import flagsRouter from "./flags";
+import alertsRouter from "./alerts";
+import settingsRouter from "./settings";
+import clientsRouter from "./clients";
+import employersRouter from "./employers";
+import submissionsRouter from "./submissions";
+import portfoliosRouter from "./portfolios";
 
 // Mounted at /api/admin in index.ts, behind requireAuth + requireRole("super_admin")
 // — every route here (and in every sub-router below) already assumes the caller
@@ -60,5 +68,13 @@ router.use("/cohorts", cohortsRouter);
 router.use("/service-catalog", serviceCatalogRouter);
 router.use("/educator-assignments", educatorAssignmentsRouter);
 router.use("/users", usersRouter);
+router.use("/audit", auditRouter);
+router.use("/flags", flagsRouter);
+router.use("/alerts", alertsRouter);
+router.use("/settings", settingsRouter);
+router.use("/clients", clientsRouter);
+router.use("/employers", employersRouter);
+router.use("/submissions", submissionsRouter);
+router.use("/portfolios", portfoliosRouter);
 
 export default router;
