@@ -36,11 +36,29 @@ type ServiceStatus =
   | "rejected";
 type FilterOption = "all" | "verified" | "awaiting_educator" | "awaiting_client";
 
+type ClientSource =
+  | "friend_family"
+  | "school_assigned"
+  | "walk_in_client_day"
+  | "salon_placement"
+  | "kosme_volunteer"
+  | "other";
+
+const CLIENT_SOURCE_OPTIONS: { value: ClientSource; label: string }[] = [
+  { value: "friend_family", label: "Friend/Family" },
+  { value: "school_assigned", label: "School assigned" },
+  { value: "walk_in_client_day", label: "Walk-in client day" },
+  { value: "salon_placement", label: "Salon placement" },
+  { value: "kosme_volunteer", label: "Kosmè volunteer" },
+  { value: "other", label: "Other" },
+];
+
 interface Service {
   id: string;
   name: string;
   category_id: string;
   service_type_id: string | null;
+  client_source: ClientSource;
   status: ServiceStatus;
   created_at: string;
   started_at: string | null;
@@ -128,6 +146,7 @@ export default function ServicesPage() {
   const [category, setCategory] = useState("");
   const [serviceTypeId, setServiceTypeId] = useState("");
   const [clientId, setClientId] = useState("");
+  const [clientSource, setClientSource] = useState<ClientSource | "">("");
   const [notes, setNotes] = useState("");
   const [photos, setPhotos] = useState<PhotoEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -244,6 +263,7 @@ export default function ServicesPage() {
     setCategory("");
     setServiceTypeId("");
     setClientId("");
+    setClientSource("");
     setNotes("");
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setPhotos([]);
@@ -265,6 +285,10 @@ export default function ServicesPage() {
       setFormError("Service name and category are required.");
       return;
     }
+    if (!clientSource) {
+      setFormError("Client source is required.");
+      return;
+    }
     setFormError(null);
     setSubmitting(true);
 
@@ -275,6 +299,7 @@ export default function ServicesPage() {
         category_id: category,
         service_type_id: serviceTypeId || undefined,
         client_id: clientId || undefined,
+        client_source: clientSource,
         notes: notes.trim() || undefined,
         start_now: timed,
       });
@@ -567,6 +592,26 @@ export default function ServicesPage() {
                           <option value="">No client — submit directly to educator</option>
                           {clients.map((c) => (
                             <option key={c.id} value={c.id}>{c.full_name ?? c.id}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-k-gray-400" />
+                      </div>
+                    </div>
+
+                    {/* Client source */}
+                    <div>
+                      <label className="mb-2 block text-xs font-medium uppercase tracking-[0.08em] text-k-gray-600">
+                        Client Source
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={clientSource}
+                          onChange={(e) => setClientSource(e.target.value as ClientSource)}
+                          className="w-full appearance-none rounded-xl border border-k-gray-200 bg-k-white px-4 py-3 text-sm text-k-black outline-none transition-all focus:border-k-primary focus:shadow-[0_0_0_3px_rgba(59,10,42,0.06)]"
+                        >
+                          <option value="">Select a client source</option>
+                          {CLIENT_SOURCE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
                           ))}
                         </select>
                         <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-k-gray-400" />

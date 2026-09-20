@@ -93,15 +93,15 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
 `client/app/student/services/page.tsx`, `client/app/student/services/[id]/page.tsx`,
 `client/app/educator/verify/page.tsx`.
 
-- [ ] **VER-1** — Add `client_source` field to service logging
-  - **Depends on:** none
-  - Add a `client_source` enum column to `services` (`friend_family |
-    school_assigned | walk_in_client_day | salon_placement | kosme_volunteer |
-    other`) via a new migration, and a required field on the student log-service
-    form. Explicitly deferred out of the original timer slice; needed now.
-  - **Files:** new `supabase/migrations/0019_client_source.sql`,
-    `server/src/routes/services.ts` (create/update handlers),
-    `client/app/student/services/page.tsx` (log form).
+- [x] **VER-1** — Add `client_source` field to service logging. Migration
+  `0019_client_source.sql` adds `services.client_source` (TEXT + CHECK, backfilled
+  `'other'` then locked NOT NULL, matching the `duration_tag`/`status` convention).
+  `server/src/routes/services.ts`'s `POST /` validates it against the 6 allowed
+  values (400 if missing/invalid) and returns it on the create/list/detail
+  selects; no update handler exists on this route to extend. `client/app/student/
+  services/page.tsx`'s log form has a required "Client Source" select
+  (`CLIENT_SOURCE_OPTIONS`) wired into form state and the POST payload,
+  validated client-side alongside name/category.
 
 - [ ] **VER-2** — Evidence upload stage tagging (before/during/after)
   - **Depends on:** none

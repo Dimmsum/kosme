@@ -22,6 +22,18 @@ const upload = multer({
 
 const router = Router();
 
+// Allowed values for services.client_source (migration 0019). Kept in sync
+// with the CHECK constraint on the column.
+const CLIENT_SOURCES = [
+  "friend_family",
+  "school_assigned",
+  "walk_in_client_day",
+  "salon_placement",
+  "kosme_volunteer",
+  "other",
+] as const;
+type ClientSource = (typeof CLIENT_SOURCES)[number];
+
 // GET /api/services/clients — list volunteer clients for the new-service form (student only)
 router.get(
   "/clients",
@@ -78,7 +90,7 @@ router.get(
       .from("services")
       .select(
         `
-      id, name, category_id, service_type_id, notes, status, created_at, updated_at,
+      id, name, category_id, service_type_id, client_source, notes, status, created_at, updated_at,
       started_at, ended_at, actual_duration_min, duration_tag,
       client:client_id ( id, full_name )
     `,
@@ -100,11 +112,23 @@ router.post(
   "/",
   requireRole("student"),
   async (req: AuthRequest, res: Response) => {
-    const { name, category_id, service_type_id, client_id, notes, start_now } =
-      req.body;
+    const {
+      name,
+      category_id,
+      service_type_id,
+      client_id,
+      client_source,
+      notes,
+      start_now,
+    } = req.body;
 
     if (!name || !category_id) {
       return res.status(400).json({ error: "name and category_id are required" });
+    }
+    if (!client_source || !CLIENT_SOURCES.includes(client_source)) {
+      return res.status(400).json({
+        error: `client_source is required and must be one of: ${CLIENT_SOURCES.join(", ")}`,
+      });
     }
 
     if (typeof name !== "string" || name.trim().length === 0 || name.length > 255) {
@@ -144,12 +168,13 @@ router.post(
         category_id,
         service_type_id: service_type_id ?? null,
         client_id: client_id ?? null,
+        client_source: client_source as ClientSource,
         notes: notes ?? null,
         status,
         started_at: timing ? new Date().toISOString() : null,
       })
       .select(
-        "id, name, category_id, service_type_id, client_id, notes, status, started_at, created_at",
+        "id, name, category_id, service_type_id, client_id, client_source, notes, status, started_at, created_at",
       )
       .single();
 
@@ -406,7 +431,7 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
     .from("services")
     .select(
       `
-      id, name, category_id, service_type_id, notes, status, created_at, updated_at, is_demo,
+      id, name, category_id, service_type_id, client_source, notes, status, created_at, updated_at, is_demo,
       started_at, ended_at, actual_duration_min, duration_tag,
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
