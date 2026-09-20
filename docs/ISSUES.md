@@ -103,7 +103,7 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
   (`CLIENT_SOURCE_OPTIONS`) wired into form state and the POST payload,
   validated client-side alongside name/category.
 
-- [ ] **VER-2** — Evidence upload stage tagging (before/during/after)
+- [x] **VER-2** — Evidence upload stage tagging (before/during/after)
   - **Depends on:** none
   - Add a `stage` enum (`before | during | after`) column to `service_photos`
     and extend the upload endpoint (`POST /:id/photos` in `services.ts`) and
@@ -111,6 +111,18 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
   - **Files:** migration extending `service_photos`,
     `server/src/routes/services.ts` (`POST /:id/photos`),
     `client/app/student/services/page.tsx` (photo upload widget).
+  - **Done:** `stage` column (nullable TEXT + CHECK `before|during|after`,
+    existing rows left `null`) added in migration
+    `supabase/migrations/0020_service_photo_stage.sql`.
+    `POST /:id/photos` in `server/src/routes/services.ts` now parses an
+    optional `stages` JSON array (parallel to the `photos` files, validated
+    against the 3 allowed values) and persists it per row; `GET /:id` also
+    now selects `stage`. Upload widget on
+    `client/app/student/services/page.tsx` (the student log-service form —
+    this is where photo upload actually lives, not the `[id]` detail page)
+    gets a 3-way Before/During/After segmented control under each thumbnail,
+    defaulting new photos to "before" and sent as the `stages` array
+    alongside the files.
 
 - [ ] **VER-3** — Reflection notes field
   - **Depends on:** none

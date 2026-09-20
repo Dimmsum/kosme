@@ -34,6 +34,41 @@ const CLIENT_SOURCES = [
 ] as const;
 type ClientSource = (typeof CLIENT_SOURCES)[number];
 
+const PHOTO_STAGES = ["before", "during", "after"] as const;
+type PhotoStage = (typeof PHOTO_STAGES)[number];
+
+function isPhotoStage(value: unknown): value is PhotoStage {
+  return typeof value === "string" && (PHOTO_STAGES as readonly string[]).includes(value);
+}
+
+// Parses the `stages` form field (a JSON array of stage strings, one per file
+// in the `photos` field, same order). Returns null if the caller didn't send
+// stage tags at all (stage stays NULL on those rows); throws if they did send
+// something but it doesn't validate, so the route can 400 instead of silently
+// dropping a bad tag.
+function parsePhotoStages(raw: unknown, count: number): (PhotoStage | null)[] {
+  if (raw === undefined || raw === null) return new Array(count).fill(null);
+  if (typeof raw !== "string") {
+    throw new Error("stages must be a JSON array of strings");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("stages must be valid JSON");
+  }
+  if (!Array.isArray(parsed) || parsed.length !== count) {
+    throw new Error(`stages must be an array of ${count} value(s) matching the photos field`);
+  }
+  return parsed.map((value) => {
+    if (value === null || value === undefined) return null;
+    if (!isPhotoStage(value)) {
+      throw new Error(`Invalid stage "${String(value)}" — must be before, during, or after`);
+    }
+    return value;
+  });
+}
+
 // GET /api/services/clients — list volunteer clients for the new-service form (student only)
 router.get(
   "/clients",
@@ -358,32 +393,52 @@ router.post(
       return res.status(400).json({ error: "No files uploaded" });
     }
 
+    // `stages` is an optional JSON array of "before"|"during"|"after" (or
+    // null) values, one per file in the `photos` field, in the same order it
+    // was appended client-side. Older/other callers that don't send it get
+    // stage = null on those rows (nullable column — see migration 0020).
+    let genericStages: (PhotoStage | null)[];
+    try {
+      genericStages = parsePhotoStages(req.body?.stages, genericFiles.length);
+    } catch (err) {
+      return res.status(400).json({
+        error: err instanceof Error ? err.message : "Invalid stages value",
+      });
+    }
+
     const toUpload: {
       file: Express.Multer.File;
       type: "before" | "after";
+      stage: PhotoStage | null;
       index: number;
     }[] = [
+      // The `before`/`after` fields are a legacy upload path with no client
+      // currently using them; default their stage from the field name itself
+      // so any existing integration still gets a sensible tag for free.
       ...beforeFiles.map((f, i) => ({
         file: f,
         type: "before" as const,
+        stage: "before" as PhotoStage,
         index: i,
       })),
       ...afterFiles.map((f, i) => ({
         file: f,
         type: "after" as const,
+        stage: "after" as PhotoStage,
         index: i,
       })),
       // Backward compatibility: older clients send `photos` without type.
       ...genericFiles.map((f, i) => ({
         file: f,
         type: "after" as const,
+        stage: genericStages[i] ?? null,
         index: i,
       })),
     ];
 
-    const savedPhotos: { url: string; type: string }[] = [];
+    const savedPhotos: { url: string; type: string; stage: PhotoStage | null }[] = [];
 
-    for (const { file, type, index } of toUpload) {
+    for (const { file, type, stage, index } of toUpload) {
       const ext = file.originalname.split(".").pop()?.toLowerCase() || "jpg";
       const path = `${req.userId}/${req.params.id}/${type}-${index}.${ext}`;
 
@@ -403,16 +458,17 @@ router.post(
         data: { publicUrl },
       } = supabaseAdmin.storage.from("service-photos").getPublicUrl(path);
 
-      savedPhotos.push({ url: publicUrl, type });
+      savedPhotos.push({ url: publicUrl, type, stage });
     }
 
     const { error: dbError } = await supabaseAdmin
       .from("service_photos")
       .insert(
-        savedPhotos.map(({ url, type }) => ({
+        savedPhotos.map(({ url, type, stage }) => ({
           service_id: req.params.id,
           url,
           type,
+          stage,
         })),
       );
 
@@ -435,7 +491,7 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
       started_at, ended_at, actual_duration_min, duration_tag,
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
-      service_photos ( id, type, url, created_at ),
+      service_photos ( id, type, stage, url, created_at ),
       confirmations ( id, status, created_at ),
       verifications ( id, status, notes, created_at )
     `,

@@ -77,7 +77,14 @@ interface ServiceType {
   recommended_duration_min: number | null;
   recommended_duration_max: number | null;
 }
-interface PhotoEntry { id: string; file: File; preview: string }
+type PhotoStage = "before" | "during" | "after";
+interface PhotoEntry { id: string; file: File; preview: string; stage: PhotoStage }
+
+const STAGE_OPTIONS: { value: PhotoStage; label: string; title: string }[] = [
+  { value: "before", label: "B", title: "Before" },
+  { value: "during", label: "D", title: "During" },
+  { value: "after", label: "A", title: "After" },
+];
 
 const STATUS_CFG: Record<ServiceStatus, {
   label: string;
@@ -246,6 +253,7 @@ export default function ServicesPage() {
       id: `photo-${Date.now()}-${photoIdCounter.current++}`,
       file,
       preview: URL.createObjectURL(file),
+      stage: "before" as PhotoStage,
     }));
     setPhotos((p) => [...p, ...entries]);
   };
@@ -256,6 +264,10 @@ export default function ServicesPage() {
       if (target) URL.revokeObjectURL(target.preview);
       return p.filter((ph) => ph.id !== id);
     });
+  };
+
+  const setPhotoStage = (id: string, stage: PhotoStage) => {
+    setPhotos((p) => p.map((ph) => (ph.id === id ? { ...ph, stage } : ph)));
   };
 
   const resetForm = () => {
@@ -308,6 +320,7 @@ export default function ServicesPage() {
         setUploadProgress(`Uploading ${photos.length} photo${photos.length > 1 ? "s" : ""}…`);
         const formData = new FormData();
         photos.forEach((p) => formData.append("photos", p.file));
+        formData.append("stages", JSON.stringify(photos.map((p) => p.stage)));
         await apiUpload(`/api/services/${service.id}/photos`, formData);
       }
 
@@ -627,27 +640,49 @@ export default function ServicesPage() {
                         axis="x"
                         values={photos}
                         onReorder={setPhotos}
-                        className="flex flex-wrap gap-2.5"
+                        className="flex flex-wrap items-start gap-2.5"
                       >
                         {photos.map((photo) => (
                           <Reorder.Item
                             key={photo.id}
                             value={photo}
                             whileDrag={{ scale: 1.08, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", zIndex: 10 }}
-                            className="relative h-24 w-24 cursor-grab active:cursor-grabbing rounded-xl border border-k-primary/20 overflow-hidden group/photo"
+                            className="flex cursor-grab flex-col items-center gap-1 active:cursor-grabbing"
                           >
-                            <img src={photo.preview} alt="Service photo" className="h-full w-full object-cover pointer-events-none" />
-                            <div className="absolute inset-0 bg-black/0 group-hover/photo:bg-black/20 transition-colors" />
-                            <div className="absolute left-1/2 bottom-1 -translate-x-1/2 opacity-0 group-hover/photo:opacity-100 transition-opacity">
-                              <GripVertical size={14} className="text-white drop-shadow-md" />
+                            <div className="group/photo relative h-24 w-24 overflow-hidden rounded-xl border border-k-primary/20">
+                              <img src={photo.preview} alt="Service photo" className="h-full w-full object-cover pointer-events-none" />
+                              <div className="absolute inset-0 bg-black/0 group-hover/photo:bg-black/20 transition-colors" />
+                              <div className="absolute left-1/2 bottom-1 -translate-x-1/2 opacity-0 group-hover/photo:opacity-100 transition-opacity">
+                                <GripVertical size={14} className="text-white drop-shadow-md" />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removePhoto(photo.id)}
+                                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                              >
+                                <X size={10} />
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => removePhoto(photo.id)}
-                              className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm opacity-0 group-hover/photo:opacity-100 transition-opacity"
-                            >
-                              <X size={10} />
-                            </button>
+                            {/* Stage tag — which point of the service this photo documents */}
+                            <div className="flex overflow-hidden rounded-full border border-k-gray-200">
+                              {STAGE_OPTIONS.map((opt) => (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  title={opt.title}
+                                  aria-label={`Tag as ${opt.title}`}
+                                  aria-pressed={photo.stage === opt.value}
+                                  onClick={() => setPhotoStage(photo.id, opt.value)}
+                                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                                    photo.stage === opt.value
+                                      ? "bg-k-primary text-white"
+                                      : "bg-k-white text-k-gray-400 hover:bg-k-gray-100"
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
                           </Reorder.Item>
                         ))}
                         <button
