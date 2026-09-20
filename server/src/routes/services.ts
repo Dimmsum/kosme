@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import multer from "multer";
 import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
+import { isUuid } from "../lib/validation";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -45,6 +46,29 @@ router.get(
   },
 );
 
+// GET /api/services/service-types — service catalog (types + recommended durations)
+// for the log form. Returns every type; the client filters by the selected
+// category. Not demo-scoped: the catalog is shared config, not per-account data.
+router.get(
+  "/service-types",
+  requireRole("student"),
+  async (_req: AuthRequest, res: Response) => {
+    const { data, error } = await supabaseAdmin
+      .from("service_types")
+      .select(
+        "id, category_id, name, recommended_duration_min, recommended_duration_max",
+      )
+      .order("name");
+
+    if (error) {
+      console.error("services GET service-types error:", error);
+      return res.status(500).json({ error: "Failed to fetch service types" });
+    }
+
+    return res.json({ serviceTypes: data ?? [] });
+  },
+);
+
 // GET /api/services — student's own services
 router.get(
   "/",
@@ -54,7 +78,8 @@ router.get(
       .from("services")
       .select(
         `
-      id, name, category_id, notes, status, created_at, updated_at,
+      id, name, category_id, service_type_id, notes, status, created_at, updated_at,
+      started_at, ended_at, actual_duration_min, duration_tag,
       client:client_id ( id, full_name )
     `,
       )
@@ -75,7 +100,8 @@ router.post(
   "/",
   requireRole("student"),
   async (req: AuthRequest, res: Response) => {
-    const { name, category_id, client_id, notes } = req.body;
+    const { name, category_id, service_type_id, client_id, notes, start_now } =
+      req.body;
 
     if (!name || !category_id) {
       return res.status(400).json({ error: "name and category_id are required" });
@@ -89,16 +115,26 @@ router.post(
         return res.status(400).json({ error: "notes must be at most 2000 characters" });
       }
     }
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!UUID_RE.test(category_id)) {
-      return res.status(400).json({ error: "Invalid category_id format" });
+    // category_id is a TEXT lookup key (e.g. "Haircuts"), not a UUID.
+    if (typeof category_id !== "string" || category_id.length > 255) {
+      return res.status(400).json({ error: "Invalid category_id" });
     }
-    if (client_id && !UUID_RE.test(client_id)) {
+    if (service_type_id != null && !isUuid(service_type_id)) {
+      return res.status(400).json({ error: "Invalid service_type_id format" });
+    }
+    if (client_id && !isUuid(client_id)) {
       return res.status(400).json({ error: "Invalid client_id format" });
     }
 
-    // If no client supplied, jump straight to awaiting_educator
-    const status = client_id ? "awaiting_client" : "awaiting_educator";
+    // start_now begins the timer immediately: the service opens in 'in_progress'
+    // and is only routed to a client/educator once the student stops it. Without
+    // it, the current instant-log behaviour is preserved.
+    const timing = start_now === true;
+    const status = timing
+      ? "in_progress"
+      : client_id
+        ? "awaiting_client"
+        : "awaiting_educator";
 
     const { data, error } = await supabaseAdmin
       .from("services")
@@ -106,11 +142,15 @@ router.post(
         student_id: req.userId!,
         name: name.trim(),
         category_id,
+        service_type_id: service_type_id ?? null,
         client_id: client_id ?? null,
         notes: notes ?? null,
         status,
+        started_at: timing ? new Date().toISOString() : null,
       })
-      .select("id, name, category_id, client_id, notes, status, created_at")
+      .select(
+        "id, name, category_id, service_type_id, client_id, notes, status, started_at, created_at",
+      )
       .single();
 
     if (error) {
@@ -119,6 +159,121 @@ router.post(
     }
 
     return res.status(201).json({ service: data });
+  },
+);
+
+// POST /api/services/:id/start — (re)start the timer on an owned service.
+// Server-authoritative: started_at is (re)set to now and status moves to
+// 'in_progress' so a running service survives a refresh or device switch.
+router.post(
+  "/:id/start",
+  requireRole("student"),
+  async (req: AuthRequest, res: Response) => {
+    const { data: service, error: svcErr } = await supabaseAdmin
+      .from("services")
+      .select("id, status")
+      .eq("id", req.params.id)
+      .eq("student_id", req.userId!)
+      .single();
+
+    if (svcErr || !service) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    // Once submitted/verified the timer is done — don't let it be reopened.
+    if (["verified", "rejected"].includes(service.status)) {
+      return res
+        .status(400)
+        .json({ error: "This service can no longer be timed" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("services")
+      .update({
+        status: "in_progress",
+        started_at: new Date().toISOString(),
+        ended_at: null,
+        actual_duration_min: null,
+        duration_tag: null,
+      })
+      .eq("id", req.params.id)
+      .select("id, status, started_at")
+      .single();
+
+    if (error) {
+      console.error("services start error:", error);
+      return res.status(500).json({ error: "Failed to start service" });
+    }
+
+    return res.json({ service: data });
+  },
+);
+
+// POST /api/services/:id/stop — stop the timer, compute actual_duration_min and
+// tag it under|within|over vs. the service_type's recommended range, then route
+// the service on to the client (if any) or straight to the educator.
+router.post(
+  "/:id/stop",
+  requireRole("student"),
+  async (req: AuthRequest, res: Response) => {
+    const { data: service, error: svcErr } = await supabaseAdmin
+      .from("services")
+      .select("id, status, started_at, client_id, service_type_id")
+      .eq("id", req.params.id)
+      .eq("student_id", req.userId!)
+      .single();
+
+    if (svcErr || !service) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    if (service.status !== "in_progress" || !service.started_at) {
+      return res
+        .status(400)
+        .json({ error: "Service is not currently running" });
+    }
+
+    const endedAt = new Date();
+    const actualDurationMin = Math.max(
+      0,
+      Math.round((endedAt.getTime() - new Date(service.started_at).getTime()) / 60000),
+    );
+
+    // Tag against the recommended range from the chosen service_type, if any.
+    let durationTag: "under" | "within" | "over" | null = null;
+    if (service.service_type_id) {
+      const { data: type } = await supabaseAdmin
+        .from("service_types")
+        .select("recommended_duration_min, recommended_duration_max")
+        .eq("id", service.service_type_id)
+        .single();
+      const min = type?.recommended_duration_min ?? null;
+      const max = type?.recommended_duration_max ?? null;
+      if (min != null && actualDurationMin < min) durationTag = "under";
+      else if (max != null && actualDurationMin > max) durationTag = "over";
+      else if (min != null || max != null) durationTag = "within";
+    }
+
+    const nextStatus = service.client_id ? "awaiting_client" : "awaiting_educator";
+
+    const { data, error } = await supabaseAdmin
+      .from("services")
+      .update({
+        status: nextStatus,
+        ended_at: endedAt.toISOString(),
+        actual_duration_min: actualDurationMin,
+        duration_tag: durationTag,
+      })
+      .eq("id", req.params.id)
+      .select(
+        "id, status, started_at, ended_at, actual_duration_min, duration_tag",
+      )
+      .single();
+
+    if (error) {
+      console.error("services stop error:", error);
+      return res.status(500).json({ error: "Failed to stop service" });
+    }
+
+    return res.json({ service: data });
   },
 );
 
@@ -251,7 +406,8 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
     .from("services")
     .select(
       `
-      id, name, category_id, notes, status, created_at, updated_at, is_demo,
+      id, name, category_id, service_type_id, notes, status, created_at, updated_at, is_demo,
+      started_at, ended_at, actual_duration_min, duration_tag,
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
       service_photos ( id, type, url, created_at ),

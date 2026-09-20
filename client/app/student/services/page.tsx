@@ -19,26 +19,46 @@ import {
   Sparkles,
   GripVertical,
   User,
+  Play,
+  Square,
+  Timer,
 } from "lucide-react";
 import { apiGet, apiPost, apiUpload } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
 /* ── Types ── */
 
-type ServiceStatus = "awaiting_client" | "awaiting_educator" | "verified" | "rejected";
+type ServiceStatus =
+  | "in_progress"
+  | "awaiting_client"
+  | "awaiting_educator"
+  | "verified"
+  | "rejected";
 type FilterOption = "all" | "verified" | "awaiting_educator" | "awaiting_client";
 
 interface Service {
   id: string;
   name: string;
   category_id: string;
+  service_type_id: string | null;
   status: ServiceStatus;
   created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  actual_duration_min: number | null;
+  duration_tag: "under" | "within" | "over" | null;
   client: { id: string; full_name: string | null } | null;
 }
 
 interface Category { id: string; label: string }
 interface Client { id: string; full_name: string | null }
+interface ServiceType {
+  id: string;
+  category_id: string;
+  name: string;
+  recommended_duration_min: number | null;
+  recommended_duration_max: number | null;
+}
 interface PhotoEntry { id: string; file: File; preview: string }
 
 const STATUS_CFG: Record<ServiceStatus, {
@@ -49,6 +69,7 @@ const STATUS_CFG: Record<ServiceStatus, {
   dot: string;
   Icon: typeof CheckCircle2;
 }> = {
+  in_progress:       { label: "In Progress",       shortLabel: "Running",   color: "text-k-primary",   bg: "bg-k-primary/10", dot: "bg-k-primary", Icon: Timer },
   verified:          { label: "Verified",          shortLabel: "Verified",  color: "text-emerald-700", bg: "bg-emerald-50",  dot: "bg-emerald-500", Icon: CheckCircle2 },
   awaiting_educator: { label: "Awaiting Educator", shortLabel: "Pending",   color: "text-blue-700",   bg: "bg-blue-50",    dot: "bg-blue-500",   Icon: Clock },
   awaiting_client:   { label: "Awaiting Client",   shortLabel: "Client",    color: "text-amber-700",  bg: "bg-amber-50",   dot: "bg-amber-500",  Icon: AlertCircle },
@@ -72,6 +93,23 @@ function formatDateShort(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+/** Elapsed seconds → "HH:MM:SS" (or "MM:SS" under an hour). */
+function formatElapsed(totalSeconds: number) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const hh = Math.floor(s / 3600);
+  const mm = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return hh > 0 ? `${hh}:${pad(mm)}:${pad(ss)}` : `${pad(mm)}:${pad(ss)}`;
+}
+
+function formatRange(min: number | null, max: number | null) {
+  if (min != null && max != null) return `${min}–${max} min`;
+  if (min != null) return `min ${min} min`;
+  if (max != null) return `up to ${max} min`;
+  return null;
+}
+
 /* ── Component ── */
 
 export default function ServicesPage() {
@@ -85,8 +123,10 @@ export default function ServicesPage() {
   const [showForm, setShowForm] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [serviceName, setServiceName] = useState("");
   const [category, setCategory] = useState("");
+  const [serviceTypeId, setServiceTypeId] = useState("");
   const [clientId, setClientId] = useState("");
   const [notes, setNotes] = useState("");
   const [photos, setPhotos] = useState<PhotoEntry[]>([]);
@@ -94,6 +134,10 @@ export default function ServicesPage() {
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  /* live timer tick for the active (in_progress) service */
+  const [now, setNow] = useState(() => Date.now());
+  const [stoppingId, setStoppingId] = useState<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -106,7 +150,14 @@ export default function ServicesPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
 
-  useEffect(() => { loadServices(); }, []);
+  useEffect(() => {
+    loadServices();
+    // Loaded on mount too (not just when the form opens) so the active-service
+    // card can show the recommended range for a running service.
+    apiGet<{ serviceTypes: ServiceType[] }>("/api/services/service-types")
+      .then((res) => setServiceTypes(res.serviceTypes))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!showForm) return;
@@ -118,8 +169,33 @@ export default function ServicesPage() {
     apiGet<{ clients: Client[] }>("/api/services/clients")
       .then((res) => setClients(res.clients))
       .catch(() => {});
+    apiGet<{ serviceTypes: ServiceType[] }>("/api/services/service-types")
+      .then((res) => setServiceTypes(res.serviceTypes))
+      .catch(() => {});
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   }, [showForm]);
+
+  /* ── Active service + live timer ── */
+
+  const activeService = services.find((s) => s.status === "in_progress") ?? null;
+
+  useEffect(() => {
+    if (!activeService) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [activeService]);
+
+  const handleStop = async (id: string) => {
+    setStoppingId(id);
+    try {
+      await apiPost(`/api/services/${id}/stop`, {});
+      await loadServices();
+    } catch {
+      /* leave the card in place; user can retry */
+    } finally {
+      setStoppingId(null);
+    }
+  };
 
   /* ── Filtering ── */
 
@@ -166,6 +242,7 @@ export default function ServicesPage() {
   const resetForm = () => {
     setServiceName("");
     setCategory("");
+    setServiceTypeId("");
     setClientId("");
     setNotes("");
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
@@ -174,7 +251,16 @@ export default function ServicesPage() {
     setSubmitted(false);
   };
 
-  const handleSubmit = async () => {
+  // Types belonging to the chosen category, and the selected type's range.
+  const typesForCategory = serviceTypes.filter((t) => t.category_id === category);
+  const selectedType = serviceTypes.find((t) => t.id === serviceTypeId) ?? null;
+  const recommendedRange = selectedType
+    ? formatRange(selectedType.recommended_duration_min, selectedType.recommended_duration_max)
+    : null;
+
+  // timed=true starts the server-side timer immediately (status → in_progress);
+  // timed=false is the instant-log path that routes straight to client/educator.
+  const handleSubmit = async (timed: boolean) => {
     if (!serviceName.trim() || !category) {
       setFormError("Service name and category are required.");
       return;
@@ -183,12 +269,14 @@ export default function ServicesPage() {
     setSubmitting(true);
 
     try {
-      setUploadProgress("Creating service…");
+      setUploadProgress(timed ? "Starting service…" : "Creating service…");
       const { service } = await apiPost<{ service: { id: string } }>("/api/services", {
         name: serviceName.trim(),
         category_id: category,
+        service_type_id: serviceTypeId || undefined,
         client_id: clientId || undefined,
         notes: notes.trim() || undefined,
+        start_now: timed,
       });
 
       if (photos.length > 0) {
@@ -198,8 +286,14 @@ export default function ServicesPage() {
         await apiUpload(`/api/services/${service.id}/photos`, formData);
       }
 
-      setSubmitted(true);
-      loadServices();
+      await loadServices();
+      if (timed) {
+        // Timer is now running — collapse the form and show the active card.
+        resetForm();
+        setShowForm(false);
+      } else {
+        setSubmitted(true);
+      }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to submit service.");
     } finally {
@@ -233,6 +327,70 @@ export default function ServicesPage() {
           </button>
         )}
       </div>
+
+      {/* ━━ Active (running) Service ━━ */}
+      <AnimatePresence>
+        {activeService && (() => {
+          const type = serviceTypes.find((t) => t.id === activeService.service_type_id) ?? null;
+          const range = type
+            ? formatRange(type.recommended_duration_min, type.recommended_duration_max)
+            : null;
+          const elapsedSec = activeService.started_at
+            ? (now - new Date(activeService.started_at).getTime()) / 1000
+            : 0;
+          const overMax =
+            type?.recommended_duration_max != null &&
+            elapsedSec / 60 > type.recommended_duration_max;
+          return (
+            <motion.div
+              key="active-service"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ type: "spring", damping: 24, stiffness: 280 }}
+              className="mb-8 overflow-hidden rounded-3xl border border-k-primary/20 bg-gradient-to-br from-k-primary/[0.06] to-k-white shadow-[0_8px_40px_rgba(59,10,42,0.08)]"
+            >
+              <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-k-primary/10">
+                    <Timer size={22} className="text-k-primary" />
+                    <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-k-primary/60" />
+                      <span className="relative inline-flex h-3 w-3 rounded-full bg-k-primary" />
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-k-primary">Service in progress</p>
+                    <p className="truncate font-serif text-lg text-k-black">{activeService.name}</p>
+                    {range && (
+                      <p className={`mt-0.5 text-xs ${overMax ? "text-red-600 font-medium" : "text-k-gray-400"}`}>
+                        Recommended: {range}{overMax ? " · over recommended time" : ""}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-5 sm:gap-6">
+                  <div className="text-right">
+                    <p className={`font-serif text-3xl tabular-nums tracking-tight ${overMax ? "text-red-600" : "text-k-black"}`}>
+                      {formatElapsed(elapsedSec)}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-k-gray-400">Elapsed</p>
+                  </div>
+                  <button
+                    onClick={() => handleStop(activeService.id)}
+                    disabled={stoppingId === activeService.id}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-k-primary px-6 py-3 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 shadow-[0_4px_20px_rgba(59,10,42,0.18)]"
+                  >
+                    <Square size={15} className="fill-current" />
+                    {stoppingId === activeService.id ? "Stopping…" : "Stop Service"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* ━━ Inline New Service Form ━━ */}
       <AnimatePresence>
@@ -354,7 +512,7 @@ export default function ServicesPage() {
                         <div className="relative">
                           <select
                             value={category}
-                            onChange={(e) => setCategory(e.target.value)}
+                            onChange={(e) => { setCategory(e.target.value); setServiceTypeId(""); }}
                             className="w-full appearance-none rounded-xl border border-k-gray-200 bg-k-white px-4 py-3 text-sm text-k-black outline-none transition-all focus:border-k-primary focus:shadow-[0_0_0_3px_rgba(59,10,42,0.06)]"
                           >
                             <option value="">Select a category</option>
@@ -366,6 +524,34 @@ export default function ServicesPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Service type (from the admin catalog) + recommended duration */}
+                    {category && typesForCategory.length > 0 && (
+                      <div>
+                        <label className="mb-2 block text-xs font-medium uppercase tracking-[0.08em] text-k-gray-600">
+                          Service Type <span className="text-k-gray-400 normal-case font-normal">(optional)</span>
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={serviceTypeId}
+                            onChange={(e) => setServiceTypeId(e.target.value)}
+                            className="w-full appearance-none rounded-xl border border-k-gray-200 bg-k-white px-4 py-3 text-sm text-k-black outline-none transition-all focus:border-k-primary focus:shadow-[0_0_0_3px_rgba(59,10,42,0.06)]"
+                          >
+                            <option value="">Select a service type</option>
+                            {typesForCategory.map((t) => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                          <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-k-gray-400" />
+                        </div>
+                        {recommendedRange && (
+                          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-k-primary/5 px-3 py-1 text-[11px] font-medium text-k-primary">
+                            <Timer size={12} />
+                            Recommended: {recommendedRange}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Volunteer client */}
                     <div>
@@ -460,7 +646,7 @@ export default function ServicesPage() {
                     {/* Actions */}
                     <div className="flex flex-col gap-4 border-t border-k-gray-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
                       <p className="hidden sm:block text-xs text-k-gray-400 max-w-xs leading-relaxed">
-                        Your volunteer client (if selected) will confirm the service. Your educator will then verify.
+                        <strong className="font-medium text-k-gray-600">Start Service</strong> times the session live. Or log it instantly without a timer — either way your client (if selected) confirms, then your educator verifies.
                       </p>
                       <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row sm:gap-3">
                         <button
@@ -470,12 +656,20 @@ export default function ServicesPage() {
                           Cancel
                         </button>
                         <button
-                          onClick={handleSubmit}
+                          onClick={() => handleSubmit(false)}
+                          disabled={submitting}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-k-primary/30 px-6 py-2.5 text-sm font-medium text-k-primary transition-all duration-200 hover:bg-k-primary/5 disabled:opacity-50 sm:w-auto"
+                        >
+                          <Upload size={15} />
+                          Log without timer
+                        </button>
+                        <button
+                          onClick={() => handleSubmit(true)}
                           disabled={submitting}
                           className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-k-primary px-7 py-2.5 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 shadow-[0_4px_20px_rgba(59,10,42,0.15)] sm:w-auto"
                         >
-                          <Upload size={15} />
-                          {submitting ? (uploadProgress ?? "Submitting…") : "Submit Service"}
+                          <Play size={15} />
+                          {submitting ? (uploadProgress ?? "Working…") : "Start Service"}
                         </button>
                       </div>
                     </div>

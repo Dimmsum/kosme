@@ -15,14 +15,18 @@ import {
   FileText,
   ImageOff,
   Lock,
+  Timer,
 } from "lucide-react";
 import { apiGet } from "@/lib/api";
 
 type ServiceStatus =
+  | "in_progress"
   | "awaiting_client"
   | "awaiting_educator"
   | "verified"
   | "rejected";
+
+type DurationTag = "under" | "within" | "over";
 
 interface ServicePhoto {
   id: string;
@@ -52,6 +56,10 @@ interface ServiceDetail {
   status: ServiceStatus;
   created_at: string;
   updated_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  actual_duration_min: number | null;
+  duration_tag: DurationTag | null;
   student: { id: string; full_name: string | null };
   client: { id: string; full_name: string | null } | null;
   service_photos: ServicePhoto[];
@@ -69,6 +77,13 @@ const STATUS_CONFIG: Record<
     Icon: typeof CheckCircle2;
   }
 > = {
+  in_progress: {
+    label: "In Progress",
+    color: "text-k-primary",
+    bgColor: "bg-k-primary/10",
+    borderColor: "border-k-primary/20",
+    Icon: Timer,
+  },
   verified: {
     label: "Verified",
     color: "text-emerald-700",
@@ -121,6 +136,12 @@ function pipelineStep(status: ServiceStatus): number {
   if (status === "rejected") return -1;
   return PIPELINE.findIndex((s) => s.key === status);
 }
+
+const DURATION_TAG_CFG: Record<DurationTag, { label: string; className: string }> = {
+  under: { label: "Under recommended", className: "bg-amber-50 text-amber-700" },
+  within: { label: "Within recommended", className: "bg-emerald-50 text-emerald-700" },
+  over: { label: "Over recommended", className: "bg-red-50 text-red-700" },
+};
 
 function normalizeToArray<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
@@ -252,6 +273,29 @@ export default function ServiceDetailPage() {
                   </p>
                 </div>
               </div>
+
+              {service.actual_duration_min != null && (
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-k-gray-100">
+                    <Timer size={14} className="text-k-gray-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-k-gray-400">
+                      Duration
+                    </p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-k-black">
+                      {service.actual_duration_min} min
+                      {service.duration_tag && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${DURATION_TAG_CFG[service.duration_tag].className}`}
+                        >
+                          {DURATION_TAG_CFG[service.duration_tag].label}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-k-gray-100">

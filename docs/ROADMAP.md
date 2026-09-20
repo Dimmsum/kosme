@@ -103,23 +103,28 @@ work.
    - **Not yet run against a live environment** — still needs the migration
      applied and `npm run seed:demo` executed with real Clerk/Supabase env vars.
 
-### Super Admin dashboard modules (shell only in Phase 1 — most are stubs wired to Phase 2/3 data)
-| Module | Route (proposed) | Depends on |
+### Super Admin dashboard modules — status
+As of the 2026-08-07 build-out, every module below is **built and functional**
+except Reports (stub) and Demo (intentional info card). Backend routes live under
+`server/src/routes/admin/*`; pages under `client/app/admin/*`. See the "Super Admin
+build-out" section under Phase 2 for details.
+| Module | Route | Status |
 |---|---|---|
-| Dashboard Overview | `/admin/dashboard` | Phase 4 alerts, Phase 3 submissions |
-| User Verification | `/admin/users` | existing `user_profiles` |
-| Institutions, Programmes & Cohorts | `/admin/institutions` | Phase 2 schema |
-| Educator Assignments | `/admin/educators` | Phase 2 schema |
-| Volunteer Client Management | `/admin/clients` | existing `client-signup.ts`, `volunteer-requests.ts` |
-| Employer Management | `/admin/employers` | existing employer routes |
-| Practical Submissions | `/admin/submissions` | existing `services.ts`, `verifications.ts` |
-| Flagged Issues | `/admin/flags` | Phase 3 flag support (new) |
-| Audit Trail | `/admin/audit` | new `audit_log` table |
-| Portfolio Oversight | `/admin/portfolios` | existing `portfolio.ts` |
-| Reports & Analytics | `/admin/reports` | Phase 4/5 data |
-| Alerts | `/admin/alerts` | Phase 4 |
-| Settings | `/admin/settings` | Phase 2 config tables |
-| Demo Mode | `/demo` | ✅ built — public role picker (student/educator/client/employer), Clerk sign-in-token login, isolated demo dataset, banner with switch-role/exit. Not super-admin-capable by design. |
+| Dashboard Overview | `/admin/dashboard` | ✅ real headline stats + KAI Insights placeholder card (gated on `kai_enabled`) |
+| User Management | `/admin/users` | ✅ filterable table + edit drawer (placement, active/suspended) |
+| Institutions, Programmes & Cohorts | `/admin/institutions` | ✅ 3-level CRUD master/detail |
+| Service Catalog | `/admin/service-catalog` | ✅ categories + service types (new nav entry) |
+| Educator Assignments | `/admin/educators` | ✅ assign/remove educators ↔ cohorts |
+| Volunteer Client Management | `/admin/clients` | ✅ read view — sign-ups + volunteer requests |
+| Employer Management | `/admin/employers` | ✅ read view — employers + shortlist counts |
+| Practical Submissions | `/admin/submissions` | ✅ read view — all services + verification/confirmation state |
+| Flagged Issues | `/admin/flags` | ✅ raise / resolve / dismiss (`flags` table, 0016) |
+| Audit Trail | `/admin/audit` | ✅ read-only feed of admin actions (`audit_log`, 0016) |
+| Portfolio Oversight | `/admin/portfolios` | ✅ read view — students + verified-work detail |
+| Reports & Analytics | `/admin/reports` | ⬜ still a stub (Phase 4/5 analytics) |
+| Alerts | `/admin/alerts` | ✅ CRUD + active toggle (`alerts` table, 0016) |
+| Settings | `/admin/settings` | ✅ key/value config + KAI flag toggle (`app_settings`, 0016) |
+| Demo Mode | `/demo` | ✅ built — public role picker, Clerk sign-in-token login, isolated demo dataset, banner. Not super-admin-capable by design. |
 
 **Phase 1 exit criteria:** ✅ met (2026-08-05, pending a live-environment run).
 A Super Admin can log in, land on `/admin/dashboard` with real headline
@@ -226,10 +231,23 @@ surfaces; the underlying student/educator/employer flows are still their own pha
   `0008_fix_storage_public_read.sql` — photo storage already wired.
 
 ### Student flow
-- ⬜ Log service form: category → type (pulls from Phase 2 `service_types`) →
-  client source (enum below) → shows recommended duration.
-- ⬜ Start/Stop Service timer — writes `started_at`/`ended_at`, computes
-  `actual_duration_min`.
+- 🔶 Log service form: category → type (pulls from Phase 2 `service_types`) →
+  client source (enum below) → shows recommended duration. **Done (2026-08-07)
+  except client source:** the log form (`client/app/student/services/page.tsx`)
+  now has a Service Type dropdown filtered by category (fed by
+  `GET /api/services/service-types`) and shows the selected type's recommended
+  duration. `service_type_id` is stored on `services` (migration `0017`). The
+  **client source enum is intentionally deferred** — scoped out of MVP #3 per an
+  explicit product decision (core timer/duration slice only).
+- ✅ Start/Stop Service timer — **done (2026-08-07)**, server-authoritative:
+  `POST /api/services/:id/start` sets `started_at` + status `in_progress`;
+  `POST /api/services/:id/stop` sets `ended_at`, computes `actual_duration_min`,
+  and routes the service on to `awaiting_client`/`awaiting_educator`. A running
+  service survives a refresh (started_at lives in the DB); the student UI shows a
+  live "Service in progress" card with elapsed time + Stop button. `start_now` on
+  `POST /api/services` opens a service straight into the timer. Schema:
+  `started_at`/`ended_at`/`actual_duration_min` + `in_progress` status added in
+  migration `0017`. **Not yet run against a live Supabase project** — needs `0017`.
 - ⬜ Checkpoint reminders during an active service (client-side timer +
   push/toast; server-side scheduled reminder is a Phase 4 concern).
 - ⬜ Evidence upload: before/during/after photos (extend existing
@@ -262,13 +280,22 @@ UI isn't built yet).
 **Goal:** Recommended durations drive real-time feedback and educator alerts.
 
 ### Work items
-1. ⬜ Backfill `recommended_duration_min/max` per `service_type` (Phase 2
-   schema) with real values, e.g.:
-   - Basic Facial: 60–90 min
-   - Basic Manicure: 45–60 min
-   - Soft Glam Makeup: 75–120 min
-2. ⬜ On Stop Service, compare `actual_duration_min` against the range and
-   tag the service (`under | within | over`).
+1. ✅ **Done (2026-08-07)**, `supabase/migrations/0018_seed_service_types.sql` —
+   seeds 24 `service_types` with real `recommended_duration_min/max` across the 8
+   hair categories seeded in 0003 (Haircuts, Colour, Styling, Scalp Treatments,
+   Blow-dry, Perming, Hair Extensions, Braiding). Idempotent (unique index on
+   `(category_id, name)` + upsert). **Note:** the original email's Facial/Manicure/
+   Makeup examples don't match this platform's hair domain, so durations were
+   backfilled for the actual categories instead (e.g. Cut & Blow-dry 45–75, Full
+   Head Colour 90–150, Balayage 150–240, Box Braids 180–360). Must be applied to
+   the live DB. Managed thereafter from the admin Service Catalog UI.
+2. ✅ **Done (2026-08-07)** as part of MVP #3. On Stop Service,
+   `POST /api/services/:id/stop` compares `actual_duration_min` against the chosen
+   `service_type`'s recommended range and writes `duration_tag`
+   (`under | within | over`, null when the type has no range). Stored on `services`
+   (migration `0017`); shown on the student service detail page. Backfilling real
+   `recommended_duration_min/max` values (item 1) and the educator-facing alert
+   pipeline (items 3–4) are still ⬜.
 3. ⬜ Event/notification pipeline — two tiers:
    - **Activity feed** (non-urgent): service started, service stopped,
      client confirmation completed. Rendered in the educator dashboard feed.
@@ -355,10 +382,13 @@ and must sit alongside, never inside, the approval decision.
 | Kosmè Connect | KAI Match | Not built; explicitly deferred past MVP per the email |
 
 ### Work items
-- ⬜ Add a `kai_enabled` feature flag (env var or `admin/settings`) so these
-  surfaces can be toggled without a redeploy once real AI integration starts.
+- ✅ (2026-08-07) `kai_enabled` feature flag — stored in `public.app_settings`
+  (seeded `false` in `0016`), toggled from `/admin/settings`, and read by the
+  KAI Insights placeholder card on `/admin/dashboard`. No redeploy needed to flip it.
 - ⬜ Stub API routes (`routes/kai/*`) returning a fixed "not yet available"
   response, so frontend integration work isn't blocked on model selection.
+- ⬜ KAI affordances inside Kosmè Verify / Portfolio (Log Assist, Portfolio Assist)
+  — the admin-side KAI Insights card exists; these role-side surfaces do not yet.
 
 ---
 
@@ -368,16 +398,27 @@ The email is explicit that these are the MVP cut — everything else in the
 phases above beyond this list is post-MVP polish/expansion:
 
 1. Super Admin login & dashboard access (Phase 1) — ✅ done, see `/admin`
-2. Admin control centre (Phase 2)
-3. Student service logging + recommended duration + start/stop timer (Phase 3, Phase 4 partial)
+2. Admin control centre (Phase 2) — ✅ done (2026-08-07): full CRUD UI +
+   subsystems (audit/flags/alerts/settings) + admin read views. Migrations
+   `0015`/`0016` must be applied to the live DB.
+3. Student service logging + recommended duration + start/stop timer (Phase 3,
+   Phase 4 partial) — ✅ done (2026-08-07). Service Type selector wired to the
+   Phase-2 catalog with recommended-duration display, server-authoritative
+   start/stop timer (`in_progress` status, `started_at`/`ended_at`/
+   `actual_duration_min`), and `under|within|over` duration tagging on stop.
+   Backend: `service-types` list + `:id/start` + `:id/stop` in
+   `server/src/routes/services.ts`. UI: live active-service card + type field in
+   `client/app/student/services/`. Schema: migration `0017_service_timer.sql`
+   (must be applied to the live DB). Client-source enum + checkpoint reminders
+   were scoped out of this slice (see Phase 3).
 4. Educator alerts (Phase 4)
 5. Client confirmation (Phase 3)
 6. Educator verification (Phase 3)
 7. Verified hours (Phase 3/4)
 8. Portfolio from verified work (Phase 5)
 9. Consent tracking (Phase 5/6)
-10. Basic reports (Phase 1 "Reports & Analytics" module, minimal — counts/aggregates, not full analytics)
-11. KAI placeholders (Phase 7)
+10. Basic reports (Phase 1 "Reports & Analytics" module, minimal — counts/aggregates, not full analytics) — ⬜ `/admin/reports` still a stub
+11. KAI placeholders (Phase 7) — 🔶 `kai_enabled` flag (`app_settings` + `/admin/settings`) and the dashboard KAI Insights card are built; stub `routes/kai/*` and the Verify/Portfolio KAI affordances remain ⬜
 12. Demo mode (Phase 1) — ✅ done, see `/demo`
 
 **Explicitly post-MVP:** advanced AI (real KAI model integration),
