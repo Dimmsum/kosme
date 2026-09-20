@@ -17,7 +17,7 @@ import {
   Lock,
   Timer,
 } from "lucide-react";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPatch } from "@/lib/api";
 
 type ServiceStatus =
   | "in_progress"
@@ -53,6 +53,7 @@ interface ServiceDetail {
   name: string;
   category_id: string;
   notes: string | null;
+  reflection_notes: string | null;
   status: ServiceStatus;
   created_at: string;
   updated_at: string;
@@ -154,13 +155,41 @@ export default function ServiceDetailPage() {
   const [service, setService] = useState<ServiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reflectionDraft, setReflectionDraft] = useState("");
+  const [savingReflection, setSavingReflection] = useState(false);
+  const [reflectionError, setReflectionError] = useState<string | null>(null);
+  const [reflectionSaved, setReflectionSaved] = useState(false);
 
   useEffect(() => {
     apiGet<{ service: ServiceDetail }>(`/api/services/${id}`)
-      .then((res) => setService(res.service))
+      .then((res) => {
+        setService(res.service);
+        setReflectionDraft(res.service.reflection_notes ?? "");
+      })
       .catch(() => setError("Could not load service."))
       .finally(() => setLoading(false));
   }, [id]);
+
+  async function saveReflection() {
+    if (!service) return;
+    setSavingReflection(true);
+    setReflectionError(null);
+    setReflectionSaved(false);
+    try {
+      const res = await apiPatch<{ service: { id: string; reflection_notes: string | null } }>(
+        `/api/services/${service.id}`,
+        { reflection_notes: reflectionDraft.trim() || null },
+      );
+      setService((prev) =>
+        prev ? { ...prev, reflection_notes: res.service.reflection_notes } : prev,
+      );
+      setReflectionSaved(true);
+    } catch {
+      setReflectionError("Could not save your reflection. Please try again.");
+    } finally {
+      setSavingReflection(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -331,6 +360,57 @@ export default function ServiceDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Reflection notes */}
+          <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
+            <h2 className="mb-1 font-serif text-base font-medium text-k-black">
+              Reflection
+            </h2>
+            <p className="mb-4 text-xs text-k-gray-400">
+              What did you learn from this service? Add your reflection any
+              time before it&apos;s verified.
+            </p>
+            {service.status === "verified" ? (
+              <p className="text-sm leading-relaxed text-k-black">
+                {service.reflection_notes || (
+                  <span className="text-k-gray-400">No reflection was added.</span>
+                )}
+              </p>
+            ) : (
+              <>
+                <textarea
+                  value={reflectionDraft}
+                  onChange={(e) => {
+                    setReflectionDraft(e.target.value);
+                    setReflectionSaved(false);
+                  }}
+                  maxLength={2000}
+                  rows={4}
+                  placeholder="Reflect on how the service went, what you'd do differently, what you learned…"
+                  className="w-full resize-none rounded-xl border border-k-gray-200 bg-k-white p-3 text-sm text-k-black placeholder:text-k-gray-300 focus:border-k-primary focus:outline-none"
+                />
+                <div className="mt-2.5 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={saveReflection}
+                    disabled={
+                      savingReflection ||
+                      reflectionDraft === (service.reflection_notes ?? "")
+                    }
+                    className="rounded-full bg-k-primary px-4 py-1.5 text-xs font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {savingReflection ? "Saving…" : "Save reflection"}
+                  </button>
+                  {reflectionSaved && (
+                    <span className="text-xs text-emerald-600">Saved</span>
+                  )}
+                  {reflectionError && (
+                    <span className="text-xs text-red-600">{reflectionError}</span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Rejection reason */}

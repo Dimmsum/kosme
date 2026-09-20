@@ -124,13 +124,17 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
     defaulting new photos to "before" and sent as the `stages` array
     alongside the files.
 
-- [ ] **VER-3** — Reflection notes field
-  - **Depends on:** none
-  - Add a `reflection_notes` text column to `services` and a corresponding
-    textarea on the student log/detail form (audit whether the existing `notes`
-    field should just be renamed/reused before adding a new column).
-  - **Files:** `server/src/routes/services.ts`,
-    `client/app/student/services/[id]/page.tsx`.
+- [x] **VER-3** — Reflection notes field. Added a new `reflection_notes` TEXT
+  column on `services` (migration `0021_reflection_notes.sql`) rather than
+  renaming/reusing `notes` — `notes` is populated at log time and is already
+  read as the service description by the educator verify queue, volunteer
+  confirmation views, and admin portfolio/submissions views, so repurposing it
+  would misrepresent that data and break those consumers. New
+  `PATCH /api/services/:id` handler in `server/src/routes/services.ts` lets the
+  owning student set `reflection_notes` any time before the service is
+  verified; textarea added to the detail page
+  (`client/app/student/services/[id]/page.tsx`), not the initial log form,
+  since reflection is written after the service has already happened.
 
 - [ ] **VER-4** — Wire client-confirmation send into the service flow
   - **Depends on:** none

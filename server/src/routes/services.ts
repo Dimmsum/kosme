@@ -125,7 +125,7 @@ router.get(
       .from("services")
       .select(
         `
-      id, name, category_id, service_type_id, client_source, notes, status, created_at, updated_at,
+      id, name, category_id, service_type_id, client_source, notes, reflection_notes, status, created_at, updated_at,
       started_at, ended_at, actual_duration_min, duration_tag,
       client:client_id ( id, full_name )
     `,
@@ -481,13 +481,73 @@ router.post(
   },
 );
 
+// PATCH /api/services/:id — student updates their own reflection notes.
+// Reflection is written after the service has happened, from the detail page
+// — separate from `notes`, which is the service description set at log time.
+// Locked once the service is verified, matching the "no further changes"
+// messaging shown on the detail page for verified services.
+router.patch(
+  "/:id",
+  requireRole("student"),
+  async (req: AuthRequest, res: Response) => {
+    const { reflection_notes } = req.body as { reflection_notes?: unknown };
+
+    if (reflection_notes === undefined) {
+      return res.status(400).json({ error: "reflection_notes is required" });
+    }
+    if (
+      reflection_notes !== null &&
+      (typeof reflection_notes !== "string" || reflection_notes.length > 2000)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "reflection_notes must be at most 2000 characters" });
+    }
+
+    const { data: service, error: svcErr } = await supabaseAdmin
+      .from("services")
+      .select("id, status")
+      .eq("id", req.params.id)
+      .eq("student_id", req.userId!)
+      .single();
+
+    if (svcErr || !service) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    if (service.status === "verified") {
+      return res
+        .status(400)
+        .json({ error: "This service is verified and can no longer be edited" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("services")
+      .update({
+        reflection_notes:
+          typeof reflection_notes === "string"
+            ? reflection_notes.trim() || null
+            : null,
+      })
+      .eq("id", req.params.id)
+      .select("id, reflection_notes")
+      .single();
+
+    if (error) {
+      console.error("services PATCH error:", error);
+      return res.status(500).json({ error: "Failed to update service" });
+    }
+
+    return res.json({ service: data });
+  },
+);
+
 // GET /api/services/:id — single service detail (student owner, assigned educator, or client)
 router.get("/:id", async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabaseAdmin
     .from("services")
     .select(
       `
-      id, name, category_id, service_type_id, client_source, notes, status, created_at, updated_at, is_demo,
+      id, name, category_id, service_type_id, client_source, notes, reflection_notes, status, created_at, updated_at, is_demo,
       started_at, ended_at, actual_duration_min, duration_tag,
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
