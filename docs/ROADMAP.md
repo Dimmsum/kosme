@@ -1,21 +1,17 @@
 # Kosmè Platform Roadmap
 
+> **Superseded — historical reference only.** `docs/ISSUES.md` is now the working
+> tracker for all outstanding and completed work (consolidated 2026-09-20). This
+> file is no longer updated; it's kept for the original phase-level narrative and
+> the reasoning behind early decisions (RLS approach, demo-mode scoping, etc.).
+> For current status, open issues, and build order, see `docs/ISSUES.md`.
+
 Source: internal "next steps" email, broken into phases and mapped onto the
 current codebase (Next.js 14 client w/ Clerk auth, Express API server,
 Supabase/Postgres). Status column tracks what already exists vs. what's new
 work.
 
 **Legend:** ✅ exists · 🔶 partially exists · ⬜ not started
-
-> **Maintenance instruction (for the AI / whoever picks up this file):**
-> This roadmap is a living checklist, not a one-time snapshot. Whenever you
-> finish a work item from this document, **update this file in the same
-> turn**: flip its `⬜` to `✅` (or `🔶` if only partially done), add a short
-> note on *what* was built and *where* (file paths, routes), and update the
-> phase's "Current state" section and the MVP list entry if it's on that
-> list. Don't wait to be asked — treat "done" as including the roadmap edit.
-> If a work item turns out to already exist or to not be needed, say so
-> inline rather than deleting the line, so the history of the decision isn't lost.
 
 ---
 
