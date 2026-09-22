@@ -16,6 +16,7 @@ router.get("/pending", requireRole("client"), async (req: AuthRequest, res: Resp
     `)
     .eq("client_id", req.userId!)
     .eq("status", "awaiting_client")
+    .eq("is_demo", req.isDemo ?? false)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -69,6 +70,7 @@ router.post("/:serviceId/confirm", requireRole("client"), async (req: AuthReques
     .from("services")
     .select("id, name, student_id, client_id, status")
     .eq("id", serviceId)
+    .eq("is_demo", req.isDemo ?? false)
     .single();
 
   if (svcErr || !service) {
@@ -163,6 +165,7 @@ router.post("/:serviceId/dispute", requireRole("client"), async (req: AuthReques
     .from("services")
     .select("id, client_id, status")
     .eq("id", serviceId)
+    .eq("is_demo", req.isDemo ?? false)
     .single();
 
   if (svcErr || !service) {

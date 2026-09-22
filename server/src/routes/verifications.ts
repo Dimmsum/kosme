@@ -176,10 +176,14 @@ router.post(
       adjustedDurationMin = parsed;
     }
 
+    // Every educator action scopes its service lookup by is_demo, same as the
+    // reads above: the demo educator is publicly reachable, so a real
+    // service's id must 404 for it rather than be actionable.
     const { data: service, error: svcErr } = await supabaseAdmin
       .from("services")
       .select("id, status")
       .eq("id", serviceId)
+      .eq("is_demo", req.isDemo ?? false)
       .single();
 
     if (svcErr || !service) {
@@ -239,6 +243,7 @@ router.post(
       .from("services")
       .select("id, status")
       .eq("id", serviceId)
+      .eq("is_demo", req.isDemo ?? false)
       .single();
 
     if (svcErr || !service) {
@@ -307,6 +312,7 @@ router.post(
       .from("services")
       .select("id, status")
       .eq("id", serviceId)
+      .eq("is_demo", req.isDemo ?? false)
       .single();
 
     if (svcErr || !service) {
@@ -372,6 +378,7 @@ router.post(
       .from("services")
       .select("id")
       .eq("id", serviceId)
+      .eq("is_demo", req.isDemo ?? false)
       .single();
 
     if (svcErr || !service) {

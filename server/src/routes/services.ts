@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import multer from "multer";
+import { randomUUID } from "crypto";
 import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
 import { isUuid } from "../lib/validation";
@@ -188,6 +189,23 @@ router.post(
     }
     if (typeof photo_consent !== "boolean") {
       return res.status(400).json({ error: "photo_consent must be true or false" });
+    }
+
+    // client_id must be a client on the same side of the demo boundary, the
+    // same rule GET /clients uses to build the picker. Otherwise a demo
+    // student could put a real client's id here and the service would land in
+    // that client's confirmation queue.
+    if (client_id) {
+      const { data: client } = await supabaseAdmin
+        .from("user_profiles")
+        .select("id")
+        .eq("id", client_id)
+        .eq("role", "client")
+        .eq("is_demo", req.isDemo ?? false)
+        .maybeSingle();
+      if (!client) {
+        return res.status(400).json({ error: "Invalid client_id" });
+      }
     }
 
     // start_now begins the timer immediately: the service opens in 'in_progress'
@@ -419,13 +437,23 @@ router.post(
     // Verify the service belongs to this student
     const { data: service, error: serviceError } = await supabaseAdmin
       .from("services")
-      .select("id")
+      .select("id, status")
       .eq("id", req.params.id)
       .eq("student_id", req.userId!)
       .single();
 
     if (serviceError || !service) {
       return res.status(403).json({ error: "Forbidden" });
+    }
+    // Evidence is locked once verified, so unreviewed photos can't reach the
+    // employer portfolio. Uploads stay open while awaiting_educator: the
+    // no-client instant log lands there before the log form uploads its
+    // photos, and it's the only point where no-client services can add
+    // evidence at all.
+    if (service.status === "verified") {
+      return res
+        .status(400)
+        .json({ error: "This service is verified and can no longer be edited" });
     }
 
     // Ensure bucket exists and is public (idempotent)
@@ -507,9 +535,12 @@ router.post(
 
     const savedPhotos: { url: string; type: string; stage: PhotoStage | null }[] = [];
 
-    for (const { file, type, stage, index } of toUpload) {
+    for (const { file, type, stage } of toUpload) {
       const ext = file.originalname.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${req.userId}/${req.params.id}/${type}-${index}.${ext}`;
+      // Unique per upload: a service can take several upload batches (log form,
+      // then the detail page), and an index-only name would overwrite earlier
+      // photos under the same storage path.
+      const path = `${req.userId}/${req.params.id}/${type}-${randomUUID()}.${ext}`;
 
       const { error: uploadError } = await supabaseAdmin.storage
         .from("service-photos")

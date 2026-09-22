@@ -256,6 +256,124 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
   - **Files:** `server/src/routes/services.ts`, `server/src/routes/portfolio.ts`,
     `server/src/routes/dashboard.ts`.
 
+**VER-10 to VER-14 came from the 2026-09-22 MVP audit** against
+`docs/ROADMAP.md`'s phase exit criteria. VER-10 to VER-13 block the MVP.
+VER-14 needs a product decision first.
+
+- [ ] **VER-10** — Upload evidence photos after a service is logged
+  - **Depends on:** none
+  - **MVP blocker.** The only upload control is on the log form
+    (`client/app/student/services/page.tsx`, right after `POST /`). The
+    detail page has none. `POST /:id/submit` requires at least one photo,
+    so a student who logged without photos is stuck once the client
+    confirms: the checklist asks for evidence they can't add. On timed
+    services, photos can only be attached before the timer starts, so
+    "during" and "after" photos aren't really possible.
+  - Add an upload widget, with the same Before/During/After stage control
+    as VER-2, to `client/app/student/services/[id]/page.tsx`. Show it in
+    the evidence section and next to the checklist's missing-evidence item.
+    `POST /api/services/:id/photos` already accepts uploads, so no new
+    endpoint is needed. Which statuses allow uploads is settled in
+    **VER-12**.
+  - **Files:** `client/app/student/services/[id]/page.tsx`.
+
+- [ ] **VER-11** — Show reflection, client confirmation and photo stages
+      in the educator review queue
+  - **Depends on:** none
+  - **MVP blocker.** `GET /pending` and `GET /history` in
+    `server/src/routes/verifications.ts` don't select `reflection_notes`,
+    the service's `confirmations` row, or `service_photos.stage`. No
+    educator screen reads `reflection_notes` at all, even though VER-5
+    makes it required to submit. The Phase 3 educator flow listed "client
+    confirmation status" as part of the review.
+  - Add those three to both selects. On each queue item in
+    `client/app/educator/verify/page.tsx`, show a Reflection block, a
+    confirmation line (confirmed/disputed, client name, date, or "No
+    client" for the no-client path), and a stage label on each photo.
+  - **Files:** `server/src/routes/verifications.ts`,
+    `client/app/educator/verify/page.tsx`.
+
+- [x] **VER-12** — Lock photo uploads once a service is verified
+  - **Depends on:** none (do with or before **VER-10**)
+  - **MVP blocker.** `POST /api/services/:id/photos` only checks ownership,
+    not status. A student can add unreviewed photos to a verified service,
+    and consented ones then show in the employer portfolio. POR-1 closed
+    the same hole on `PATCH /api/portfolio/:serviceId/photos` but missed
+    this route.
+  - Add a status check to the ownership lookup: 400/409 once the service is
+    `verified`. Also decide whether uploads are allowed while it's
+    `awaiting_educator`, since that changes the evidence mid-review.
+  - **Files:** `server/src/routes/services.ts`.
+  - **Done:** The ownership lookup in `POST /:id/photos`
+    (`server/src/routes/services.ts`) now also selects `status` and returns
+    400 once the service is `verified`. The check runs before anything is
+    written to storage. The error message is the same one `PATCH /:id` uses.
+    **Decision: uploads stay open while `awaiting_educator`.** Blocking them
+    would break two flows. First, the no-client instant log (`POST /`) lands
+    in `awaiting_educator` straight away, and the log form uploads its photos
+    right after that call. Second, `awaiting_educator` is the only point at
+    which a no-client service could add evidence, so **VER-10**'s upload
+    widget would never work for those services (see **VER-14**). The
+    educator's decision is final when they make it, and photos added before
+    then are part of what they review. So the rule for **VER-10** is: every
+    status except `verified` allows uploads, including `rejected` and
+    `corrections_requested`. No client or schema changes.
+
+- [x] **VER-13** — Demo isolation on educator write actions
+  - **Depends on:** none
+  - **MVP blocker.** `POST /:serviceId/verify`, `/reject`,
+    `/request-corrections` and `/flag` in
+    `server/src/routes/verifications.ts` look up the service by id and
+    status only, without the `.eq("is_demo", req.isDemo ?? false)` filter
+    the read routes use. Anyone can log in as the public demo educator, so
+    knowing a real service's id is enough to approve it. Ids are UUIDs and
+    aren't shown to demo accounts, so the risk is low, but it breaks the
+    demo/real separation FND-3 promises.
+  - Add the `is_demo` filter to each action's service lookup and return 404
+    on a mismatch. While in there, check the student-side write routes in
+    `services.ts` and `confirmations.ts` for the same gap. Those are
+    owner-scoped, so they're probably fine.
+  - **Files:** `server/src/routes/verifications.ts`,
+    `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`.
+  - **Done:** In `server/src/routes/verifications.ts`, the service lookups
+    in `POST /:serviceId/verify`, `/reject`, `/request-corrections` and
+    `/flag` now include `.eq("is_demo", req.isDemo ?? false)`. On a
+    mismatch they return the existing 404 "Service not found", so a demo
+    educator can't tell a real service id from a missing one. The
+    student-side check found one real gap. The student-owned write routes
+    in `services.ts` and `confirmations.ts` (`start`, `stop`, `photos`,
+    `PATCH`, `consent`, `submit`, `resubmit`, `send`) are safe: they filter
+    on `student_id`, and a student's services always inherit the student's
+    `is_demo` through the `0013` trigger. `POST /api/services` was not safe.
+    It accepted any UUID as `client_id`, so a demo student could put a real
+    client's id there. The service would then appear in that client's
+    `GET /api/confirmations/pending`, which filtered only on `client_id`.
+    `POST /` now checks that `client_id` is a `role = 'client'` profile on
+    the same side of the demo boundary, which is the rule `GET /clients`
+    uses for the picker, and returns 400 otherwise. As a guard for rows
+    written before this fix, the client routes in `confirmations.ts`
+    (`GET /pending`, `POST /:serviceId/confirm`, `/dispute`) now also filter
+    on `is_demo`. `GET /history` in `verifications.ts` was left unchanged,
+    because it is already scoped to `educator_id = req.userId`. No schema or
+    client changes.
+
+- [ ] **VER-14** — Evidence checklist for services with no client
+  - **Depends on:** a product decision
+  - Services with no client go straight to `awaiting_educator` on
+    `POST /` or `POST /:id/stop`, skipping VER-5's photo and reflection
+    requirements. VER-5 left this out on purpose (see its scope note),
+    because there was no status to pause in. So evidence is required for
+    some services and not others.
+  - **Option A:** route no-client services to a new "ready to submit"
+    status (migration extending the `services.status` CHECK) and reuse
+    `POST /:id/submit` without the confirmation requirement.
+  - **Option B:** accept the gap and rely on the educator seeing missing
+    evidence, which becomes visible once **VER-11** ships.
+  - **Files:** depends on the option chosen. Likely
+    `server/src/routes/services.ts`,
+    `client/app/student/services/[id]/page.tsx`, plus a migration for
+    option A.
+
 ---
 
 ## Timing & Educator Alerts (ALT) — outstanding
@@ -485,6 +603,28 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
     `/:studentId` profile lookup now also requires `role = 'student'`.
     Before, a shared link pointed at any user id returned that user's name
     and institution, even for an educator or employer.
+
+- [ ] **POR-6** — Show verified hours to students and employers
+  - **Depends on:** a product decision on whether this is MVP (from the
+    2026-09-22 MVP audit)
+  - MVP item 7 ("Verified hours") is only met in admin reports (RPT-1).
+    Student and employer dashboards and portfolios show verified *counts*,
+    never hours. `service_types.required_practical_hours` and
+    `required_practical_count` can be edited in `/admin/service-catalog`,
+    but nothing outside the admin catalog reads them, so students can't see
+    their progress toward requirements in hours.
+  - Add verified-hours totals to `GET /api/dashboard` (student) and
+    `GET /api/portfolio` / `GET /api/portfolio/:studentId`. Use RPT-1's
+    rule: `adjusted_duration_min ?? actual_duration_min`, with untimed
+    services counted as "untimed", not as 0. Show the totals on the student
+    dashboard, the student portfolio and the employer portfolio view.
+    Optionally show progress against `required_practical_hours`/`_count`
+    per service type.
+  - **Files:** `server/src/routes/dashboard.ts`,
+    `server/src/routes/portfolio.ts`,
+    `client/app/student/dashboard/page.tsx`,
+    `client/app/student/portfolio/page.tsx`,
+    `client/app/employer/browse/[studentId]/page.tsx`.
 
 ---
 
@@ -728,6 +868,28 @@ Replaces the stub at `client/app/admin/reports/page.tsx`.
 
 ---
 
+## Educator access (EDU)
+
+- [ ] **EDU-1** — Limit educators to the students in their assigned cohorts
+  - **Depends on:** a product decision on whether this is MVP (from the
+    2026-09-22 MVP audit)
+  - `educator_assignments` (FND-4) is managed in `/admin/educators`, and
+    ROADMAP Phase 2 says it decides what an educator sees and approves.
+    No educator route reads it, so every educator sees every non-demo
+    student. ALT-1 and ALT-2 deliberately left this out and suggested
+    tracking it as its own issue (see their notes). This is that issue.
+  - Add a shared server helper that resolves an educator's student ids
+    through `educator_assignments.cohort_id` → `user_profiles.cohort_id`.
+    Apply it to the educator reads in `verifications.ts`, `events.ts` and
+    `dashboard.ts`, and to the educator write actions, so an educator can't
+    act on a student outside their cohorts. Decide first what an educator
+    with no assignments sees: nothing, or everyone, as today.
+  - **Files:** `server/src/routes/verifications.ts`,
+    `server/src/routes/events.ts`, `server/src/routes/dashboard.ts`, likely a
+    new `server/src/lib/` helper.
+
+---
+
 ## Ops / Deployment (OPS)
 
 - [x] **OPS-1** — Apply pending migrations to the live Supabase project
@@ -778,6 +940,11 @@ rather than a separate backend pass and frontend pass.
 9. **CLN-1** and **OPS-1/OPS-2** — no code dependencies, but OPS-1/OPS-2 block
    *any* of the above from being usable in the live environment, so do them
    early rather than last.
+10. **MVP audit follow-ups (2026-09-22):** **VER-12, VER-13** (one-line
+    server guards, no deps) → **VER-10** (after VER-12 settles which
+    statuses allow uploads), **VER-11** (no deps). Then product decisions
+    on **VER-14**, **POR-6** and **EDU-1**. Build VER-14 option B only
+    after VER-11.
 
 **Explicitly post-MVP:** real KAI model integration, automated student-client
 matching (KAI-5's eventual "KAI Match"), deep analytics beyond RPT-1's basic
