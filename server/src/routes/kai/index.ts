@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { supabaseAdmin } from "../../lib/supabase";
-import { AuthRequest } from "../../middleware/auth";
+import { AuthRequest, requireRole } from "../../middleware/auth";
 
 // Mounted at /api/kai (any authenticated role). KAI is assistive-only — it
 // never verifies, grades, approves, rejects, or replaces educator judgement.
@@ -37,6 +37,16 @@ router.post("/portfolio-assist", async (_req: AuthRequest, res: Response) => {
     return res.status(503).json({ error: "KAI is not enabled" });
   }
   return res.json({ available: false, message: "KAI Portfolio Assist is not yet available." });
+});
+
+// POST /match-assist — stub for KAI-5 student suggestions on CON-2's manual
+// matching. super_admin-only because a real model would read client_signups,
+// which only admins can see. Suggestions only — KAI never creates a match.
+router.post("/match-assist", requireRole("super_admin"), async (_req: AuthRequest, res: Response) => {
+  if (!(await kaiEnabled())) {
+    return res.status(503).json({ error: "KAI is not enabled" });
+  }
+  return res.json({ available: false, message: "KAI Match is not yet available." });
 });
 
 export default router;

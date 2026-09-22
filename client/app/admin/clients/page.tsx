@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Users, MapPin, Phone, Check, X, UserPlus, GraduationCap } from "lucide-react";
+import { Users, MapPin, Phone, Check, X, UserPlus, GraduationCap, Sparkles } from "lucide-react";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import AdminHeader from "@/components/admin/AdminHeader";
 import Modal from "@/components/admin/Modal";
@@ -38,6 +38,9 @@ interface Student {
   cohort: { id: string; name: string } | null;
 }
 type MatchFilter = "all" | "unmatched" | "matched";
+type KaiAssistResponse = { available: boolean; message: string };
+
+const KAI_FALLBACK = "KAI Match is not yet available.";
 interface VolunteerRequest {
   id: string;
   status: "pending" | "accepted" | "declined";
@@ -78,6 +81,8 @@ export default function AdminClientsPage() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [kaiLoading, setKaiLoading] = useState(false);
+  const [kaiMessage, setKaiMessage] = useState<string | null>(null);
 
   // End-match confirmation
   const [ending, setEnding] = useState<{ signup: Signup; match: Match } | null>(null);
@@ -128,6 +133,7 @@ export default function AdminClientsPage() {
     setStudentId("");
     setNotes("");
     setFormError("");
+    setKaiMessage(null);
   }
 
   const closeMatch = useCallback(() => {
@@ -151,6 +157,20 @@ export default function AdminClientsPage() {
       setFormError(errMsg(err, "Failed to create match."));
     } finally {
       setSaving(false);
+    }
+  }
+
+  // KAI-5 — assistive only; KAI never creates a match, the admin still picks.
+  async function askKaiForMatch(signupId: string) {
+    setKaiLoading(true);
+    setKaiMessage(null);
+    try {
+      const res = await apiPost<KaiAssistResponse>("/api/kai/match-assist", { signup_id: signupId });
+      setKaiMessage(res.message);
+    } catch {
+      setKaiMessage(KAI_FALLBACK);
+    } finally {
+      setKaiLoading(false);
     }
   }
 
@@ -349,6 +369,22 @@ export default function AdminClientsPage() {
                 <p className="mt-1">
                   Available: {[...matching.availability, ...matching.preferred_time].join(", ")}
                 </p>
+              )}
+            </div>
+
+            {/* KAI Match placeholder (KAI-5) */}
+            <div className="mb-5">
+              <button
+                type="button"
+                onClick={() => askKaiForMatch(matching.id)}
+                disabled={kaiLoading}
+                className="inline-flex items-center gap-1.5 rounded-full border border-k-primary/30 bg-k-primary/5 px-3 py-1 text-xs font-medium text-k-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Sparkles size={12} />
+                {kaiLoading ? "Asking KAI…" : "Suggest students"}
+              </button>
+              {kaiMessage && (
+                <p className="mt-3 rounded-xl bg-k-primary/5 px-3.5 py-2.5 text-xs text-k-primary">{kaiMessage}</p>
               )}
             </div>
 

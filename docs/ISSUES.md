@@ -627,11 +627,26 @@ touchpoint below is assistive-only UI, not a decision-making path.
     state says verification decisions stay with the educator (the KAI hard
     constraint). No insights are generated; it is a placeholder only.
 
-- [ ] **KAI-5** — KAI Match placeholder (Kosmè Connect)
+- [x] **KAI-5** — KAI Match placeholder (Kosmè Connect)
   - **Depends on:** KAI-1, CON-2
   - Lowest priority — deferred past MVP. Placeholder only, once manual
     matching (**CON-2**) exists to attach it to.
-  - **Files:** `client/app/admin/clients/page.tsx`.
+  - **Files:** `client/app/admin/clients/page.tsx`,
+    `server/src/routes/kai/index.ts`.
+  - **Done:** New `POST /api/kai/match-assist` stub in
+    `server/src/routes/kai/index.ts`, with the same contract as KAI-1's
+    stubs: 503 when `kai_enabled` is off, otherwise a fixed
+    `{ available: false, message }`. Unlike the other KAI routes, it is
+    gated with `requireRole("super_admin")`, because a real model would read
+    `client_signups`, which only admins can see.
+    `client/app/admin/clients/page.tsx`'s "Match with a student" modal has a
+    "Suggest students" button (styled like KAI-2/KAI-3's buttons) between the
+    client context box and the student search. It sends `{ signup_id }` and
+    shows the reply inline. The message is cleared each time the modal opens,
+    so it doesn't carry over to another client. When KAI is off (503), it
+    falls back to "not yet available". KAI never creates or preselects a
+    match. The admin still picks the student and submits the form, as in
+    CON-2. No schema changes.
 
 ---
 
