@@ -424,11 +424,17 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
   - **Files:** `server/src/routes/portfolio.ts`,
     `client/app/student/portfolio/page.tsx`.
 
-- [ ] **POR-4** — Verification badge
+- [x] **POR-4** — Verification badge
   - **Depends on:** POR-1
   - Visual badge tied directly to `approved` status — no new field, reuse the
     VER-9 source of truth.
   - **Files:** `client/app/student/portfolio/page.tsx`.
+  - **Done:** Already existed, so no code changes were needed.
+    `client/app/student/portfolio/page.tsx` renders an emerald
+    `CheckCircle2` "Verified" badge on grid tiles, list rows and the detail
+    modal. Every item comes from `GET /api/portfolio`, which POR-1 confirmed
+    returns only `status = 'verified'` services. So the badge already
+    reflects the VER-9 source of truth, with no new field.
 
 - [ ] **POR-5** — Employer-facing portfolio view
   - **Depends on:** POR-1, POR-4
@@ -556,12 +562,16 @@ Replaces the stub at `client/app/admin/reports/page.tsx`.
 
 ## Ops / Deployment (OPS)
 
-- [ ] **OPS-1** — Apply pending migrations to the live Supabase project
+- [x] **OPS-1** — Apply pending migrations to the live Supabase project
   - **Depends on:** none
   - Migrations `0014`–`0018` (and every new migration added by issues above)
     still need to be applied to the live environment. Blocks real usability of
     everything already built, not just new work.
   - **Files:** `supabase/migrations/*`.
+  - **Done:** Confirmed 2026-09-22 that every migration through
+    `0024_educator_decisions.sql` is applied to the live project. Any
+    migration added after `0024` still has to be applied live as part of the
+    issue that adds it.
 
 - [ ] **OPS-2** — Run seed scripts against the live environment
   - **Depends on:** OPS-1
