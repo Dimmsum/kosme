@@ -333,15 +333,20 @@ Extends `server/src/routes/admin/alerts.ts` / the `alerts` table (migration `001
     `client/components/educator/AlertsBell.tsx`,
     `client/app/educator/layout.tsx`.
 
-- [ ] **ALT-4** — Alert triggers for confirmation-completed /
-      ready-for-verification
-  - **Depends on:** VER-4, VER-5, ALT-1, ALT-2, ALT-3
-  - Fire the remaining two event types once client confirmation (**VER-4**)
-    and the submit-for-verification transition (**VER-5**) exist, and surface
-    them through the activity feed (**ALT-2**) / priority bell (**ALT-3**)
-    UI already built — mostly a backend emit plus wiring into existing UI,
-    not new UI. **Note:** this is the one place Alerts work is gated behind
-    Verify work — see "Suggested build order" below.
+- [x] **ALT-4** — Alert triggers for confirmation-completed /
+      ready-for-verification. Backend-only: both event types were already in
+      migration `0023_events.sql`'s CHECK, `logEvent()`'s type union, and
+      `AlertsBell.tsx`'s `AlertEvent` type, and ALT-1 put both in the
+      `priority` tier, so they show up in the existing bell (not the
+      activity feed, which is `activity`-tier only) with no UI changes.
+      `server/src/routes/confirmations.ts`'s `POST /:serviceId/confirm`
+      now emits `confirmation_completed` after recording the confirmation.
+      `ready_for_verification` fires on **every** transition into
+      `awaiting_educator` in `server/src/routes/services.ts`, not just
+      `POST /:id/submit`: the no-client instant log (`POST /`), the no-client
+      timer stop (`POST /:id/stop`), and `POST /:id/resubmit` (after
+      corrections, with its own message) all land in the queue too, and
+      skipping them would leave the alert missing for those services.
   - **Files:** `server/src/routes/confirmations.ts`,
     `server/src/routes/services.ts`.
 
@@ -352,14 +357,28 @@ Extends `server/src/routes/admin/alerts.ts` / the `alerts` table (migration `001
 Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx`,
 `client/app/admin/portfolios/page.tsx`.
 
-- [ ] **POR-1** — Restrict portfolio query to approved-only services
+- [x] **POR-1** — Restrict portfolio query to approved-only services
   - **Depends on:** VER-9
   - Audit `portfolio.ts`'s `GET /api/portfolio` query and confirm/fix it to
     only include services where the verified-hours source of truth (VER-9) is
     `approved`.
   - **Files:** `server/src/routes/portfolio.ts`.
+  - **Done:** Audit confirmed every read in `server/src/routes/portfolio.ts`
+    already filters on the VER-9 source of truth (`'verified'` — there is
+    no `'approved'` value in the schema): `GET /` and `GET /:studentId`
+    use `.eq("status", "verified")`, `GET /feed` does the same, and
+    `GET /browse` counts only `status === "verified"` services. `verified`
+    is terminal: `verifications.ts`'s verify/reject/request-corrections all
+    require `awaiting_educator`, and `services.ts` blocks edits once
+    verified. The embedded `verifications` row is unique per `service_id`
+    (upserted), so it is always the approving decision. The one gap was
+    `PATCH /:serviceId/photos`, which accepted any service the student
+    owned and so could overwrite evidence on a service still awaiting
+    review. Its ownership lookup now also requires `status = 'verified'`
+    (404 otherwise). No client code calls it today. No schema or client
+    changes.
 
-- [ ] **POR-2** — Photo/client consent gating in portfolio display
+- [x] **POR-2** — Photo/client consent gating in portfolio display
   - **Depends on:** CON-1
   - Only surface photos/client details where consent was captured, using the
     general consent-record model from **CON-1** (current
@@ -367,6 +386,30 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
     non-volunteer clients like friend/family or walk-ins).
   - **Files:** `server/src/routes/portfolio.ts`,
     `client/app/student/portfolio/page.tsx`.
+  - **Done:** Consent is captured per service at log time for **every**
+    client source, as a `consent_records` row with `subject_type = 'service'`.
+    It is never derived from `client_signups`, because nothing links a
+    service to a signup: `services.client_id` points at `user_profiles`,
+    which has no email or other key to match a `client_signups` row. No
+    migration, since CON-1's table already allows `'service'`.
+    `server/src/routes/services.ts`'s `POST /` now requires a boolean
+    `photo_consent` (400 otherwise) and writes the row after the insert.
+    Like `client-signup.ts`, a failed consent write doesn't fail the
+    request. `client/app/student/services/page.tsx`'s log form has a consent
+    checkbox under Photos. `server/src/routes/portfolio.ts` gates `GET /`,
+    `GET /feed` and `GET /:studentId` through a shared `withConsentGating()`
+    helper: `service_photos` is emptied unless a consented row exists, and
+    each row gets a `photo_consent` flag. This fails closed, so services
+    logged before POR-2 have no row and their photos are hidden.
+    `client/app/student/portfolio/page.tsx` says "Photos hidden · no client
+    consent" instead of "No photos yet" for those services.
+    **Scope notes:** there were no client details to gate, because none of
+    the portfolio reads select `client_id` or any client join. Photos stay
+    ungated where they serve as verification evidence rather than portfolio
+    display: the educator verify queue, the student's own service detail
+    page, and super-admin oversight in `admin/portfolios.ts`. Recording
+    consent after the fact for older services isn't built. It would need a
+    write path on the service detail page.
 
 - [ ] **POR-3** — Skill summary rollup
   - **Depends on:** POR-1

@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
+import { logEvent } from "../lib/events";
 
 const router = Router();
 
@@ -66,7 +67,7 @@ router.post("/:serviceId/confirm", requireRole("client"), async (req: AuthReques
   // Verify the volunteer is the assigned client and service is awaiting_client
   const { data: service, error: svcErr } = await supabaseAdmin
     .from("services")
-    .select("id, client_id, status")
+    .select("id, name, student_id, client_id, status")
     .eq("id", serviceId)
     .single();
 
@@ -97,6 +98,16 @@ router.post("/:serviceId/confirm", requireRole("client"), async (req: AuthReques
   if (confErr) {
     return res.status(500).json({ error: confErr.message });
   }
+
+  // Priority alert for educators (ALT-4): the client has signed off, so the
+  // student's submit-for-verification step is now unblocked on that front.
+  await logEvent(
+    "priority",
+    "confirmation_completed",
+    service.student_id,
+    service.id,
+    `Client confirmed "${service.name}".`,
+  );
 
   return res.json({ confirmation });
 });

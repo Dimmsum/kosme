@@ -156,6 +156,7 @@ router.post(
       client_source,
       notes,
       start_now,
+      photo_consent,
     } = req.body;
 
     if (!name || !category_id) {
@@ -184,6 +185,9 @@ router.post(
     }
     if (client_id && !isUuid(client_id)) {
       return res.status(400).json({ error: "Invalid client_id format" });
+    }
+    if (typeof photo_consent !== "boolean") {
+      return res.status(400).json({ error: "photo_consent must be true or false" });
     }
 
     // start_now begins the timer immediately: the service opens in 'in_progress'
@@ -217,6 +221,31 @@ router.post(
     if (error) {
       console.error("services POST error:", error);
       return res.status(500).json({ error: "Failed to create service" });
+    }
+
+    // POR-2: record the client's photo consent against this service (CON-1's
+    // `consent_records`, subject_type 'service') so portfolio reads can gate
+    // photos regardless of client source. Non-fatal, same as client-signup.ts:
+    // a missing row fails closed (photos hidden from the portfolio).
+    const { error: consentError } = await supabaseAdmin.from("consent_records").insert({
+      subject_type: "service",
+      subject_id: data.id,
+      photo_consent,
+    });
+    if (consentError) {
+      console.error("consent_records insert error:", consentError);
+    }
+
+    // Instant-log with no client skips confirmation and lands straight in the
+    // educator queue (ALT-4).
+    if (data.status === "awaiting_educator") {
+      await logEvent(
+        "priority",
+        "ready_for_verification",
+        req.userId!,
+        data.id,
+        `"${data.name}" is ready for verification.`,
+      );
     }
 
     return res.status(201).json({ service: data });
@@ -359,6 +388,17 @@ router.post(
         req.userId!,
         service.id,
         `"${service.name}" ran ${durationTag} the recommended duration (${actualDurationMin} min).`,
+      );
+    }
+
+    // No assigned client → straight into the educator queue (ALT-4).
+    if (nextStatus === "awaiting_educator") {
+      await logEvent(
+        "priority",
+        "ready_for_verification",
+        req.userId!,
+        service.id,
+        `"${service.name}" is ready for verification.`,
       );
     }
 
@@ -582,7 +622,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     const { data: service, error: svcErr } = await supabaseAdmin
       .from("services")
-      .select("id, status, reflection_notes")
+      .select("id, name, status, reflection_notes")
       .eq("id", req.params.id)
       .eq("student_id", req.userId!)
       .single();
@@ -636,6 +676,14 @@ router.post(
         .json({ error: "Failed to submit service for verification" });
     }
 
+    await logEvent(
+      "priority",
+      "ready_for_verification",
+      req.userId!,
+      service.id,
+      `"${service.name}" is ready for verification.`,
+    );
+
     return res.json({ service: data });
   },
 );
@@ -650,7 +698,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     const { data: service, error: svcErr } = await supabaseAdmin
       .from("services")
-      .select("id, status")
+      .select("id, name, status")
       .eq("id", req.params.id)
       .eq("student_id", req.userId!)
       .single();
@@ -675,6 +723,14 @@ router.post(
       console.error("services resubmit error:", error);
       return res.status(500).json({ error: "Failed to resubmit service" });
     }
+
+    await logEvent(
+      "priority",
+      "ready_for_verification",
+      req.userId!,
+      service.id,
+      `"${service.name}" was resubmitted after corrections and is ready for verification.`,
+    );
 
     return res.json({ service: data });
   },

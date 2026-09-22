@@ -4,6 +4,41 @@ import { AuthRequest, requireRole } from "../middleware/auth";
 
 const router = Router();
 
+// POR-2: photos only surface in portfolio reads when the service has a
+// `consent_records` row (CON-1, subject_type 'service') with photo_consent =
+// true — captured by the student at log time for every client source. Fails
+// closed: no row (e.g. services logged before POR-2) means photos are hidden.
+// None of these reads select client details, so photos are the only thing to
+// gate here.
+async function photoConsentedIds(serviceIds: string[]): Promise<Set<string>> {
+  if (serviceIds.length === 0) return new Set();
+  const { data, error } = await supabaseAdmin
+    .from("consent_records")
+    .select("subject_id")
+    .eq("subject_type", "service")
+    .eq("photo_consent", true)
+    .in("subject_id", serviceIds);
+  if (error) {
+    console.error("consent_records lookup error:", error);
+    return new Set();
+  }
+  return new Set((data ?? []).map((row) => row.subject_id as string));
+}
+
+async function withConsentGating<T extends { id: string; service_photos?: unknown[] }>(
+  rows: T[],
+): Promise<Array<T & { photo_consent: boolean }>> {
+  const consented = await photoConsentedIds(rows.map((row) => row.id));
+  return rows.map((row) => {
+    const photo_consent = consented.has(row.id);
+    return {
+      ...row,
+      service_photos: photo_consent ? row.service_photos : [],
+      photo_consent,
+    };
+  });
+}
+
 // GET /api/portfolio — student's own verified services
 router.get(
   "/",
@@ -27,7 +62,7 @@ router.get(
     return res.status(500).json({ error: "Internal server error" });
     }
 
-    return res.json({ portfolio: data });
+    return res.json({ portfolio: await withConsentGating(data ?? []) });
   },
 );
 
@@ -65,11 +100,14 @@ router.patch(
         .json({ error: "All photos must be valid http(s) URLs" });
     }
 
+    // Portfolio edits only apply to verified services — otherwise this route
+    // could overwrite evidence photos on a service still awaiting review.
     const { data: service, error: serviceError } = await supabaseAdmin
       .from("services")
       .select("id")
       .eq("id", serviceId)
       .eq("student_id", req.userId!)
+      .eq("status", "verified")
       .single();
 
     if (serviceError || !service) {
@@ -216,10 +254,10 @@ router.get(
 
     const items = data ?? [];
     const hasMore = items.length > limit;
-    const feed = hasMore ? items.slice(0, limit) : items;
-    const nextCursor = hasMore ? feed[feed.length - 1].created_at : null;
+    const page = hasMore ? items.slice(0, limit) : items;
+    const nextCursor = hasMore ? page[page.length - 1].created_at : null;
 
-    return res.json({ feed, nextCursor });
+    return res.json({ feed: await withConsentGating(page), nextCursor });
   },
 );
 
@@ -262,7 +300,10 @@ router.get("/:studentId", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 
-  return res.json({ student: profile, portfolio: data });
+  return res.json({
+    student: profile,
+    portfolio: await withConsentGating(data ?? []),
+  });
 });
 
 export default router;

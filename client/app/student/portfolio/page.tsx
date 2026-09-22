@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Eye,
+  EyeOff,
   ChevronLeft,
   ChevronRight,
   ImagePlus,
@@ -18,6 +19,7 @@ type PortfolioApiRow = {
   name: string;
   category_id: string;
   created_at: string;
+  photo_consent: boolean;
   service_photos?: Array<{
     id: string;
     type: "before" | "after";
@@ -40,6 +42,7 @@ type PortfolioItem = {
   category: string;
   date: string;
   educator: string;
+  photoConsent: boolean;
   photos: string[];
 };
 
@@ -72,6 +75,7 @@ export default function PortfolioPage() {
           }),
           educator:
             service.verifications?.[0]?.educator?.full_name ?? "Educator",
+          photoConsent: service.photo_consent,
           photos: (service.service_photos ?? []).map((photo) => photo.url),
         }));
 
@@ -247,8 +251,8 @@ export default function PortfolioPage() {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-k-gray-400">
-                    No photos yet
+                  <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs font-medium text-k-gray-400">
+                    {service.photoConsent ? "No photos yet" : "Photos hidden · no client consent"}
                   </div>
                 )}
                 <div className="absolute top-2 right-2">
@@ -290,7 +294,9 @@ export default function PortfolioPage() {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="text-[10px] text-k-gray-400">No photo</span>
+                  <span className="text-[10px] text-k-gray-400">
+                    {service.photoConsent ? "No photo" : "Hidden"}
+                  </span>
                 )}
               </div>
 
@@ -352,8 +358,19 @@ export default function PortfolioPage() {
                   />
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-k-gray-400">
-                    <ImagePlus size={22} />
-                    <span className="mt-1 text-xs">No photos added</span>
+                    {selected.photoConsent ? (
+                      <>
+                        <ImagePlus size={22} />
+                        <span className="mt-1 text-xs">No photos added</span>
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff size={22} />
+                        <span className="mt-1 px-6 text-center text-xs">
+                          Photos hidden — no client photo consent was recorded for this service
+                        </span>
+                      </>
+                    )}
                   </div>
                 )}
 

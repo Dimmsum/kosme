@@ -167,6 +167,7 @@ export default function ServicesPage() {
   const [serviceTypeId, setServiceTypeId] = useState("");
   const [clientId, setClientId] = useState("");
   const [clientSource, setClientSource] = useState<ClientSource | "">("");
+  const [photoConsent, setPhotoConsent] = useState(false);
   const [notes, setNotes] = useState("");
   const [photos, setPhotos] = useState<PhotoEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -323,6 +324,7 @@ export default function ServicesPage() {
     setServiceTypeId("");
     setClientId("");
     setClientSource("");
+    setPhotoConsent(false);
     setNotes("");
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setPhotos([]);
@@ -359,6 +361,7 @@ export default function ServicesPage() {
         service_type_id: serviceTypeId || undefined,
         client_id: clientId || undefined,
         client_source: clientSource,
+        photo_consent: photoConsent,
         notes: notes.trim() || undefined,
         start_now: timed,
       });
@@ -788,6 +791,21 @@ export default function ServicesPage() {
                         className="hidden"
                         onChange={(e) => handleFileSelect(e.target.files)}
                       />
+                      {/* Photo consent — gates whether photos appear in the portfolio (POR-2) */}
+                      <label className="mt-3 flex cursor-pointer gap-3">
+                        <input
+                          type="checkbox"
+                          checked={photoConsent}
+                          onChange={(e) => setPhotoConsent(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 flex-shrink-0 accent-k-primary"
+                        />
+                        <span className="text-sm font-light leading-relaxed text-k-gray-600">
+                          My client consented to photos of this service appearing in my portfolio.
+                          <span className="block text-[11px] text-k-gray-400">
+                            Without consent, photos are still used as verification evidence but stay hidden from your portfolio.
+                          </span>
+                        </span>
+                      </label>
                     </div>
 
                     {/* Notes */}
