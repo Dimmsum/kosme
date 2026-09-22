@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Filter, CheckCircle2, XCircle, AlertCircle, Flag } from "lucide-react";
+import {
+  Filter,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Flag,
+  UserX,
+} from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 
 type VerifyStatus =
@@ -10,6 +17,19 @@ type VerifyStatus =
   | "Verified"
   | "Corrections Requested"
   | "Rejected";
+
+type PhotoStage = "before" | "during" | "after";
+
+interface ConfirmationSummary {
+  status: "pending" | "confirmed" | "disputed";
+  date: string;
+}
+
+interface ConfirmationRow {
+  status: ConfirmationSummary["status"];
+  created_at: string;
+  updated_at: string | null;
+}
 
 interface VerificationItem {
   id: string;
@@ -22,7 +42,14 @@ interface VerificationItem {
   status: "Awaiting Review" | "Verified" | "Rejected" | "Corrections Requested";
   statusColor: string;
   notes: string | null;
-  photos: Array<{ id: string; type: "before" | "after"; url: string }>;
+  reflectionNotes: string | null;
+  confirmation: ConfirmationSummary | null;
+  photos: Array<{
+    id: string;
+    type: "before" | "after";
+    stage: PhotoStage | null;
+    url: string;
+  }>;
   startedAt: string | null;
   endedAt: string | null;
   actualDurationMin: number | null;
@@ -60,9 +87,12 @@ interface PendingResponse {
     duration_tag: "under" | "within" | "over" | null;
     student: { full_name: string | null } | null;
     client: { full_name: string | null } | null;
+    reflection_notes: string | null;
+    confirmations: ConfirmationRow | ConfirmationRow[] | null;
     service_photos: Array<{
       id: string;
       type: "before" | "after";
+      stage: PhotoStage | null;
       url: string;
     }>;
   }>;
@@ -82,14 +112,28 @@ interface HistoryResponse {
       actual_duration_min: number | null;
       adjusted_duration_min: number | null;
       duration_tag: "under" | "within" | "over" | null;
+      reflection_notes: string | null;
       student: { full_name: string | null } | null;
+      client: { full_name: string | null } | null;
+      confirmations: ConfirmationRow | ConfirmationRow[] | null;
       service_photos: Array<{
         id: string;
         type: "before" | "after";
+        stage: PhotoStage | null;
         url: string;
       }>;
     };
   }>;
+}
+
+// confirmations.service_id is UNIQUE, so PostgREST may embed it as a single
+// object rather than an array — accept either shape.
+function toConfirmation(
+  value: ConfirmationRow | ConfirmationRow[] | null,
+): ConfirmationSummary | null {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (!row) return null;
+  return { status: row.status, date: row.updated_at ?? row.created_at };
 }
 
 function durationTagColor(tag: VerificationItem["durationTag"]): string {
@@ -151,6 +195,93 @@ function renderTiming(item: VerificationItem) {
   );
 }
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function renderReflection(item: VerificationItem) {
+  const reflection = item.reflectionNotes?.trim();
+
+  return (
+    <div className="mb-4 rounded-2xl border border-k-gray-200 bg-k-white px-4 py-3">
+      <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+        Reflection
+      </p>
+      <p
+        className={`mt-1 whitespace-pre-wrap text-sm ${reflection ? "text-k-gray-600" : "text-k-gray-400"}`}
+      >
+        {reflection || "No reflection written."}
+      </p>
+    </div>
+  );
+}
+
+// No-client services skip the confirmation step entirely (see VER-14), so
+// they get their own line rather than looking like an unconfirmed service.
+function renderConfirmation(item: VerificationItem) {
+  const clientName = item.client ?? "the client";
+  let icon = <AlertCircle size={15} className="shrink-0 text-amber-500" />;
+  let text = `Not yet confirmed by ${clientName}`;
+
+  if (!item.client) {
+    icon = <UserX size={15} className="shrink-0 text-k-gray-400" />;
+    text = "No client — logged without a client confirmation";
+  } else if (item.confirmation?.status === "confirmed") {
+    icon = <CheckCircle2 size={15} className="shrink-0 text-emerald-500" />;
+    text = `Confirmed by ${clientName} · ${formatDate(item.confirmation.date)}`;
+  } else if (item.confirmation?.status === "disputed") {
+    icon = <XCircle size={15} className="shrink-0 text-red-500" />;
+    text = `Disputed by ${clientName} · ${formatDate(item.confirmation.date)}`;
+  }
+
+  return (
+    <div className="mb-4 rounded-2xl border border-k-gray-200 bg-k-white px-4 py-3">
+      <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+        Client Confirmation
+      </p>
+      <div className="mt-1 flex items-center gap-2">
+        {icon}
+        <p className="text-sm text-k-gray-600">{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function renderPhotoGrid(label: string, photos: VerificationItem["photos"]) {
+  return (
+    <div className="mb-3 last:mb-0">
+      <p className="mb-2 text-[10px] text-k-gray-400">{label}</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+        {photos.map((photo) => (
+          <a
+            key={photo.id}
+            href={photo.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative block aspect-square overflow-hidden rounded-lg border border-k-gray-200"
+          >
+            <img
+              src={photo.url}
+              alt={`${label} photo${photo.stage ? ` (${photo.stage} stage)` : ""}`}
+              className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+            />
+            {/* Stage is null on photos uploaded before VER-2 added tagging. */}
+            {photo.stage && (
+              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-k-white/90 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-600">
+                {photo.stage}
+              </span>
+            )}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function renderPhotos(photos: VerificationItem["photos"]) {
   if (photos.length === 0) return null;
 
@@ -162,50 +293,8 @@ function renderPhotos(photos: VerificationItem["photos"]) {
       <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
         Photos
       </p>
-      {before.length > 0 && (
-        <div className="mb-3">
-          <p className="mb-2 text-[10px] text-k-gray-400">Before</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-            {before.map((photo) => (
-              <a
-                key={photo.id}
-                href={photo.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group block aspect-square overflow-hidden rounded-lg border border-k-gray-200"
-              >
-                <img
-                  src={photo.url}
-                  alt="Before photo"
-                  className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
-                />
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-      {after.length > 0 && (
-        <div>
-          <p className="mb-2 text-[10px] text-k-gray-400">After</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-            {after.map((photo) => (
-              <a
-                key={photo.id}
-                href={photo.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group block aspect-square overflow-hidden rounded-lg border border-k-gray-200"
-              >
-                <img
-                  src={photo.url}
-                  alt="After photo"
-                  className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
-                />
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
+      {before.length > 0 && renderPhotoGrid("Before", before)}
+      {after.length > 0 && renderPhotoGrid("After", after)}
     </div>
   );
 }
@@ -237,6 +326,8 @@ export default function VerifyPage() {
             status: "Awaiting Review",
             statusColor: statusColor("Awaiting Review"),
             notes: item.notes,
+            reflectionNotes: item.reflection_notes,
+            confirmation: toConfirmation(item.confirmations),
             photos: item.service_photos ?? [],
             startedAt: item.started_at,
             endedAt: item.ended_at,
@@ -261,11 +352,13 @@ export default function VerifyPage() {
               service: item.service.name,
               category: item.service.category_id,
               student: item.service.student?.full_name ?? null,
-              client: null,
+              client: item.service.client?.full_name ?? null,
               dateSubmitted: item.service.created_at,
               status: label,
               statusColor: statusColor(label),
               notes: item.service.notes ?? null,
+              reflectionNotes: item.service.reflection_notes ?? null,
+              confirmation: toConfirmation(item.service.confirmations),
               photos: item.service.service_photos ?? [],
               startedAt: item.service.started_at,
               endedAt: item.service.ended_at,
@@ -606,6 +699,10 @@ export default function VerifyPage() {
                   </div>
                 </div>
               </div>
+
+              {renderReflection(item)}
+
+              {renderConfirmation(item)}
 
               {renderTiming(item)}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -18,8 +18,10 @@ import {
   Lock,
   Timer,
   Sparkles,
+  ImagePlus,
+  X,
 } from "lucide-react";
-import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
+import { apiGet, apiPatch, apiPost, apiPut, apiUpload } from "@/lib/api";
 
 type ServiceStatus =
   | "in_progress"
@@ -31,12 +33,31 @@ type ServiceStatus =
 
 type DurationTag = "under" | "within" | "over";
 
+type PhotoStage = "before" | "during" | "after";
+
 interface ServicePhoto {
   id: string;
   type: "before" | "after";
+  // VER-2 stage tag; null on photos uploaded before migration 0020.
+  stage: PhotoStage | null;
   url: string;
   created_at: string;
 }
+
+// A photo picked for upload but not yet sent (VER-10).
+interface PendingPhoto {
+  id: string;
+  file: File;
+  preview: string;
+  stage: PhotoStage;
+}
+
+// Same Before/During/After control as the log form (VER-2).
+const STAGE_OPTIONS: { value: PhotoStage; label: string; title: string }[] = [
+  { value: "before", label: "B", title: "Before" },
+  { value: "during", label: "D", title: "During" },
+  { value: "after", label: "A", title: "After" },
+];
 
 interface Confirmation {
   id: string;
@@ -188,6 +209,12 @@ export default function ServiceDetailPage() {
   const [consentSaved, setConsentSaved] = useState(false);
   const [kaiLoading, setKaiLoading] = useState(false);
   const [kaiMessage, setKaiMessage] = useState<string | null>(null);
+  const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const photoIdCounter = useRef(0);
+  const evidenceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     apiGet<{ service: ServiceDetail }>(`/api/services/${id}`)
@@ -238,6 +265,65 @@ export default function ServiceDetailPage() {
       setConsentError("Could not save photo consent. Please try again.");
     } finally {
       setSavingConsent(false);
+    }
+  }
+
+  function handlePhotoSelect(files: FileList | null) {
+    if (!service || !files?.length) return;
+    // Photos added mid-service document the work in progress; anything added
+    // afterwards is most likely the finished result.
+    const defaultStage: PhotoStage =
+      service.status === "in_progress" ? "during" : "after";
+    const entries = Array.from(files).map((file) => ({
+      id: `photo-${Date.now()}-${photoIdCounter.current++}`,
+      file,
+      preview: URL.createObjectURL(file),
+      stage: defaultStage,
+    }));
+    setPendingPhotos((p) => [...p, ...entries]);
+    setUploadError(null);
+  }
+
+  function removePendingPhoto(photoId: string) {
+    setPendingPhotos((p) => {
+      const target = p.find((ph) => ph.id === photoId);
+      if (target) URL.revokeObjectURL(target.preview);
+      return p.filter((ph) => ph.id !== photoId);
+    });
+  }
+
+  function setPendingPhotoStage(photoId: string, stage: PhotoStage) {
+    setPendingPhotos((p) => p.map((ph) => (ph.id === photoId ? { ...ph, stage } : ph)));
+  }
+
+  // Opened from the checklist's missing-evidence prompt: bring the evidence
+  // card into view so the picked photos show up where the student is looking.
+  function addPhotosFromChecklist() {
+    evidenceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    photoInputRef.current?.click();
+  }
+
+  async function uploadPendingPhotos() {
+    if (!service || pendingPhotos.length === 0) return;
+    setUploadingPhotos(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      pendingPhotos.forEach((p) => formData.append("photos", p.file));
+      formData.append("stages", JSON.stringify(pendingPhotos.map((p) => p.stage)));
+      await apiUpload(`/api/services/${service.id}/photos`, formData);
+      // The upload response has no row ids, so re-read the photo list. Only
+      // photos are replaced, so an unsaved reflection draft is kept.
+      const res = await apiGet<{ service: ServiceDetail }>(`/api/services/${service.id}`);
+      setService((prev) =>
+        prev ? { ...prev, service_photos: res.service.service_photos } : prev,
+      );
+      pendingPhotos.forEach((p) => URL.revokeObjectURL(p.preview));
+      setPendingPhotos([]);
+    } catch {
+      setUploadError("Could not upload your photos. Please try again.");
+    } finally {
+      setUploadingPhotos(false);
     }
   }
 
@@ -331,8 +417,13 @@ export default function ServiceDetailPage() {
   const photos = normalizeToArray<ServicePhoto>(service.service_photos);
   const confirmations = normalizeToArray<Confirmation>(service.confirmations);
   const verifications = normalizeToArray<Verification>(service.verifications);
-  const beforePhotos = photos.filter((p) => p.type === "before");
-  const afterPhotos = photos.filter((p) => p.type === "after");
+  // Group by stage tag; photos from before migration 0020 have no stage, so
+  // they fall back to their legacy before/after type.
+  const photoGroups = STAGE_OPTIONS.map((opt) => ({
+    ...opt,
+    photos: photos.filter((p) => (p.stage ?? p.type) === opt.value),
+  })).filter((g) => g.photos.length > 0);
+  const canUploadPhotos = service.status !== "verified";
   const stepIndex = pipelineStep(service.status);
   const rejection = verifications.find((v) => v.status === "rejected");
   const corrections = verifications.find(
@@ -732,19 +823,30 @@ export default function ServiceDetailPage() {
                   ))}
                 </ul>
                 {photos.length === 0 && (
-                  <div className="mb-4 flex items-center justify-between gap-3 rounded-xl bg-k-primary/5 px-3.5 py-2.5">
+                  <div className="mb-4 flex flex-col gap-2.5 rounded-xl bg-k-primary/5 px-3.5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-k-primary">
-                      Missing evidence photos — KAI can suggest what to capture.
+                      Missing evidence photos — add them now, or KAI can suggest
+                      what to capture.
                     </p>
-                    <button
-                      type="button"
-                      onClick={askKai}
-                      disabled={kaiLoading}
-                      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-k-primary/30 bg-k-white px-3 py-1 text-xs font-medium text-k-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Sparkles size={12} />
-                      {kaiLoading ? "Asking…" : "Ask KAI"}
-                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={addPhotosFromChecklist}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-k-primary px-3 py-1 text-xs font-medium text-white"
+                      >
+                        <ImagePlus size={12} />
+                        Add photos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={askKai}
+                        disabled={kaiLoading}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-k-primary/30 bg-k-white px-3 py-1 text-xs font-medium text-k-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Sparkles size={12} />
+                        {kaiLoading ? "Asking…" : "Ask KAI"}
+                      </button>
+                    </div>
                   </div>
                 )}
                 {kaiMessage && (
@@ -772,74 +874,158 @@ export default function ServiceDetailPage() {
               </div>
             )}
 
-          {/* Photos */}
-          {beforePhotos.length > 0 || afterPhotos.length > 0 ? (
-            <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
-              <h2 className="mb-4 font-serif text-base font-medium text-k-black">
-                Photos
-              </h2>
-              {beforePhotos.length > 0 && (
-                <div className="mb-5">
-                  <p className="mb-2.5 text-xs font-medium uppercase tracking-[0.08em] text-k-gray-400">
-                    Before
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {beforePhotos.map((photo) => (
-                      <a
-                        key={photo.id}
-                        href={photo.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group block aspect-square overflow-hidden rounded-xl border border-k-gray-200"
-                      >
-                        <img
-                          src={photo.url}
-                          alt="Before"
-                          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
-                        />
-                      </a>
-                    ))}
+          {/* Photos — evidence, with uploads open until verified (VER-10/VER-12) */}
+          <div
+            ref={evidenceRef}
+            className="scroll-mt-6 rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6"
+          >
+            <h2 className="mb-1 font-serif text-base font-medium text-k-black">
+              Photos
+            </h2>
+            {canUploadPhotos && (
+              <p className="mb-4 text-xs text-k-gray-400">
+                Add evidence any time before this service is verified. Tag each
+                photo with the point of the service it shows.
+              </p>
+            )}
+
+            {photoGroups.length > 0 ? (
+              <div className={`flex flex-col gap-5 ${canUploadPhotos ? "" : "mt-3"}`}>
+                {photoGroups.map((group) => (
+                  <div key={group.value}>
+                    <p className="mb-2.5 text-xs font-medium uppercase tracking-[0.08em] text-k-gray-400">
+                      {group.title}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {group.photos.map((photo) => (
+                        <a
+                          key={photo.id}
+                          href={photo.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group block aspect-square overflow-hidden rounded-xl border border-k-gray-200"
+                        >
+                          <img
+                            src={photo.url}
+                            alt={group.title}
+                            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                          />
+                        </a>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-              {afterPhotos.length > 0 && (
-                <div>
-                  <p className="mb-2.5 text-xs font-medium uppercase tracking-[0.08em] text-k-gray-400">
-                    After
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {afterPhotos.map((photo) => (
-                      <a
-                        key={photo.id}
-                        href={photo.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group block aspect-square overflow-hidden rounded-xl border border-k-gray-200"
-                      >
-                        <img
-                          src={photo.url}
-                          alt="After"
-                          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
-                        />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
-              <h2 className="mb-3 font-serif text-base font-medium text-k-black">
-                Photos
-              </h2>
-              <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-                <ImageOff size={28} className="text-k-gray-300" />
-                <p className="text-sm text-k-gray-400">
-                  No photos uploaded for this service.
-                </p>
+                ))}
               </div>
-            </div>
-          )}
+            ) : (
+              pendingPhotos.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+                  <ImageOff size={28} className="text-k-gray-300" />
+                  <p className="text-sm text-k-gray-400">
+                    No photos uploaded for this service.
+                  </p>
+                </div>
+              )
+            )}
+
+            {canUploadPhotos && (
+              <div
+                className={
+                  photoGroups.length > 0
+                    ? "mt-5 border-t border-k-gray-100 pt-5"
+                    : ""
+                }
+              >
+                {pendingPhotos.length > 0 && (
+                  <p className="mb-2.5 text-xs font-medium uppercase tracking-[0.08em] text-k-gray-400">
+                    Ready to upload
+                  </p>
+                )}
+                <div className="flex flex-wrap items-start gap-2.5">
+                  {pendingPhotos.map((photo) => (
+                    <div key={photo.id} className="flex flex-col items-center gap-1">
+                      <div className="group/photo relative h-24 w-24 overflow-hidden rounded-xl border border-k-primary/20">
+                        <img
+                          src={photo.preview}
+                          alt="Photo to upload"
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePendingPhoto(photo.id)}
+                          disabled={uploadingPhotos}
+                          aria-label="Remove photo"
+                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm disabled:opacity-40"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                      {/* Stage tag — which point of the service this photo documents */}
+                      <div className="flex overflow-hidden rounded-full border border-k-gray-200">
+                        {STAGE_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            title={opt.title}
+                            aria-label={`Tag as ${opt.title}`}
+                            aria-pressed={photo.stage === opt.value}
+                            onClick={() => setPendingPhotoStage(photo.id, opt.value)}
+                            disabled={uploadingPhotos}
+                            className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                              photo.stage === opt.value
+                                ? "bg-k-primary text-white"
+                                : "bg-k-white text-k-gray-400 hover:bg-k-gray-100"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={uploadingPhotos}
+                    className="flex h-24 w-24 flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-k-gray-200 text-k-gray-400 transition-colors hover:border-k-primary hover:text-k-primary disabled:opacity-40"
+                  >
+                    <ImagePlus size={20} />
+                    <span className="text-[10px] font-medium">Add</span>
+                  </button>
+                </div>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    handlePhotoSelect(e.target.files);
+                    // Reset so picking the same file again still fires onChange.
+                    e.target.value = "";
+                  }}
+                />
+                {(pendingPhotos.length > 0 || uploadError) && (
+                  <div className="mt-3 flex items-center gap-3">
+                    {pendingPhotos.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={uploadPendingPhotos}
+                        disabled={uploadingPhotos}
+                        className="rounded-full bg-k-primary px-4 py-1.5 text-xs font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {uploadingPhotos
+                          ? "Uploading…"
+                          : `Upload ${pendingPhotos.length} photo${pendingPhotos.length > 1 ? "s" : ""}`}
+                      </button>
+                    )}
+                    {uploadError && (
+                      <span className="text-xs text-red-600">{uploadError}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Right column — pipeline ── */}

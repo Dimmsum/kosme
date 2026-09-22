@@ -105,11 +105,12 @@ router.get(
       .from("services")
       .select(
         `
-      id, name, category_id, notes, status, created_at,
+      id, name, category_id, notes, reflection_notes, status, created_at,
       started_at, ended_at, actual_duration_min, adjusted_duration_min, duration_tag,
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
-      service_photos ( id, type, url )
+      confirmations ( status, created_at, updated_at ),
+      service_photos ( id, type, stage, url )
     `,
       )
       .eq("status", "awaiting_educator")
@@ -136,10 +137,12 @@ router.get(
         `
       id, status, notes, created_at,
       service:service_id (
-        id, name, category_id, notes, created_at,
+        id, name, category_id, notes, reflection_notes, created_at,
         started_at, ended_at, actual_duration_min, adjusted_duration_min, duration_tag,
         student:student_id ( id, full_name ),
-        service_photos ( id, type, url )
+        client:client_id ( id, full_name ),
+        confirmations ( status, created_at, updated_at ),
+        service_photos ( id, type, stage, url )
       )
     `,
       )

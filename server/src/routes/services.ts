@@ -507,29 +507,25 @@ router.post(
       file: Express.Multer.File;
       type: "before" | "after";
       stage: PhotoStage | null;
-      index: number;
     }[] = [
       // The `before`/`after` fields are a legacy upload path with no client
       // currently using them; default their stage from the field name itself
       // so any existing integration still gets a sensible tag for free.
-      ...beforeFiles.map((f, i) => ({
+      ...beforeFiles.map((f) => ({
         file: f,
         type: "before" as const,
         stage: "before" as PhotoStage,
-        index: i,
       })),
-      ...afterFiles.map((f, i) => ({
+      ...afterFiles.map((f) => ({
         file: f,
         type: "after" as const,
         stage: "after" as PhotoStage,
-        index: i,
       })),
       // Backward compatibility: older clients send `photos` without type.
       ...genericFiles.map((f, i) => ({
         file: f,
         type: "after" as const,
         stage: genericStages[i] ?? null,
-        index: i,
       })),
     ];
 

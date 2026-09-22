@@ -260,7 +260,7 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
 `docs/ROADMAP.md`'s phase exit criteria. VER-10 to VER-13 block the MVP.
 VER-14 needs a product decision first.
 
-- [ ] **VER-10** — Upload evidence photos after a service is logged
+- [x] **VER-10** — Upload evidence photos after a service is logged
   - **Depends on:** none
   - **MVP blocker.** The only upload control is on the log form
     (`client/app/student/services/page.tsx`, right after `POST /`). The
@@ -276,8 +276,28 @@ VER-14 needs a product decision first.
     endpoint is needed. Which statuses allow uploads is settled in
     **VER-12**.
   - **Files:** `client/app/student/services/[id]/page.tsx`.
+  - **Done:** The Photos card on `client/app/student/services/[id]/page.tsx`
+    now takes uploads at every status except `verified`, following
+    **VER-12**'s rule. It is hidden once the service is verified. Picked
+    photos show as thumbnails with the same B/D/A stage control as the log
+    form. They default to "during" while the service is `in_progress` and to
+    "after" at any other status. An "Upload N photos" button sends them to the
+    existing `POST /api/services/:id/photos` with the `stages` array, then
+    re-reads the service to refresh the photo list, so an unsaved reflection
+    draft isn't lost. The checklist's missing-evidence prompt gets an "Add
+    photos" button next to "Ask KAI". It scrolls to the Photos card and opens
+    the file picker. Uploaded photos are now grouped by stage
+    (Before/During/After) instead of the legacy `type`. Every generic upload
+    is stored as `type = 'after'`, so before this change, "before"-tagged
+    photos were listed under After. Photos with no stage (uploaded before
+    `0020`) fall back to `type`. **One server fix was needed:**
+    `POST /:id/photos` in `server/src/routes/services.ts` named storage files
+    `${type}-${index}` with `upsert: true`. A second upload batch on the same
+    service would therefore overwrite the first batch's files, leaving two DB
+    rows pointing at one image. Paths now use `randomUUID()` instead of the
+    index. No schema changes.
 
-- [ ] **VER-11** — Show reflection, client confirmation and photo stages
+- [x] **VER-11** — Show reflection, client confirmation and photo stages
       in the educator review queue
   - **Depends on:** none
   - **MVP blocker.** `GET /pending` and `GET /history` in
@@ -292,6 +312,27 @@ VER-14 needs a product decision first.
     client" for the no-client path), and a stage label on each photo.
   - **Files:** `server/src/routes/verifications.ts`,
     `client/app/educator/verify/page.tsx`.
+  - **Done:** `GET /pending` and `GET /history` in
+    `server/src/routes/verifications.ts` now select `reflection_notes`,
+    `confirmations ( status, created_at, updated_at )` and
+    `service_photos.stage`. `GET /history` also joins `client:client_id`,
+    which it didn't before, so history items used to show "Not assigned" for
+    every client. `client/app/educator/verify/page.tsx` adds two cards to
+    each queue item, between Notes and Timing:
+    - **Reflection** shows the student's `reflection_notes`, or "No
+      reflection written." when empty.
+    - **Client Confirmation** shows one line: confirmed or disputed, with
+      the client's name and date, "Not yet confirmed by …" when a client is
+      set but hasn't confirmed, or "No client" for services logged without
+      one (the VER-14 path). The date is `updated_at`, because the confirm
+      and dispute routes upsert the row, so `created_at` can be from an
+      earlier dispute.
+
+    Each photo has a stage chip (before/during/after) in its bottom-left
+    corner. Photos from before VER-2 have no stage, so they get no chip.
+    Photos are still grouped by `type`, as before. The confirmations embed
+    is read as an object or an array, because `service_id` is unique and
+    PostgREST may return a single object. No schema changes.
 
 - [x] **VER-12** — Lock photo uploads once a service is verified
   - **Depends on:** none (do with or before **VER-10**)
