@@ -17,6 +17,12 @@ async function kaiEnabled(): Promise<boolean> {
   return data?.value === true;
 }
 
+// GET /status — read-only flag check so non-admin surfaces (e.g. the KAI-4
+// educator dashboard card) can gate on kai_enabled without /api/admin/settings.
+router.get("/status", async (_req: AuthRequest, res: Response) => {
+  return res.json({ enabled: await kaiEnabled() });
+});
+
 // POST /log-assist — stub for VER-3 reflection notes / missing-evidence prompts.
 router.post("/log-assist", async (_req: AuthRequest, res: Response) => {
   if (!(await kaiEnabled())) {

@@ -13,6 +13,7 @@ import {
   PlayCircle,
   StopCircle,
   Activity,
+  Sparkles,
 } from "lucide-react";
 import { apiGet } from "@/lib/api";
 
@@ -78,8 +79,15 @@ export default function EducatorDashboard() {
     }>
   >([]);
   const [activityFeed, setActivityFeed] = useState<ActivityEvent[]>([]);
+  const [kaiEnabled, setKaiEnabled] = useState(false);
 
   useEffect(() => {
+    // KAI insights surface is gated by the kai_enabled feature flag (KAI-4).
+    // Fetched separately so a failure here never blanks the rest of the dashboard.
+    apiGet<{ enabled: boolean }>("/api/kai/status")
+      .then(({ enabled }) => setKaiEnabled(enabled))
+      .catch(() => {});
+
     Promise.all([
       apiGet<ProfileRes>("/api/profile"),
       apiGet<DashboardRes>("/api/dashboard"),
@@ -217,6 +225,22 @@ export default function EducatorDashboard() {
             View Students
           </span>
         </Link>
+      </div>
+
+      {/* KAI Insights placeholder (KAI-4, mirrors /admin/dashboard) — assistive
+          only, never verifies, grades or replaces educator judgement */}
+      <div className="mb-8 flex items-start gap-4 rounded-3xl border border-dashed border-k-gray-200 bg-k-white px-6 py-5">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-k-primary/10 text-k-primary">
+          <Sparkles size={18} />
+        </span>
+        <div>
+          <p className="text-sm font-medium text-k-black">KAI Insights</p>
+          <p className="mt-0.5 text-sm font-light text-k-gray-600">
+            {kaiEnabled
+              ? "Student insights are enabled — assistive summaries will appear here as the KAI integration lands. Verification decisions always stay with you."
+              : "Student insights coming soon. Your administrator can switch KAI on when it's available."}
+          </p>
+        </div>
       </div>
 
       {/* Recent verification activity */}
