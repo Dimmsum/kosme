@@ -610,6 +610,57 @@ router.patch(
   },
 );
 
+// PUT /api/services/:id/consent — student records or changes the client's
+// portfolio photo consent after the fact (POR-2 follow-up). Services logged
+// before POR-2 have no `consent_records` row, so their photos are hidden from
+// the portfolio until one is written here. Allowed at any status, verified
+// included: consent governs portfolio display, not the verification evidence.
+router.put(
+  "/:id/consent",
+  requireRole("student"),
+  async (req: AuthRequest, res: Response) => {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid service id" });
+    }
+    const { photo_consent } = req.body as { photo_consent?: unknown };
+    if (typeof photo_consent !== "boolean") {
+      return res.status(400).json({ error: "photo_consent must be true or false" });
+    }
+
+    const { data: service, error: svcErr } = await supabaseAdmin
+      .from("services")
+      .select("id")
+      .eq("id", req.params.id)
+      .eq("student_id", req.userId!)
+      .single();
+
+    if (svcErr || !service) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("consent_records")
+      .upsert(
+        {
+          subject_type: "service",
+          subject_id: service.id,
+          photo_consent,
+          captured_at: new Date().toISOString(),
+        },
+        { onConflict: "subject_type,subject_id" },
+      )
+      .select("photo_consent")
+      .single();
+
+    if (error || !data) {
+      console.error("consent_records upsert error:", error);
+      return res.status(500).json({ error: "Failed to save photo consent" });
+    }
+
+    return res.json({ photo_consent: data.photo_consent });
+  },
+);
+
 // POST /api/services/:id/submit — explicit student action forwarding a
 // client-confirmed service on to the educator review queue. Gated on the
 // pre-submit checklist: the client must have confirmed, at least one evidence
@@ -771,7 +822,22 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  return res.json({ service: data });
+  // Portfolio photo consent (POR-2). consent_records has no FK to services,
+  // so it's looked up separately. null = no record (photos hidden from the
+  // portfolio until the student records one via PUT /:id/consent).
+  const { data: consent, error: consentError } = await supabaseAdmin
+    .from("consent_records")
+    .select("photo_consent")
+    .eq("subject_type", "service")
+    .eq("subject_id", data.id)
+    .maybeSingle();
+  if (consentError) {
+    console.error("consent_records lookup error:", consentError);
+  }
+
+  return res.json({
+    service: { ...data, photo_consent: consent?.photo_consent ?? null },
+  });
 });
 
 export default router;

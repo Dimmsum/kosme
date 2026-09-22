@@ -14,11 +14,12 @@ import {
   Tag,
   FileText,
   ImageOff,
+  EyeOff,
   Lock,
   Timer,
   Sparkles,
 } from "lucide-react";
-import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
 
 type ServiceStatus =
   | "in_progress"
@@ -69,6 +70,8 @@ interface ServiceDetail {
   service_photos: ServicePhoto[];
   confirmations: Confirmation[];
   verifications: Verification[];
+  // POR-2: null means no consent record exists yet (photos hidden from portfolio).
+  photo_consent: boolean | null;
 }
 
 const STATUS_CONFIG: Record<
@@ -180,6 +183,9 @@ export default function ServiceDetailPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [resubmitting, setResubmitting] = useState(false);
   const [resubmitError, setResubmitError] = useState<string | null>(null);
+  const [savingConsent, setSavingConsent] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const [consentSaved, setConsentSaved] = useState(false);
   const [kaiLoading, setKaiLoading] = useState(false);
   const [kaiMessage, setKaiMessage] = useState<string | null>(null);
 
@@ -211,6 +217,27 @@ export default function ServiceDetailPage() {
       setReflectionError("Could not save your reflection. Please try again.");
     } finally {
       setSavingReflection(false);
+    }
+  }
+
+  async function savePhotoConsent(photoConsent: boolean) {
+    if (!service) return;
+    setSavingConsent(true);
+    setConsentError(null);
+    setConsentSaved(false);
+    try {
+      const res = await apiPut<{ photo_consent: boolean }>(
+        `/api/services/${service.id}/consent`,
+        { photo_consent: photoConsent },
+      );
+      setService((prev) =>
+        prev ? { ...prev, photo_consent: res.photo_consent } : prev,
+      );
+      setConsentSaved(true);
+    } catch {
+      setConsentError("Could not save photo consent. Please try again.");
+    } finally {
+      setSavingConsent(false);
     }
   }
 
@@ -531,6 +558,52 @@ export default function ServiceDetailPage() {
                   )}
                 </div>
               </>
+            )}
+          </div>
+
+          {/* Portfolio photo consent (POR-2) — editable at any status */}
+          <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
+            <h2 className="mb-1 font-serif text-base font-medium text-k-black">
+              Portfolio Photo Consent
+            </h2>
+            <p className="mb-4 text-xs text-k-gray-400">
+              Photos are always used as verification evidence. Consent only
+              controls whether they appear in your portfolio.
+            </p>
+            {service.photo_consent === null && (
+              <div className="mb-4 flex items-center gap-2.5 rounded-xl bg-amber-50 px-3.5 py-2.5">
+                <EyeOff size={14} className="shrink-0 text-amber-700" />
+                <p className="text-xs text-amber-700">
+                  No consent has been recorded for this service, so its photos
+                  are hidden from your portfolio until you record one.
+                </p>
+              </div>
+            )}
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={service.photo_consent === true}
+                disabled={savingConsent}
+                onChange={(e) => savePhotoConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 flex-shrink-0 accent-k-primary disabled:cursor-not-allowed disabled:opacity-40"
+              />
+              <span className="text-sm leading-relaxed text-k-gray-600">
+                My client consented to photos of this service appearing in my
+                portfolio.
+              </span>
+            </label>
+            {(savingConsent || consentSaved || consentError) && (
+              <div className="mt-2.5 flex items-center gap-3">
+                {savingConsent && (
+                  <span className="text-xs text-k-gray-400">Saving…</span>
+                )}
+                {consentSaved && !savingConsent && (
+                  <span className="text-xs text-emerald-600">Saved</span>
+                )}
+                {consentError && (
+                  <span className="text-xs text-red-600">{consentError}</span>
+                )}
+              </div>
             )}
           </div>
 

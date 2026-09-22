@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   CheckCircle2,
   Eye,
@@ -369,6 +370,12 @@ export default function PortfolioPage() {
                         <span className="mt-1 px-6 text-center text-xs">
                           Photos hidden — no client photo consent was recorded for this service
                         </span>
+                        <Link
+                          href={`/student/services/${selected.id}`}
+                          className="mt-2 text-xs font-medium text-k-primary underline-offset-2 hover:underline"
+                        >
+                          Record consent on the service page
+                        </Link>
                       </>
                     )}
                   </div>

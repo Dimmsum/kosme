@@ -407,9 +407,13 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
     the portfolio reads select `client_id` or any client join. Photos stay
     ungated where they serve as verification evidence rather than portfolio
     display: the educator verify queue, the student's own service detail
-    page, and super-admin oversight in `admin/portfolios.ts`. Recording
-    consent after the fact for older services isn't built. It would need a
-    write path on the service detail page.
+    page, and super-admin oversight in `admin/portfolios.ts`. Consent can be
+    recorded or changed after the fact, at any status: `PUT
+    /api/services/:id/consent` in `server/src/routes/services.ts` upserts the
+    row (student-owned services only), `GET /api/services/:id` returns
+    `photo_consent` (`null` = no record), and
+    `client/app/student/services/[id]/page.tsx` has a consent checkbox card
+    that the portfolio modal's hidden-photos note links to.
 
 - [ ] **POR-3** — Skill summary rollup
   - **Depends on:** POR-1
