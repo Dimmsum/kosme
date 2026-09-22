@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Filter, CheckCircle2, XCircle } from "lucide-react";
+import { Filter, CheckCircle2, XCircle, AlertCircle, Flag } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 
-type VerifyStatus = "All" | "Awaiting Review" | "Verified";
+type VerifyStatus =
+  | "All"
+  | "Awaiting Review"
+  | "Verified"
+  | "Corrections Requested"
+  | "Rejected";
 
 interface VerificationItem {
   id: string;
@@ -14,21 +19,30 @@ interface VerificationItem {
   student: string | null;
   client: string | null;
   dateSubmitted: string;
-  status: "Awaiting Review" | "Verified" | "Rejected";
+  status: "Awaiting Review" | "Verified" | "Rejected" | "Corrections Requested";
   statusColor: string;
   notes: string | null;
   photos: Array<{ id: string; type: "before" | "after"; url: string }>;
   startedAt: string | null;
   endedAt: string | null;
   actualDurationMin: number | null;
+  adjustedDurationMin: number | null;
   durationTag: "under" | "within" | "over" | null;
+  flagged: boolean;
 }
 
-const filters: VerifyStatus[] = ["All", "Awaiting Review", "Verified"];
+const filters: VerifyStatus[] = [
+  "All",
+  "Awaiting Review",
+  "Verified",
+  "Corrections Requested",
+  "Rejected",
+];
 
 function statusColor(status: VerificationItem["status"]): string {
   if (status === "Verified") return "bg-emerald-100 text-emerald-700";
   if (status === "Rejected") return "bg-red-100 text-red-700";
+  if (status === "Corrections Requested") return "bg-orange-100 text-orange-700";
   return "bg-amber-100 text-amber-700";
 }
 
@@ -42,6 +56,7 @@ interface PendingResponse {
     started_at: string | null;
     ended_at: string | null;
     actual_duration_min: number | null;
+    adjusted_duration_min: number | null;
     duration_tag: "under" | "within" | "over" | null;
     student: { full_name: string | null } | null;
     client: { full_name: string | null } | null;
@@ -55,7 +70,7 @@ interface PendingResponse {
 
 interface HistoryResponse {
   history: Array<{
-    status: "verified" | "rejected";
+    status: "verified" | "rejected" | "corrections_requested";
     service: {
       id: string;
       name: string;
@@ -65,6 +80,7 @@ interface HistoryResponse {
       started_at: string | null;
       ended_at: string | null;
       actual_duration_min: number | null;
+      adjusted_duration_min: number | null;
       duration_tag: "under" | "within" | "over" | null;
       student: { full_name: string | null } | null;
       service_photos: Array<{
@@ -114,6 +130,11 @@ function renderTiming(item: VerificationItem) {
             {item.actualDurationMin !== null && (
               <span className="ml-2 text-k-gray-400">
                 ({formatDurationMin(item.actualDurationMin)})
+              </span>
+            )}
+            {item.adjustedDurationMin !== null && (
+              <span className="ml-2 text-k-primary">
+                &rarr; adjusted to {formatDurationMin(item.adjustedDurationMin)}
               </span>
             )}
           </p>
@@ -220,13 +241,20 @@ export default function VerifyPage() {
             startedAt: item.started_at,
             endedAt: item.ended_at,
             actualDurationMin: item.actual_duration_min,
+            adjustedDurationMin: item.adjusted_duration_min,
             durationTag: item.duration_tag,
+            flagged: false,
           }),
         );
 
         const historyItems: VerificationItem[] = (historyRes.history ?? []).map(
           (item) => {
-            const label = item.status === "verified" ? "Verified" : "Rejected";
+            const label: VerificationItem["status"] =
+              item.status === "verified"
+                ? "Verified"
+                : item.status === "corrections_requested"
+                  ? "Corrections Requested"
+                  : "Rejected";
             return {
               id: `history-${item.service.id}`,
               serviceId: item.service.id,
@@ -242,7 +270,9 @@ export default function VerifyPage() {
               startedAt: item.service.started_at,
               endedAt: item.service.ended_at,
               actualDurationMin: item.service.actual_duration_min,
+              adjustedDurationMin: item.service.adjusted_duration_min,
               durationTag: item.service.duration_tag,
+              flagged: false,
             };
           },
         );
@@ -264,17 +294,42 @@ export default function VerifyPage() {
 
   const filtered = items.filter((item) => {
     if (activeFilter === "All") return true;
-    if (activeFilter === "Verified") return item.status === "Verified";
-    return item.status === "Awaiting Review";
+    return item.status === activeFilter;
   });
+
+  const [hourDrafts, setHourDrafts] = useState<Record<string, string>>({});
+  const [correctionDrafts, setCorrectionDrafts] = useState<Record<string, string>>({});
+  const [flagDrafts, setFlagDrafts] = useState<Record<string, string>>({});
+  const [openPanel, setOpenPanel] = useState<Record<string, "corrections" | "flag" | null>>({});
+  const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
+
+  function toggle(serviceId: string, panel: "corrections" | "flag") {
+    setOpenPanel((prev) => ({
+      ...prev,
+      [serviceId]: prev[serviceId] === panel ? null : panel,
+    }));
+  }
 
   async function handleVerify(serviceId: string) {
     if (pendingActionIds.has(serviceId)) return;
+
+    const draft = hourDrafts[serviceId]?.trim();
+    const adjusted_duration_min = draft ? Number(draft) : undefined;
+    if (draft && (!Number.isFinite(adjusted_duration_min) || adjusted_duration_min! < 0)) {
+      setActionErrors((prev) => ({
+        ...prev,
+        [serviceId]: "Adjusted hours must be a non-negative number.",
+      }));
+      return;
+    }
+
     setPendingActionIds((prev) => new Set(prev).add(serviceId));
+    setActionErrors((prev) => ({ ...prev, [serviceId]: "" }));
 
     try {
       await apiPost(
         `/api/verifications/${encodeURIComponent(serviceId)}/verify`,
+        adjusted_duration_min !== undefined ? { adjusted_duration_min } : undefined,
       );
       setItems((prev) =>
         prev.map((item) =>
@@ -283,6 +338,7 @@ export default function VerifyPage() {
                 ...item,
                 status: "Verified",
                 statusColor: statusColor("Verified"),
+                adjustedDurationMin: adjusted_duration_min ?? item.adjustedDurationMin,
               }
             : item,
         ),
@@ -290,7 +346,7 @@ export default function VerifyPage() {
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to verify service.";
-      setError(message);
+      setActionErrors((prev) => ({ ...prev, [serviceId]: message }));
     } finally {
       setPendingActionIds((prev) => {
         const next = new Set(prev);
@@ -303,6 +359,7 @@ export default function VerifyPage() {
   async function handleReject(serviceId: string) {
     if (pendingActionIds.has(serviceId)) return;
     setPendingActionIds((prev) => new Set(prev).add(serviceId));
+    setActionErrors((prev) => ({ ...prev, [serviceId]: "" }));
 
     try {
       await apiPost(
@@ -322,7 +379,90 @@ export default function VerifyPage() {
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to reject service.";
-      setError(message);
+      setActionErrors((prev) => ({ ...prev, [serviceId]: message }));
+    } finally {
+      setPendingActionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(serviceId);
+        return next;
+      });
+    }
+  }
+
+  async function handleRequestCorrections(serviceId: string) {
+    if (pendingActionIds.has(serviceId)) return;
+    const notes = correctionDrafts[serviceId]?.trim();
+    if (!notes) {
+      setActionErrors((prev) => ({
+        ...prev,
+        [serviceId]: "Describe what the student needs to fix.",
+      }));
+      return;
+    }
+    setPendingActionIds((prev) => new Set(prev).add(serviceId));
+    setActionErrors((prev) => ({ ...prev, [serviceId]: "" }));
+
+    try {
+      await apiPost(
+        `/api/verifications/${encodeURIComponent(serviceId)}/request-corrections`,
+        { notes },
+      );
+      setItems((prev) =>
+        prev.map((item) =>
+          item.serviceId === serviceId
+            ? {
+                ...item,
+                status: "Corrections Requested",
+                statusColor: statusColor("Corrections Requested"),
+              }
+            : item,
+        ),
+      );
+      setOpenPanel((prev) => ({ ...prev, [serviceId]: null }));
+      setCorrectionDrafts((prev) => ({ ...prev, [serviceId]: "" }));
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to request corrections.";
+      setActionErrors((prev) => ({ ...prev, [serviceId]: message }));
+    } finally {
+      setPendingActionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(serviceId);
+        return next;
+      });
+    }
+  }
+
+  async function handleFlag(serviceId: string) {
+    if (pendingActionIds.has(serviceId)) return;
+    const reason = flagDrafts[serviceId]?.trim();
+    if (!reason) {
+      setActionErrors((prev) => ({
+        ...prev,
+        [serviceId]: "Describe why this service is being flagged.",
+      }));
+      return;
+    }
+    setPendingActionIds((prev) => new Set(prev).add(serviceId));
+    setActionErrors((prev) => ({ ...prev, [serviceId]: "" }));
+
+    try {
+      await apiPost(`/api/verifications/${encodeURIComponent(serviceId)}/flag`, {
+        reason,
+      });
+      setItems((prev) =>
+        prev.map((item) =>
+          item.serviceId === serviceId ? { ...item, flagged: true } : item,
+        ),
+      );
+      setOpenPanel((prev) => ({ ...prev, [serviceId]: null }));
+      setFlagDrafts((prev) => ({ ...prev, [serviceId]: "" }));
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to flag service.";
+      setActionErrors((prev) => ({ ...prev, [serviceId]: message }));
     } finally {
       setPendingActionIds((prev) => {
         const next = new Set(prev);
@@ -471,25 +611,137 @@ export default function VerifyPage() {
 
               {renderPhotos(item.photos)}
 
+              {item.flagged && (
+                <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-red-700">
+                  <Flag size={14} />
+                  <span className="text-xs font-medium">
+                    Flagged for admin attention
+                  </span>
+                </div>
+              )}
+
+              {actionErrors[item.serviceId] && (
+                <p className="mb-3 text-xs text-red-600">
+                  {actionErrors[item.serviceId]}
+                </p>
+              )}
+
               {/* Action buttons */}
               {item.status === "Awaiting Review" && (
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => handleVerify(item.serviceId)}
-                    disabled={pendingActionIds.has(item.serviceId)}
-                    className="inline-flex items-center gap-2 rounded-full bg-k-primary px-6 py-2.5 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-px"
-                  >
-                    <CheckCircle2 size={16} />
-                    Verify
-                  </button>
-                  <button
-                    onClick={() => handleReject(item.serviceId)}
-                    disabled={pendingActionIds.has(item.serviceId)}
-                    className="inline-flex items-center gap-2 rounded-full border border-k-gray-200 bg-k-white px-6 py-2.5 text-sm font-medium text-k-gray-600 transition-colors hover:bg-red-50 hover:border-red-200 hover:text-red-600"
-                  >
-                    <XCircle size={16} />
-                    Reject
-                  </button>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2 text-xs text-k-gray-500">
+                      Adjust hours (optional)
+                      <input
+                        type="number"
+                        min={0}
+                        placeholder={
+                          item.actualDurationMin != null
+                            ? String(item.actualDurationMin)
+                            : "min"
+                        }
+                        value={hourDrafts[item.serviceId] ?? ""}
+                        onChange={(e) =>
+                          setHourDrafts((prev) => ({
+                            ...prev,
+                            [item.serviceId]: e.target.value,
+                          }))
+                        }
+                        className="w-24 rounded-full border border-k-gray-200 bg-k-white px-3 py-1 text-xs text-k-black focus:border-k-primary focus:outline-none"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => handleVerify(item.serviceId)}
+                      disabled={pendingActionIds.has(item.serviceId)}
+                      className="inline-flex items-center gap-2 rounded-full bg-k-primary px-6 py-2.5 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-px"
+                    >
+                      <CheckCircle2 size={16} />
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => toggle(item.serviceId, "corrections")}
+                      disabled={pendingActionIds.has(item.serviceId)}
+                      className="inline-flex items-center gap-2 rounded-full border border-k-gray-200 bg-k-white px-6 py-2.5 text-sm font-medium text-k-gray-600 transition-colors hover:bg-orange-50 hover:border-orange-200 hover:text-orange-600"
+                    >
+                      <AlertCircle size={16} />
+                      Request Corrections
+                    </button>
+                    <button
+                      onClick={() => handleReject(item.serviceId)}
+                      disabled={pendingActionIds.has(item.serviceId)}
+                      className="inline-flex items-center gap-2 rounded-full border border-k-gray-200 bg-k-white px-6 py-2.5 text-sm font-medium text-k-gray-600 transition-colors hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                    >
+                      <XCircle size={16} />
+                      Reject
+                    </button>
+                    {!item.flagged && (
+                      <button
+                        onClick={() => toggle(item.serviceId, "flag")}
+                        disabled={pendingActionIds.has(item.serviceId)}
+                        className="inline-flex items-center gap-2 rounded-full border border-k-gray-200 bg-k-white px-6 py-2.5 text-sm font-medium text-k-gray-600 transition-colors hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                      >
+                        <Flag size={16} />
+                        Flag
+                      </button>
+                    )}
+                  </div>
+
+                  {openPanel[item.serviceId] === "corrections" && (
+                    <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+                      <textarea
+                        value={correctionDrafts[item.serviceId] ?? ""}
+                        onChange={(e) =>
+                          setCorrectionDrafts((prev) => ({
+                            ...prev,
+                            [item.serviceId]: e.target.value,
+                          }))
+                        }
+                        maxLength={2000}
+                        rows={3}
+                        placeholder="What does the student need to fix before this can be verified?"
+                        className="w-full resize-none rounded-xl border border-orange-200 bg-k-white p-3 text-sm text-k-black placeholder:text-k-gray-300 focus:border-orange-400 focus:outline-none"
+                      />
+                      <div className="mt-2.5 flex items-center gap-3">
+                        <button
+                          onClick={() => handleRequestCorrections(item.serviceId)}
+                          disabled={pendingActionIds.has(item.serviceId)}
+                          className="rounded-full bg-orange-600 px-4 py-1.5 text-xs font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Send back to student
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {openPanel[item.serviceId] === "flag" && (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                      <textarea
+                        value={flagDrafts[item.serviceId] ?? ""}
+                        onChange={(e) =>
+                          setFlagDrafts((prev) => ({
+                            ...prev,
+                            [item.serviceId]: e.target.value,
+                          }))
+                        }
+                        maxLength={2000}
+                        rows={3}
+                        placeholder="Why is this service being flagged for admin attention?"
+                        className="w-full resize-none rounded-xl border border-red-200 bg-k-white p-3 text-sm text-k-black placeholder:text-k-gray-300 focus:border-red-400 focus:outline-none"
+                      />
+                      <div className="mt-2.5 flex items-center gap-3">
+                        <button
+                          onClick={() => handleFlag(item.serviceId)}
+                          disabled={pendingActionIds.has(item.serviceId)}
+                          className="rounded-full bg-red-600 px-4 py-1.5 text-xs font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Raise flag
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -497,6 +749,15 @@ export default function VerifyPage() {
                 <div className="flex items-center gap-2 text-emerald-600">
                   <CheckCircle2 size={16} />
                   <span className="text-sm font-medium">Verified</span>
+                </div>
+              )}
+
+              {item.status === "Corrections Requested" && (
+                <div className="flex items-center gap-2 text-orange-600">
+                  <AlertCircle size={16} />
+                  <span className="text-sm font-medium">
+                    Corrections Requested
+                  </span>
                 </div>
               )}
 

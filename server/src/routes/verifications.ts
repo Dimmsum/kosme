@@ -106,7 +106,7 @@ router.get(
       .select(
         `
       id, name, category_id, notes, status, created_at,
-      started_at, ended_at, actual_duration_min, duration_tag,
+      started_at, ended_at, actual_duration_min, adjusted_duration_min, duration_tag,
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
       service_photos ( id, type, url )
@@ -137,7 +137,7 @@ router.get(
       id, status, notes, created_at,
       service:service_id (
         id, name, category_id, notes, created_at,
-        started_at, ended_at, actual_duration_min, duration_tag,
+        started_at, ended_at, actual_duration_min, adjusted_duration_min, duration_tag,
         student:student_id ( id, full_name ),
         service_photos ( id, type, url )
       )
@@ -161,7 +161,20 @@ router.post(
   requireRole("educator"),
   async (req: AuthRequest, res: Response) => {
     const { serviceId } = req.params;
-    const { notes } = req.body;
+    const { notes, adjusted_duration_min } = req.body;
+
+    // Optional hour adjustment: the educator may correct the logged duration
+    // at approval time without touching the student's own actual_duration_min.
+    let adjustedDurationMin: number | null = null;
+    if (adjusted_duration_min !== undefined && adjusted_duration_min !== null) {
+      const parsed = Number(adjusted_duration_min);
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        return res.status(400).json({
+          error: "adjusted_duration_min must be a non-negative integer",
+        });
+      }
+      adjustedDurationMin = parsed;
+    }
 
     const { data: service, error: svcErr } = await supabaseAdmin
       .from("services")
@@ -181,7 +194,10 @@ router.post(
     // Mark service verified
     const { error: updateErr } = await supabaseAdmin
       .from("services")
-      .update({ status: "verified" })
+      .update({
+        status: "verified",
+        adjusted_duration_min: adjustedDurationMin,
+      })
       .eq("id", serviceId);
 
     if (updateErr) {
@@ -264,6 +280,121 @@ router.post(
     }
 
     return res.json({ verification });
+  },
+);
+
+// POST /api/verifications/:serviceId/request-corrections — educator sends a
+// service back to the student with required feedback, instead of a terminal
+// reject. Moves the service to 'corrections_requested'; the student fixes it
+// up and calls POST /api/services/:id/resubmit to route it back here.
+router.post(
+  "/:serviceId/request-corrections",
+  requireRole("educator"),
+  async (req: AuthRequest, res: Response) => {
+    const { serviceId } = req.params;
+    const { notes } = req.body;
+
+    if (typeof notes !== "string" || notes.trim().length === 0) {
+      return res.status(400).json({
+        error: "notes is required — describe what the student needs to fix",
+      });
+    }
+    if (notes.length > 2000) {
+      return res.status(400).json({ error: "notes must be at most 2000 characters" });
+    }
+
+    const { data: service, error: svcErr } = await supabaseAdmin
+      .from("services")
+      .select("id, status")
+      .eq("id", serviceId)
+      .single();
+
+    if (svcErr || !service) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    if (service.status !== "awaiting_educator") {
+      return res
+        .status(400)
+        .json({ error: "Service is not awaiting educator verification" });
+    }
+
+    const { error: updateErr } = await supabaseAdmin
+      .from("services")
+      .update({ status: "corrections_requested" })
+      .eq("id", serviceId);
+
+    if (updateErr) {
+      return res.status(500).json({ error: updateErr.message });
+    }
+
+    const { data: verification, error: verErr } = await supabaseAdmin
+      .from("verifications")
+      .upsert(
+        {
+          service_id: serviceId,
+          educator_id: req.userId!,
+          status: "corrections_requested",
+          notes: notes.trim(),
+        },
+        { onConflict: "service_id" },
+      )
+      .select("id, status, notes, created_at")
+      .single();
+
+    if (verErr) {
+      return res.status(500).json({ error: verErr.message });
+    }
+
+    return res.json({ verification });
+  },
+);
+
+// POST /api/verifications/:serviceId/flag — educator raises a flag against a
+// service for admin attention. Reuses the existing flags table/pattern
+// (server/src/routes/admin/flags.ts) rather than a parallel mechanism; does
+// not change the service's verification status — flagging and deciding are
+// independent actions.
+router.post(
+  "/:serviceId/flag",
+  requireRole("educator"),
+  async (req: AuthRequest, res: Response) => {
+    const { serviceId } = req.params;
+    const { reason } = req.body;
+
+    if (typeof reason !== "string" || reason.trim().length === 0) {
+      return res.status(400).json({ error: "reason is required" });
+    }
+    if (reason.length > 2000) {
+      return res.status(400).json({ error: "reason must be at most 2000 characters" });
+    }
+
+    const { data: service, error: svcErr } = await supabaseAdmin
+      .from("services")
+      .select("id")
+      .eq("id", serviceId)
+      .single();
+
+    if (svcErr || !service) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+
+    const { data: flag, error: flagErr } = await supabaseAdmin
+      .from("flags")
+      .insert({
+        entity_type: "service",
+        entity_id: serviceId,
+        reason: reason.trim(),
+        created_by: req.userId ?? null,
+      })
+      .select("id, entity_type, entity_id, reason, status, created_at")
+      .single();
+
+    if (flagErr) {
+      console.error("verifications flag error:", flagErr);
+      return res.status(500).json({ error: "Failed to raise flag" });
+    }
+
+    return res.status(201).json({ flag });
   },
 );
 

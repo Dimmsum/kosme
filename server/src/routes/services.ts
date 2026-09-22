@@ -126,7 +126,7 @@ router.get(
       .select(
         `
       id, name, category_id, service_type_id, client_source, notes, reflection_notes, status, created_at, updated_at,
-      started_at, ended_at, actual_duration_min, duration_tag,
+      started_at, ended_at, actual_duration_min, adjusted_duration_min, duration_tag,
       client:client_id ( id, full_name )
     `,
       )
@@ -611,6 +611,46 @@ router.post(
   },
 );
 
+// POST /api/services/:id/resubmit — student sends a corrections_requested
+// service back to the educator queue after fixing it up. No checklist
+// re-check (evidence/reflection/confirmation were already satisfied to reach
+// awaiting_educator the first time) — this just reopens the review.
+router.post(
+  "/:id/resubmit",
+  requireRole("student"),
+  async (req: AuthRequest, res: Response) => {
+    const { data: service, error: svcErr } = await supabaseAdmin
+      .from("services")
+      .select("id, status")
+      .eq("id", req.params.id)
+      .eq("student_id", req.userId!)
+      .single();
+
+    if (svcErr || !service) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    if (service.status !== "corrections_requested") {
+      return res
+        .status(400)
+        .json({ error: "This service has no corrections pending" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("services")
+      .update({ status: "awaiting_educator" })
+      .eq("id", req.params.id)
+      .select("id, status")
+      .single();
+
+    if (error) {
+      console.error("services resubmit error:", error);
+      return res.status(500).json({ error: "Failed to resubmit service" });
+    }
+
+    return res.json({ service: data });
+  },
+);
+
 // GET /api/services/:id — single service detail (student owner, assigned educator, or client)
 router.get("/:id", async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabaseAdmin
@@ -618,7 +658,7 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
     .select(
       `
       id, name, category_id, service_type_id, client_source, notes, reflection_notes, status, created_at, updated_at, is_demo,
-      started_at, ended_at, actual_duration_min, duration_tag,
+      started_at, ended_at, actual_duration_min, adjusted_duration_min, duration_tag,
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
       service_photos ( id, type, stage, url, created_at ),

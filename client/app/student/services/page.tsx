@@ -33,9 +33,15 @@ type ServiceStatus =
   | "in_progress"
   | "awaiting_client"
   | "awaiting_educator"
+  | "corrections_requested"
   | "verified"
   | "rejected";
-type FilterOption = "all" | "verified" | "awaiting_educator" | "awaiting_client";
+type FilterOption =
+  | "all"
+  | "verified"
+  | "awaiting_educator"
+  | "awaiting_client"
+  | "corrections_requested";
 
 type ClientSource =
   | "friend_family"
@@ -99,14 +105,16 @@ const STATUS_CFG: Record<ServiceStatus, {
   verified:          { label: "Verified",          shortLabel: "Verified",  color: "text-emerald-700", bg: "bg-emerald-50",  dot: "bg-emerald-500", Icon: CheckCircle2 },
   awaiting_educator: { label: "Awaiting Educator", shortLabel: "Pending",   color: "text-blue-700",   bg: "bg-blue-50",    dot: "bg-blue-500",   Icon: Clock },
   awaiting_client:   { label: "Awaiting Client",   shortLabel: "Client",    color: "text-amber-700",  bg: "bg-amber-50",   dot: "bg-amber-500",  Icon: AlertCircle },
+  corrections_requested: { label: "Corrections Requested", shortLabel: "Corrections", color: "text-orange-700", bg: "bg-orange-50", dot: "bg-orange-500", Icon: AlertCircle },
   rejected:          { label: "Rejected",          shortLabel: "Rejected",  color: "text-red-700",    bg: "bg-red-50",     dot: "bg-red-500",    Icon: AlertCircle },
 };
 
 const FILTERS: { key: FilterOption; label: string; icon: typeof CheckCircle2 }[] = [
-  { key: "all",                label: "All",             icon: ClipboardList },
-  { key: "verified",           label: "Verified",        icon: CheckCircle2 },
-  { key: "awaiting_educator",  label: "Pending Review",  icon: Clock },
-  { key: "awaiting_client",    label: "Awaiting Client", icon: AlertCircle },
+  { key: "all",                    label: "All",                  icon: ClipboardList },
+  { key: "verified",               label: "Verified",             icon: CheckCircle2 },
+  { key: "awaiting_educator",      label: "Pending Review",       icon: Clock },
+  { key: "awaiting_client",        label: "Awaiting Client",      icon: AlertCircle },
+  { key: "corrections_requested",  label: "Corrections Requested", icon: AlertCircle },
 ];
 
 /* ── Helpers ── */
@@ -279,6 +287,7 @@ export default function ServicesPage() {
     verified: services.filter((s) => s.status === "verified").length,
     awaiting_educator: services.filter((s) => s.status === "awaiting_educator").length,
     awaiting_client: services.filter((s) => s.status === "awaiting_client").length,
+    corrections_requested: services.filter((s) => s.status === "corrections_requested").length,
   };
 
   /* ── Form handlers ── */

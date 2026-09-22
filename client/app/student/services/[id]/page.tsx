@@ -16,6 +16,7 @@ import {
   ImageOff,
   Lock,
   Timer,
+  Sparkles,
 } from "lucide-react";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 
@@ -23,6 +24,7 @@ type ServiceStatus =
   | "in_progress"
   | "awaiting_client"
   | "awaiting_educator"
+  | "corrections_requested"
   | "verified"
   | "rejected";
 
@@ -60,6 +62,7 @@ interface ServiceDetail {
   started_at: string | null;
   ended_at: string | null;
   actual_duration_min: number | null;
+  adjusted_duration_min: number | null;
   duration_tag: DurationTag | null;
   student: { id: string; full_name: string | null };
   client: { id: string; full_name: string | null } | null;
@@ -106,6 +109,13 @@ const STATUS_CONFIG: Record<
     borderColor: "border-amber-200",
     Icon: AlertCircle,
   },
+  corrections_requested: {
+    label: "Corrections Requested",
+    color: "text-orange-700",
+    bgColor: "bg-orange-50",
+    borderColor: "border-orange-200",
+    Icon: AlertCircle,
+  },
   rejected: {
     label: "Rejected",
     color: "text-red-700",
@@ -135,6 +145,11 @@ const PIPELINE: { key: ServiceStatus; label: string; description: string }[] = [
 
 function pipelineStep(status: ServiceStatus): number {
   if (status === "rejected") return -1;
+  // Corrections requested is a bounce-back from educator review, not a new
+  // pipeline stage — keep the stepper pinned on "Educator Review".
+  if (status === "corrections_requested") {
+    return PIPELINE.findIndex((s) => s.key === "awaiting_educator");
+  }
   return PIPELINE.findIndex((s) => s.key === status);
 }
 
@@ -163,6 +178,10 @@ export default function ServiceDetailPage() {
   const [sendConfirmationError, setSendConfirmationError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [resubmitting, setResubmitting] = useState(false);
+  const [resubmitError, setResubmitError] = useState<string | null>(null);
+  const [kaiLoading, setKaiLoading] = useState(false);
+  const [kaiMessage, setKaiMessage] = useState<string | null>(null);
 
   useEffect(() => {
     apiGet<{ service: ServiceDetail }>(`/api/services/${id}`)
@@ -208,6 +227,37 @@ export default function ServiceDetailPage() {
       setSendConfirmationError("Could not send this service for client confirmation. Please try again.");
     } finally {
       setSendingConfirmation(false);
+    }
+  }
+
+  async function askKai() {
+    setKaiLoading(true);
+    setKaiMessage(null);
+    try {
+      const res = await apiPost<{ available: boolean; message: string }>(
+        "/api/kai/log-assist",
+      );
+      setKaiMessage(res.message);
+    } catch {
+      setKaiMessage("KAI Log Assist is not yet available.");
+    } finally {
+      setKaiLoading(false);
+    }
+  }
+
+  async function resubmit() {
+    if (!service) return;
+    setResubmitting(true);
+    setResubmitError(null);
+    try {
+      const res = await apiPost<{ service: { id: string; status: ServiceStatus } }>(
+        `/api/services/${service.id}/resubmit`,
+      );
+      setService((prev) => (prev ? { ...prev, status: res.service.status } : prev));
+    } catch {
+      setResubmitError("Could not resubmit this service. Please try again.");
+    } finally {
+      setResubmitting(false);
     }
   }
 
@@ -258,6 +308,9 @@ export default function ServiceDetailPage() {
   const afterPhotos = photos.filter((p) => p.type === "after");
   const stepIndex = pipelineStep(service.status);
   const rejection = verifications.find((v) => v.status === "rejected");
+  const corrections = verifications.find(
+    (v) => v.status === "corrections_requested",
+  );
 
   return (
     <div className="px-4 py-6 sm:px-6 md:px-8 md:py-8">
@@ -349,13 +402,27 @@ export default function ServiceDetailPage() {
                       Duration
                     </p>
                     <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-k-black">
-                      {service.actual_duration_min} min
-                      {service.duration_tag && (
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${DURATION_TAG_CFG[service.duration_tag].className}`}
-                        >
-                          {DURATION_TAG_CFG[service.duration_tag].label}
-                        </span>
+                      {service.adjusted_duration_min != null ? (
+                        <>
+                          <span className="text-k-gray-400 line-through">
+                            {service.actual_duration_min} min
+                          </span>
+                          {service.adjusted_duration_min} min
+                          <span className="rounded-full bg-k-primary/10 px-2 py-0.5 text-[11px] font-medium text-k-primary">
+                            Adjusted by educator
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          {service.actual_duration_min} min
+                          {service.duration_tag && (
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${DURATION_TAG_CFG[service.duration_tag].className}`}
+                            >
+                              {DURATION_TAG_CFG[service.duration_tag].label}
+                            </span>
+                          )}
+                        </>
                       )}
                     </p>
                   </div>
@@ -400,13 +467,31 @@ export default function ServiceDetailPage() {
 
           {/* Reflection notes */}
           <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
-            <h2 className="mb-1 font-serif text-base font-medium text-k-black">
-              Reflection
-            </h2>
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <h2 className="font-serif text-base font-medium text-k-black">
+                Reflection
+              </h2>
+              {service.status !== "verified" && (
+                <button
+                  type="button"
+                  onClick={askKai}
+                  disabled={kaiLoading}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-k-primary/30 bg-k-primary/5 px-3 py-1 text-xs font-medium text-k-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Sparkles size={12} />
+                  {kaiLoading ? "Asking KAI…" : "Ask KAI to help"}
+                </button>
+              )}
+            </div>
             <p className="mb-4 text-xs text-k-gray-400">
               What did you learn from this service? Add your reflection any
               time before it&apos;s verified.
             </p>
+            {kaiMessage && (
+              <p className="mb-4 rounded-xl bg-k-primary/5 px-3.5 py-2.5 text-xs text-k-primary">
+                {kaiMessage}
+              </p>
+            )}
             {service.status === "verified" ? (
               <p className="text-sm leading-relaxed text-k-black">
                 {service.reflection_notes || (
@@ -474,6 +559,44 @@ export default function ServiceDetailPage() {
             </div>
           )}
 
+          {/* Corrections requested by educator */}
+          {service.status === "corrections_requested" && corrections && (
+            <div className="rounded-2xl border border-orange-200 bg-orange-50 p-5 sm:p-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle size={18} className="mt-0.5 shrink-0 text-orange-600" />
+                <div>
+                  <p className="text-sm font-medium text-orange-700">
+                    Corrections Requested
+                  </p>
+                  {corrections.notes && (
+                    <p className="mt-1 text-sm leading-relaxed text-orange-700">
+                      {corrections.notes}
+                    </p>
+                  )}
+                  <p className="mt-1.5 text-xs text-orange-400">
+                    {new Date(corrections.created_at).toLocaleDateString(
+                      "en-GB",
+                      { day: "numeric", month: "short", year: "numeric" },
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={resubmit}
+                  disabled={resubmitting}
+                  className="rounded-full bg-k-primary px-4 py-1.5 text-xs font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {resubmitting ? "Resubmitting…" : "Resubmit for review"}
+                </button>
+                {resubmitError && (
+                  <span className="text-xs text-red-600">{resubmitError}</span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Send for client confirmation (resend after a client dispute) */}
           {service.status === "rejected" && service.client && (
             <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
@@ -535,6 +658,27 @@ export default function ServiceDetailPage() {
                     </li>
                   ))}
                 </ul>
+                {photos.length === 0 && (
+                  <div className="mb-4 flex items-center justify-between gap-3 rounded-xl bg-k-primary/5 px-3.5 py-2.5">
+                    <p className="text-xs text-k-primary">
+                      Missing evidence photos — KAI can suggest what to capture.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={askKai}
+                      disabled={kaiLoading}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-k-primary/30 bg-k-white px-3 py-1 text-xs font-medium text-k-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Sparkles size={12} />
+                      {kaiLoading ? "Asking…" : "Ask KAI"}
+                    </button>
+                  </div>
+                )}
+                {kaiMessage && (
+                  <p className="mb-4 rounded-xl bg-k-primary/5 px-3.5 py-2.5 text-xs text-k-primary">
+                    {kaiMessage}
+                  </p>
+                )}
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
@@ -643,6 +787,20 @@ export default function ServiceDetailPage() {
                   </p>
                   <p className="mt-0.5 text-xs text-k-gray-400">
                     Review the feedback and resubmit.
+                  </p>
+                </div>
+              </div>
+            ) : service.status === "corrections_requested" ? (
+              <div className="flex items-start gap-3">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-100">
+                  <AlertCircle size={14} className="text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-orange-700">
+                    Corrections requested
+                  </p>
+                  <p className="mt-0.5 text-xs text-k-gray-400">
+                    Fix the feedback below, then resubmit for review.
                   </p>
                 </div>
               </div>

@@ -198,16 +198,36 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
   - **Files:** `server/src/routes/verifications.ts`,
     `client/app/educator/verify/page.tsx`.
 
-- [ ] **VER-8** — Educator actions: approve / adjust hours / request
-      corrections / reject / flag
-  - **Depends on:** VER-7
-  - Add decision actions to the educator review queue: approve (optional hour
-    adjustment), request corrections (back to student), reject, flag (reuse
-    the existing `flags` table/`admin/flags.ts` pattern). Audit
-    `verifications.ts` first — it may already cover part of this.
-  - **Files:** `server/src/routes/verifications.ts`,
-    `server/src/routes/services.ts`, `client/app/educator/verify/page.tsx`,
-    `server/src/routes/admin/flags.ts` (pattern reference).
+- [x] **VER-8** — Educator actions: approve / adjust hours / request
+      corrections / reject / flag. Audited `verifications.ts` first — verify/
+      reject already existed, so this extended verify and added two new
+      actions rather than rebuilding the queue. Migration
+      `0024_educator_decisions.sql` adds `corrections_requested` to the
+      `services.status`/`verifications.status` CHECK constraints and a new
+      `services.adjusted_duration_min` column (kept separate from
+      `actual_duration_min`, same convention as `duration_tag`/
+      `reflection_notes`). `server/src/routes/verifications.ts`: `POST
+      /:serviceId/verify` now accepts optional `adjusted_duration_min`;
+      new `POST /:serviceId/request-corrections` (requires `notes`, moves
+      `awaiting_educator` → `corrections_requested`, upserts a
+      `verifications` row) and `POST /:serviceId/flag` (inserts into the
+      existing `flags` table with `entity_type: "service"`, reusing
+      `admin/flags.ts`'s pattern rather than a parallel mechanism).
+      `server/src/routes/services.ts` adds `POST /:id/resubmit`
+      (student-only, `corrections_requested` → `awaiting_educator`, no
+      checklist re-check since it was already satisfied to reach
+      `awaiting_educator` the first time). UI:
+      `client/app/educator/verify/page.tsx` gets an "Adjust hours" input next
+      to Approve, and Request Corrections / Flag buttons that open an inline
+      notes/reason textarea; `client/app/student/services/[id]/page.tsx` and
+      `client/app/student/services/page.tsx` show the new
+      `corrections_requested` status, the corrections feedback + "Resubmit
+      for review" action, and the adjusted-vs-logged duration when present.
+  - **Files:** `supabase/migrations/0024_educator_decisions.sql`,
+    `server/src/routes/verifications.ts`, `server/src/routes/services.ts`,
+    `client/app/educator/verify/page.tsx`,
+    `client/app/student/services/[id]/page.tsx`,
+    `client/app/student/services/page.tsx`.
 
 - [ ] **VER-9** — Enforce `approved` as the single source of truth for
       verified hours
@@ -370,19 +390,25 @@ touchpoint below is assistive-only UI, not a decision-making path.
   the KAI Insights placeholder card on `/admin/dashboard`. No redeploy needed
   to flip it.
 
-- [ ] **KAI-1** — Stub API routes
-  - **Depends on:** none
-  - `routes/kai/*` returning a fixed "not yet available" response, gated on
-    `app_settings.kai_enabled`, so frontend affordances aren't blocked on
-    model selection.
-  - **Files:** new `server/src/routes/kai/index.ts`,
-    `server/src/routes/admin/settings.ts` (flag reference).
+- [x] **KAI-1** — Stub API routes. New `server/src/routes/kai/index.ts`,
+  mounted at `/api/kai` behind `requireAuth` (any authenticated role) in
+  `server/src/index.ts`. A shared `kaiEnabled()` helper reads
+  `app_settings.kai_enabled` (same key/table `admin/settings.ts` writes) on
+  each call — no caching, matches the no-session-cached-role convention
+  elsewhere. `POST /log-assist` and `POST /portfolio-assist` (stubs for the
+  **KAI-2**/**KAI-3** affordances) 503 with `{ error: "KAI is not enabled" }`
+  when the flag is off, else `200` with a fixed
+  `{ available: false, message: "... is not yet available." }` body — no
+  model call, so frontend affordances can be built against a stable contract
+  now.
 
-- [ ] **KAI-2** — KAI Log Assist affordance (Kosmè Verify)
-  - **Depends on:** KAI-1, VER-3
-  - "Ask KAI to help" button on the reflection notes field + missing-evidence
-    prompt; stubbed response.
-  - **Files:** `client/app/student/services/[id]/page.tsx`.
+- [x] **KAI-2** — KAI Log Assist affordance (Kosmè Verify). "Ask KAI to
+  help" button added next to the Reflection heading on
+  `client/app/student/services/[id]/page.tsx` (hidden once `verified`),
+  calling `POST /api/kai/log-assist` and rendering the stub message inline.
+  A second missing-evidence prompt (its own "Ask KAI" button, same handler)
+  appears inside the Submit-for-Verification checklist card when no photos
+  have been uploaded yet.
 
 - [ ] **KAI-3** — KAI Portfolio Assist affordance
   - **Depends on:** KAI-1, POR-1
