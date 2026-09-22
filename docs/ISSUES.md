@@ -508,13 +508,46 @@ Extends `server/src/routes/client-signup.ts`, `server/src/routes/volunteer-reque
   the mirror insert fails). `consent_records` is service-role-only, same RLS
   pattern as `client_signups`.
 
-- [ ] **CON-2** — Manual admin-assisted student↔client matching
+- [x] **CON-2** — Manual admin-assisted student↔client matching
   - **Depends on:** none
   - Low priority — post-MVP, manual-first. Basic UI/endpoint letting an admin
     pair a volunteer client (`client_signups`) with a student. Automated
     matching is out of scope (**KAI-5**).
-  - **Files:** `server/src/routes/admin/clients.ts`,
+  - **Files:** `supabase/migrations/0025_client_matches.sql`,
+    `server/src/routes/admin/clients.ts`,
     `client/app/admin/clients/page.tsx`.
+  - **Done:** New `public.client_matches` table (migration
+    `0025_client_matches.sql`) with `signup_id`, `student_id`, `notes`,
+    `status` (`active | ended`), `matched_by`/`ended_by`, `created_at`/`ended_at`.
+    It's a table, not a column on `client_signups`, so one client can be
+    matched with several students and ended matches stay as history.
+    A partial unique index allows only one *active* match per
+    (signup, student) pair. `volunteer_requests` wasn't reused because it
+    is keyed on a client *user account* and records the client asking, not
+    an admin pairing. `server/src/routes/admin/clients.ts`:
+    - `GET /signups` now embeds each signup's active matches as `matches`.
+    - New `GET /students` lists who can be matched: active, non-demo
+      students, with institution and cohort names. Sign-ups are always
+      real, so demo students are never offered.
+    - New `POST /matches` checks that the signup and student exist and
+      applies the same eligibility rule (409 on a duplicate active pair).
+    - New `PATCH /matches/:id` (`status: "ended"`) ends an active match.
+
+    Both writes go through `logAudit` (`client_match` create/end).
+    `client/app/admin/clients/page.tsx`: the Sign-ups tab gets an
+    All/Unmatched/Matched filter. Each card gets a "Matched students"
+    section with notes, match date and an end-match (X) button, which uses
+    `ConfirmDialog`. A "Match with a student" `Modal` shows the client's
+    parish, service preferences and availability for context, with a
+    student search, a student select that leaves out students already
+    matched with this client, and optional notes. **Scope notes:**
+    admin-only. Students and clients don't see matches in their own apps,
+    and the admin contacts both parties outside the platform. There's no
+    notification, and no link from a match to the `services` it produces
+    (`services.client_id` points at a client user account, which a
+    signup doesn't have). Migration `0025` must be applied live before
+    deploying (see **OPS-1**). Until then, `GET /signups` fails because
+    it embeds the new table.
 
 ---
 
@@ -549,17 +582,50 @@ touchpoint below is assistive-only UI, not a decision-making path.
   appears inside the Submit-for-Verification checklist card when no photos
   have been uploaded yet.
 
-- [ ] **KAI-3** — KAI Portfolio Assist affordance
+- [x] **KAI-3** — KAI Portfolio Assist affordance
   - **Depends on:** KAI-1, POR-1
   - "Generate caption/bio" button on the portfolio editor; stubbed response.
   - **Files:** `client/app/student/portfolio/page.tsx`.
+  - **Done:** There is no separate portfolio editor. `client/app/student/
+    portfolio/page.tsx` is the only portfolio page, and it is read-only, so
+    both buttons are on it. It has no server or schema changes. Both
+    buttons call the existing `POST /api/kai/portfolio-assist` stub from
+    KAI-1 and show its message inline, styled like KAI-2's buttons:
+    - **"Generate bio"** is in the header of the POR-3 Skill Summary card,
+      since that rollup is what a bio would be written from. It is hidden
+      with the card when there are no verified services. It sends
+      `{ kind: "bio" }`.
+    - **"Generate caption"** is in the service detail modal. It sends
+      `{ kind: "caption", service_id }`. Each reply is stored against its
+      service, so it doesn't carry over to the next service opened.
 
-- [ ] **KAI-4** — KAI Insights card on the educator dashboard
+    The stub ignores the body for now. `kind`/`service_id` are there so a
+    real model integration gets a request it can act on. When KAI is off
+    (503), both buttons fall back to "not yet available", the same as KAI-2.
+    Nothing KAI returns is written to the portfolio.
+
+- [x] **KAI-4** — KAI Insights card on the educator dashboard
   - **Depends on:** KAI-1
   - Mirror the existing admin-dashboard KAI Insights placeholder card on the
     educator dashboard (currently admin-only).
-  - **Files:** educator dashboard page under `client/app/educator/`,
-    `client/app/admin/dashboard/page.tsx` (pattern reference).
+  - **Files:** `client/app/educator/dashboard/page.tsx`,
+    `client/app/admin/dashboard/page.tsx` (pattern reference),
+    `server/src/routes/kai/index.ts`.
+  - **Done:** The admin card reads the flag from `GET /api/admin/settings`,
+    which is `super_admin`-only, so educators can't use it. Added `GET
+    /api/kai/status` → `{ enabled }` to `server/src/routes/kai/index.ts`,
+    open to any authenticated role (the router's existing `requireAuth`
+    mount). It reuses the router's `kaiEnabled()` helper and is read-only, so
+    it exposes only that one flag, not the other settings.
+    `client/app/educator/dashboard/page.tsx` has a dashed "KAI Insights" card
+    (`Sparkles` icon) between the quick actions and Pending Reviews. It uses
+    `rounded-3xl` to match that page's other top-level cards. The flag is
+    fetched separately from the dashboard's `Promise.all`, and a failure
+    falls back to the "off" copy, so a KAI error never blanks the dashboard.
+    The copy differs from the admin card: educators can't reach Settings, so
+    the "off" state says their administrator can switch KAI on, and the "on"
+    state says verification decisions stay with the educator (the KAI hard
+    constraint). No insights are generated; it is a placeholder only.
 
 - [ ] **KAI-5** — KAI Match placeholder (Kosmè Connect)
   - **Depends on:** KAI-1, CON-2
@@ -614,7 +680,7 @@ Replaces the stub at `client/app/admin/reports/page.tsx`.
 
 ## Cleanup (CLN)
 
-- [ ] **CLN-1** — Audit duplicate role folders under `client/app`
+- [x] **CLN-1** — Audit duplicate role folders under `client/app`
   - **Depends on:** none
   - `client/app` has both singular and plural folders for three roles
     (`student`/`students`, `educator`/`educators`, `employer`/`employers`).
@@ -623,6 +689,27 @@ Replaces the stub at `client/app/admin/reports/page.tsx`.
     issues (POR-5, ALT-3/4, KAI-4) reference the correct one unambiguously.
   - **Files:** `client/app/student*`, `client/app/educator*`,
     `client/app/employer*`.
+  - **Done:** The audit found four pairs, not three. The `client` role also
+    has one, and it doesn't follow the singular/plural pattern: its dashboard
+    is `volunteer/` and its marketing page is `clients/`. In every pair the
+    singular folder is the authenticated dashboard, with a role-gated
+    `layout.tsx` and an index that redirects to `/<role>/dashboard`. The
+    plural folder is a public marketing page (`Nav`/`Footer` shell, listed
+    in `middleware.ts`'s public routes). `/clients` also hosts the
+    volunteer-client signup form. Consolidated by moving the home page and
+    the four marketing pages into a `client/app/(marketing)/` route group.
+    Route groups don't change URLs, so `/`, `/students`, `/educators`,
+    `/clients` and `/employers` still resolve as before, and no links or
+    middleware entries changed. `middleware.ts` has a comment to keep its
+    public-route list in sync with `(marketing)/`. The dashboards stay at
+    the top level of `client/app`. `login/`, `signup/` and `demo/` also stay
+    top-level as public entry flows, not marketing pages. The split is
+    documented in `CLAUDE.md` (Client structure) and
+    `docs/DESIGN_RULES.md` §8. Existing references checked: POR-5
+    (`client/app/employer/browse/[studentId]/`) and ALT-3/4
+    (`client/app/educator/layout.tsx`) already pointed at the dashboards.
+    KAI-4's Files now names `client/app/educator/dashboard/page.tsx`
+    explicitly.
 
 ---
 
