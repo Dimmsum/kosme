@@ -17,7 +17,7 @@ import {
   Lock,
   Timer,
 } from "lucide-react";
-import { apiGet, apiPatch } from "@/lib/api";
+import { apiGet, apiPatch, apiPost } from "@/lib/api";
 
 type ServiceStatus =
   | "in_progress"
@@ -159,6 +159,10 @@ export default function ServiceDetailPage() {
   const [savingReflection, setSavingReflection] = useState(false);
   const [reflectionError, setReflectionError] = useState<string | null>(null);
   const [reflectionSaved, setReflectionSaved] = useState(false);
+  const [sendingConfirmation, setSendingConfirmation] = useState(false);
+  const [sendConfirmationError, setSendConfirmationError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     apiGet<{ service: ServiceDetail }>(`/api/services/${id}`)
@@ -188,6 +192,38 @@ export default function ServiceDetailPage() {
       setReflectionError("Could not save your reflection. Please try again.");
     } finally {
       setSavingReflection(false);
+    }
+  }
+
+  async function sendForConfirmation() {
+    if (!service) return;
+    setSendingConfirmation(true);
+    setSendConfirmationError(null);
+    try {
+      const res = await apiPost<{ service: { id: string; status: ServiceStatus } }>(
+        `/api/confirmations/${service.id}/send`,
+      );
+      setService((prev) => (prev ? { ...prev, status: res.service.status } : prev));
+    } catch {
+      setSendConfirmationError("Could not send this service for client confirmation. Please try again.");
+    } finally {
+      setSendingConfirmation(false);
+    }
+  }
+
+  async function submitForVerification() {
+    if (!service) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await apiPost<{ service: { id: string; status: ServiceStatus } }>(
+        `/api/services/${service.id}/submit`,
+      );
+      setService((prev) => (prev ? { ...prev, status: res.service.status } : prev));
+    } catch {
+      setSubmitError("Could not submit this service for verification. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -437,6 +473,87 @@ export default function ServiceDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Send for client confirmation (resend after a client dispute) */}
+          {service.status === "rejected" && service.client && (
+            <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
+              <h2 className="mb-1 font-serif text-base font-medium text-k-black">
+                Client Confirmation
+              </h2>
+              <p className="mb-4 text-xs text-k-gray-400">
+                Your client disputed this service. Once you&apos;ve resolved the
+                issue, send it back for their confirmation.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={sendForConfirmation}
+                  disabled={sendingConfirmation}
+                  className="rounded-full bg-k-primary px-4 py-1.5 text-xs font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {sendingConfirmation ? "Sending…" : "Send for client confirmation"}
+                </button>
+                {sendConfirmationError && (
+                  <span className="text-xs text-red-600">{sendConfirmationError}</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Submit for verification — gated on client confirmation + evidence + reflection */}
+          {service.status === "awaiting_client" &&
+            confirmations.some((c) => c.status === "confirmed") && (
+              <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
+                <h2 className="mb-1 font-serif text-base font-medium text-k-black">
+                  Submit for Verification
+                </h2>
+                <p className="mb-4 text-xs text-k-gray-400">
+                  Your client has confirmed this service. Complete the checklist
+                  below, then submit it to your educator for review.
+                </p>
+                <ul className="mb-4 flex flex-col gap-2">
+                  {[
+                    { label: "Client confirmed", done: true },
+                    {
+                      label: "At least one evidence photo",
+                      done: photos.length > 0,
+                    },
+                    {
+                      label: "Reflection notes added",
+                      done: Boolean(service.reflection_notes?.trim()),
+                    },
+                  ].map((item) => (
+                    <li key={item.label} className="flex items-center gap-2.5 text-sm">
+                      {item.done ? (
+                        <CheckCircle2 size={16} className="shrink-0 text-emerald-500" />
+                      ) : (
+                        <AlertCircle size={16} className="shrink-0 text-k-gray-300" />
+                      )}
+                      <span className={item.done ? "text-k-black" : "text-k-gray-400"}>
+                        {item.label}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={submitForVerification}
+                    disabled={
+                      submitting ||
+                      photos.length === 0 ||
+                      !service.reflection_notes?.trim()
+                    }
+                    className="rounded-full bg-k-primary px-4 py-1.5 text-xs font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {submitting ? "Submitting…" : "Submit for verification"}
+                  </button>
+                  {submitError && (
+                    <span className="text-xs text-red-600">{submitError}</span>
+                  )}
+                </div>
+              </div>
+            )}
 
           {/* Photos */}
           {beforePhotos.length > 0 || afterPhotos.length > 0 ? (

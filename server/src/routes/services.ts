@@ -541,6 +541,76 @@ router.patch(
   },
 );
 
+// POST /api/services/:id/submit — explicit student action forwarding a
+// client-confirmed service on to the educator review queue. Gated on the
+// pre-submit checklist: the client must have confirmed, at least one evidence
+// photo must be attached, and reflection notes must be present. Services with
+// no assigned client route straight to awaiting_educator on stop (no pause
+// point to gate) and aren't affected by this endpoint.
+router.post(
+  "/:id/submit",
+  requireRole("student"),
+  async (req: AuthRequest, res: Response) => {
+    const { data: service, error: svcErr } = await supabaseAdmin
+      .from("services")
+      .select("id, status, reflection_notes")
+      .eq("id", req.params.id)
+      .eq("student_id", req.userId!)
+      .single();
+
+    if (svcErr || !service) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    if (service.status !== "awaiting_client") {
+      return res.status(400).json({
+        error: "This service is not ready to submit for verification",
+      });
+    }
+
+    const [{ data: confirmation }, { count: photoCount }] = await Promise.all([
+      supabaseAdmin
+        .from("confirmations")
+        .select("status")
+        .eq("service_id", req.params.id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("service_photos")
+        .select("id", { count: "exact", head: true })
+        .eq("service_id", req.params.id),
+    ]);
+
+    const missing: string[] = [];
+    if (confirmation?.status !== "confirmed") missing.push("client confirmation");
+    if (!photoCount) missing.push("at least one evidence photo");
+    if (!service.reflection_notes || !service.reflection_notes.trim()) {
+      missing.push("reflection notes");
+    }
+
+    if (missing.length > 0) {
+      return res.status(400).json({
+        error: `Cannot submit for verification — missing: ${missing.join(", ")}`,
+        missing,
+      });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("services")
+      .update({ status: "awaiting_educator" })
+      .eq("id", req.params.id)
+      .select("id, status")
+      .single();
+
+    if (error) {
+      console.error("services submit error:", error);
+      return res
+        .status(500)
+        .json({ error: "Failed to submit service for verification" });
+    }
+
+    return res.json({ service: data });
+  },
+);
+
 // GET /api/services/:id — single service detail (student owner, assigned educator, or client)
 router.get("/:id", async (req: AuthRequest, res: Response) => {
   const { data, error } = await supabaseAdmin

@@ -136,32 +136,56 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
   (`client/app/student/services/[id]/page.tsx`), not the initial log form,
   since reflection is written after the service has already happened.
 
-- [ ] **VER-4** — Wire client-confirmation send into the service flow
-  - **Depends on:** none
-  - `confirmations.ts` already exists (144 lines) — audit before adding
-    anything. Wire a "Send for client confirmation" action into the student
-    service detail page, and surface confirmation status (the read-only
-    stepper already displays it — confirm the write path is reachable).
-  - **Files:** `server/src/routes/confirmations.ts`,
-    `client/app/student/services/[id]/page.tsx`.
+- [x] **VER-4** — Wire client-confirmation send into the service flow.
+  Audited `confirmations.ts` + `services.ts` first: a service that has a
+  volunteer client picked at log time *already* auto-routes itself to
+  `awaiting_client` (on `POST /` when logged instantly, or on `POST /:id/stop`
+  when timed) and the client-side write path was already fully reachable at
+  `/volunteer/confirmations` (confirm/dispute buttons wired to
+  `POST /api/confirmations/:id/{confirm,dispute}`) — so no new "first send" UI
+  was needed there. The one real gap: a client dispute leaves the service
+  `rejected` with no way back into the pipeline. Added
+  `POST /api/confirmations/:serviceId/send` (student-only, requires
+  `client_id` set and `status === "rejected"`, moves it back to
+  `awaiting_client`) in `server/src/routes/confirmations.ts`, and a "Send for
+  client confirmation" button on the rejected-state block of
+  `client/app/student/services/[id]/page.tsx`. Confirmation status display
+  (pipeline stepper + confirmation record card) already existed and needed no
+  changes.
 
-- [ ] **VER-5** — Submit-for-verification status transition
-  - **Depends on:** VER-2, VER-3, VER-4
-  - Add an explicit submit action/endpoint transitioning a service from
-    `awaiting_client`/draft to `awaiting_educator`, gated on evidence photos +
-    reflection notes being present. Status model already has
-    `awaiting_educator` (migration `0017`) but nothing enforces the pre-submit
-    checklist. Ship the endpoint together with its trigger UI (submit
-    button + gating state) on the student service detail page — not as a
-    backend-only endpoint.
+- [x] **VER-5** — Submit-for-verification status transition. Prior to this,
+  `awaiting_client` → `awaiting_educator` fired automatically and ungated
+  inside `confirmations.ts`'s `POST /:serviceId/confirm` the moment the
+  volunteer confirmed. Changed `/confirm` to just record the confirmation
+  (status stays `awaiting_client`) and added
+  `POST /api/services/:id/submit` (student-only, owner-only) in
+  `server/src/routes/services.ts`: requires status `awaiting_client`, a
+  `confirmations` row with `status = 'confirmed'`, at least one
+  `service_photos` row, and non-empty `reflection_notes`; 400s naming what's
+  missing otherwise, else flips status to `awaiting_educator`. Also fixed
+  `confirmations.ts`'s `GET /pending` to filter out services already
+  confirmed-but-not-yet-submitted (it used to rely on `/confirm` moving the
+  status off `awaiting_client` to drop them from the list). UI: a "Submit for
+  Verification" checklist card on
+  `client/app/student/services/[id]/page.tsx`, shown once the client has
+  confirmed, with a submit button disabled until evidence + reflection are
+  present. **Scope note:** the no-client path (`POST /` / `POST /:id/stop`
+  routing straight to `awaiting_educator` when there's no assigned client,
+  shipped in VER-0b) is intentionally left ungated — there's no confirmation
+  pause point to attach a checklist to without adding a new status value,
+  which was out of scope for this slice (no migration in the Files list).
   - **Files:** `server/src/routes/services.ts`,
+    `server/src/routes/confirmations.ts`,
     `client/app/student/services/[id]/page.tsx`.
 
-- [ ] **VER-6** — Checkpoint reminders during an active service
-  - **Depends on:** none
-  - Client-side interval reminders (toast/banner) while `in_progress`, on top
-    of the existing live elapsed-time timer. No server changes required.
-  - **Files:** `client/app/student/services/page.tsx`.
+- [x] **VER-6** — Checkpoint reminders during an active service. Added a
+  `CHECKPOINT_INTERVAL_MIN` (15 min) client-side check in
+  `client/app/student/services/page.tsx`: an effect derives elapsed minutes
+  from the existing 1s timer tick and `activeService.started_at`, and fires
+  a dismissible toast (bottom-right, auto-dismisses after 12s) each time
+  elapsed time crosses a new 15-minute multiple, tracked per-service in a
+  `shownCheckpoints` ref that resets when the running service changes.
+  Purely client-side, no server/schema changes.
 
 - [ ] **VER-7** — Wire timer/duration fields into the educator review queue
   - **Depends on:** none (data already exists; UI is stale)

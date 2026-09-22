@@ -22,6 +22,7 @@ import {
   Play,
   Square,
   Timer,
+  Bell,
 } from "lucide-react";
 import { apiGet, apiPost, apiUpload } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
@@ -128,6 +129,10 @@ function formatElapsed(totalSeconds: number) {
   return hh > 0 ? `${hh}:${pad(mm)}:${pad(ss)}` : `${pad(mm)}:${pad(ss)}`;
 }
 
+// How often (in minutes of elapsed time) to nudge the student with a
+// checkpoint reminder while a service is running.
+const CHECKPOINT_INTERVAL_MIN = 15;
+
 function formatRange(min: number | null, max: number | null) {
   if (min != null && max != null) return `${min}–${max} min`;
   if (min != null) return `min ${min} min`;
@@ -164,6 +169,11 @@ export default function ServicesPage() {
   /* live timer tick for the active (in_progress) service */
   const [now, setNow] = useState(() => Date.now());
   const [stoppingId, setStoppingId] = useState<string | null>(null);
+
+  /* checkpoint reminders while a service is running */
+  const [checkpointReminder, setCheckpointReminder] = useState<number | null>(null);
+  const shownCheckpoints = useRef<Set<number>>(new Set());
+  const reminderServiceIdRef = useRef<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -210,6 +220,34 @@ export default function ServicesPage() {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [activeService]);
+
+  // Reset which checkpoints have fired whenever the running service changes
+  // (or timer stops), so reminders don't carry over between services.
+  useEffect(() => {
+    if (activeService?.id !== reminderServiceIdRef.current) {
+      reminderServiceIdRef.current = activeService?.id ?? null;
+      shownCheckpoints.current = new Set();
+      setCheckpointReminder(null);
+    }
+  }, [activeService?.id]);
+
+  // Fire a checkpoint reminder every CHECKPOINT_INTERVAL_MIN of elapsed time.
+  useEffect(() => {
+    if (!activeService?.started_at) return;
+    const elapsedMin = (now - new Date(activeService.started_at).getTime()) / 60000;
+    const checkpoint = Math.floor(elapsedMin / CHECKPOINT_INTERVAL_MIN) * CHECKPOINT_INTERVAL_MIN;
+    if (checkpoint > 0 && !shownCheckpoints.current.has(checkpoint)) {
+      shownCheckpoints.current.add(checkpoint);
+      setCheckpointReminder(checkpoint);
+    }
+  }, [now, activeService]);
+
+  // Auto-dismiss the toast after a while so it doesn't linger indefinitely.
+  useEffect(() => {
+    if (checkpointReminder == null) return;
+    const t = setTimeout(() => setCheckpointReminder(null), 12000);
+    return () => clearTimeout(t);
+  }, [checkpointReminder]);
 
   const handleStop = async (id: string) => {
     setStoppingId(id);
@@ -428,6 +466,40 @@ export default function ServicesPage() {
             </motion.div>
           );
         })()}
+      </AnimatePresence>
+
+      {/* ━━ Checkpoint reminder toast ━━ */}
+      <AnimatePresence>
+        {checkpointReminder != null && activeService && (
+          <motion.div
+            key="checkpoint-toast"
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.95 }}
+            transition={{ type: "spring", damping: 22, stiffness: 300 }}
+            className="fixed bottom-6 right-6 z-50 flex max-w-sm items-start gap-3 rounded-2xl border border-k-primary/20 bg-k-white px-5 py-4 shadow-[0_12px_40px_rgba(59,10,42,0.18)]"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-k-primary/10">
+              <Bell size={16} className="text-k-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-k-black">
+                {checkpointReminder}-minute checkpoint
+              </p>
+              <p className="mt-0.5 text-xs leading-relaxed text-k-gray-400">
+                &ldquo;{activeService.name}&rdquo; has been running {checkpointReminder} min —
+                a good moment for a progress photo or a quick check-in with your client.
+              </p>
+            </div>
+            <button
+              onClick={() => setCheckpointReminder(null)}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-k-gray-400 transition-colors hover:bg-k-gray-100 hover:text-k-black"
+              aria-label="Dismiss reminder"
+            >
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* ━━ Inline New Service Form ━━ */}
