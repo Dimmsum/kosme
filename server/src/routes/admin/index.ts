@@ -15,6 +15,7 @@ import clientsRouter from "./clients";
 import employersRouter from "./employers";
 import submissionsRouter from "./submissions";
 import portfoliosRouter from "./portfolios";
+import reportsRouter from "./reports";
 
 // Mounted at /api/admin in index.ts, behind requireAuth + requireRole("super_admin")
 // — every route here (and in every sub-router below) already assumes the caller
@@ -76,5 +77,6 @@ router.use("/clients", clientsRouter);
 router.use("/employers", employersRouter);
 router.use("/submissions", submissionsRouter);
 router.use("/portfolios", portfoliosRouter);
+router.use("/reports", reportsRouter);
 
 export default router;
