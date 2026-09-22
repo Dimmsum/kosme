@@ -1,5 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
+// Public marketing pages live in app/(marketing)/ — the route group doesn't
+// appear in the URL, so keep this list in sync when adding a page there.
 const isPublicRoute = createRouteMatcher([
   "/",
   "/login(.*)",

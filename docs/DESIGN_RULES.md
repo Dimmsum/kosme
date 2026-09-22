@@ -115,7 +115,7 @@ If a new page needs one of these patterns (a form, a loading state, a page heade
 
 Treat these as two related but distinct registers:
 
-- **Marketing/public pages** (`/`, `/students`, `/educators`, `/clients`, `/employers`, `/login`, `/signup`): fluid `clamp()` type, heavy `framer-motion` entrance choreography, editorial serif headlines with italic emphasis, generous whitespace, max-width `1400px` shell.
+- **Marketing/public pages** (`/`, `/students`, `/educators`, `/clients`, `/employers` — source in `client/app/(marketing)/` — plus `/login`, `/signup`): fluid `clamp()` type, heavy `framer-motion` entrance choreography, editorial serif headlines with italic emphasis, generous whitespace, max-width `1400px` shell.
 - **In-app pages** (`/student/*`, `/educator/*`, `/employer/*`, `/volunteer/*`, `/admin/*`): denser, fixed type scale, `font-serif font-light` for card/page titles only (not every heading), minimal motion (state transitions, not scroll choreography), card-grid layouts with `k-white` panels on `k-gray-100`/`k-white` background.
 
 Don't carry hero-style fluid type or heavy scroll animation into dashboard/admin screens, and don't carry dense admin table patterns into marketing pages.
