@@ -39,6 +39,48 @@ async function withConsentGating<T extends { id: string; service_photos?: unknow
   });
 }
 
+// POR-3: count-based skill rollup of a student's verified services — per
+// category, with a per-service-type breakdown. Built from the rows the
+// portfolio reads already fetch (all `status = 'verified'`, per VER-9), so no
+// extra query. Services with no service type (logged before migration 0017,
+// or none picked) count toward their category but not any type.
+type SkillSourceRow = {
+  category_id: string;
+  service_type?: { name: string } | { name: string }[] | null;
+};
+
+type SkillSummary = Array<{
+  category: string;
+  count: number;
+  types: Array<{ name: string; count: number }>;
+}>;
+
+function summariseSkills(rows: SkillSourceRow[]): SkillSummary {
+  const byCategory = new Map<string, { count: number; types: Map<string, number> }>();
+  for (const row of rows) {
+    const entry = byCategory.get(row.category_id) ?? { count: 0, types: new Map() };
+    entry.count += 1;
+    const type = Array.isArray(row.service_type) ? row.service_type[0] : row.service_type;
+    if (type?.name) {
+      entry.types.set(type.name, (entry.types.get(type.name) ?? 0) + 1);
+    }
+    byCategory.set(row.category_id, entry);
+  }
+
+  const byCountThenName = (a: { name: string; count: number }, b: { name: string; count: number }) =>
+    b.count - a.count || a.name.localeCompare(b.name);
+
+  return [...byCategory.entries()]
+    .map(([category, { count, types }]) => ({
+      category,
+      count,
+      types: [...types.entries()]
+        .map(([name, typeCount]) => ({ name, count: typeCount }))
+        .sort(byCountThenName),
+    }))
+    .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
+}
+
 // GET /api/portfolio — student's own verified services
 router.get(
   "/",
@@ -49,6 +91,7 @@ router.get(
       .select(
         `
       id, name, category_id, created_at,
+      service_type:service_type_id ( name ),
       service_photos ( id, type, url ),
       verifications ( id, educator_id, created_at, educator:educator_id ( full_name ) )
     `,
@@ -62,7 +105,10 @@ router.get(
     return res.status(500).json({ error: "Internal server error" });
     }
 
-    return res.json({ portfolio: await withConsentGating(data ?? []) });
+    return res.json({
+      portfolio: await withConsentGating(data ?? []),
+      skills: summariseSkills(data ?? []),
+    });
   },
 );
 
@@ -287,6 +333,7 @@ router.get("/:studentId", async (req: AuthRequest, res: Response) => {
     .select(
       `
       id, name, category_id, created_at,
+      service_type:service_type_id ( name ),
       service_photos ( id, type, url ),
       verifications ( id, created_at, educator:educator_id ( full_name ) )
     `,
@@ -303,6 +350,7 @@ router.get("/:studentId", async (req: AuthRequest, res: Response) => {
   return res.json({
     student: profile,
     portfolio: await withConsentGating(data ?? []),
+    skills: summariseSkills(data ?? []),
   });
 });
 

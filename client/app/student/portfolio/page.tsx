@@ -12,6 +12,7 @@ import {
   Share2,
   Grid,
   List,
+  Sparkles,
 } from "lucide-react";
 import { apiGet } from "@/lib/api";
 
@@ -33,8 +34,15 @@ type PortfolioApiRow = {
   }>;
 };
 
+type SkillSummaryRow = {
+  category: string;
+  count: number;
+  types: Array<{ name: string; count: number }>;
+};
+
 type PortfolioApiResponse = {
   portfolio: PortfolioApiRow[];
+  skills: SkillSummaryRow[];
 };
 
 type PortfolioItem = {
@@ -49,6 +57,7 @@ type PortfolioItem = {
 
 export default function PortfolioPage() {
   const [verifiedServices, setVerifiedServices] = useState<PortfolioItem[]>([]);
+  const [skills, setSkills] = useState<SkillSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState("All");
@@ -81,6 +90,7 @@ export default function PortfolioPage() {
         }));
 
         setVerifiedServices(mapped);
+        setSkills(data.skills ?? []);
         setError(null);
       } catch (err) {
         if (!mounted) return;
@@ -189,6 +199,54 @@ export default function PortfolioPage() {
           <p className="text-xs text-k-gray-400 mt-1">Educators</p>
         </div>
       </div>
+
+      {/* Skill summary (POR-3) — count-based rollup of verified services */}
+      {skills.length > 0 && (
+        <div className="mb-6 rounded-3xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
+          <div className="mb-4 flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-k-primary/10">
+              <Sparkles size={14} className="text-k-primary" />
+            </div>
+            <h2 className="font-serif text-lg font-light text-k-black">
+              Skill Summary
+            </h2>
+          </div>
+          <div className="flex flex-col gap-4">
+            {skills.map((skill) => (
+              <div key={skill.category}>
+                <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-medium text-k-black">
+                    {skill.category}
+                  </p>
+                  <p className="shrink-0 text-xs text-k-gray-400">
+                    {skill.count} verified
+                  </p>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-k-gray-100">
+                  <div
+                    className="h-full rounded-full bg-k-primary"
+                    style={{
+                      width: `${(skill.count / skills[0].count) * 100}%`,
+                    }}
+                  />
+                </div>
+                {skill.types.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {skill.types.map((type) => (
+                      <span
+                        key={type.name}
+                        className="rounded-full bg-k-primary/5 px-2.5 py-0.5 text-[11px] text-k-gray-600"
+                      >
+                        {type.name} &times;{type.count}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filters + view toggle */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
