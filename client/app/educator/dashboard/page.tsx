@@ -10,6 +10,9 @@ import {
   Clock,
   TrendingUp,
   Award,
+  PlayCircle,
+  StopCircle,
+  Activity,
 } from "lucide-react";
 import { apiGet } from "@/lib/api";
 
@@ -41,6 +44,18 @@ interface PendingRes {
   }>;
 }
 
+interface ActivityEvent {
+  id: string;
+  event_type: "service_started" | "service_stopped";
+  message: string;
+  created_at: string;
+  student: { id: string; full_name: string | null } | null;
+}
+
+interface ActivityRes {
+  events: ActivityEvent[];
+}
+
 export default function EducatorDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +77,7 @@ export default function EducatorDashboard() {
       statusColor: string;
     }>
   >([]);
+  const [activityFeed, setActivityFeed] = useState<ActivityEvent[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -69,8 +85,9 @@ export default function EducatorDashboard() {
       apiGet<DashboardRes>("/api/dashboard"),
       apiGet<StudentsRes>("/api/verifications/students"),
       apiGet<PendingRes>("/api/verifications/pending"),
+      apiGet<ActivityRes>("/api/events/activity"),
     ])
-      .then(([profileRes, dashboardRes, studentsRes, pendingRes]) => {
+      .then(([profileRes, dashboardRes, studentsRes, pendingRes, activityRes]) => {
         setName(profileRes.profile.full_name?.split(" ")[0] ?? "Educator");
         setInstitution(
           profileRes.profile.institutions?.name ?? "Your institution",
@@ -96,6 +113,8 @@ export default function EducatorDashboard() {
             statusColor: "bg-amber-100 text-amber-700",
           })),
         );
+
+        setActivityFeed(activityRes.events ?? []);
       })
       .catch((err: unknown) => {
         const message =
@@ -203,7 +222,7 @@ export default function EducatorDashboard() {
       {/* Recent verification activity */}
       <div className="rounded-3xl border border-k-gray-200 bg-k-white p-6 sm:p-8">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="font-serif text-lg text-k-black">Recent Activity</h2>
+          <h2 className="font-serif text-lg text-k-black">Pending Reviews</h2>
           <Link
             href="/educator/verify"
             className="flex items-center gap-1 text-xs font-medium text-k-primary no-underline hover:underline"
@@ -240,6 +259,61 @@ export default function EducatorDashboard() {
                 </span>
               </div>
             ))
+          )}
+        </div>
+      </div>
+
+      {/* Live student activity feed (ALT-2) — service start/stop events */}
+      <div className="mt-6 rounded-3xl border border-k-gray-200 bg-k-white p-6 sm:p-8">
+        <div className="mb-5 flex items-center gap-2">
+          <Activity size={18} className="text-k-primary" />
+          <h2 className="font-serif text-lg text-k-black">Activity Feed</h2>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {activityFeed.length === 0 ? (
+            <div className="rounded-2xl bg-k-gray-100 px-4 py-8 text-center">
+              <p className="text-sm text-k-gray-400">
+                No student activity yet.
+              </p>
+            </div>
+          ) : (
+            activityFeed.map((event) => {
+              const Icon =
+                event.event_type === "service_started" ? PlayCircle : StopCircle;
+              const iconColor =
+                event.event_type === "service_started"
+                  ? "text-emerald-600"
+                  : "text-k-gray-400";
+              return (
+                <div
+                  key={event.id}
+                  className="flex items-start gap-3 rounded-2xl bg-k-gray-100 px-4 py-3.5"
+                >
+                  <Icon size={18} className={`mt-0.5 shrink-0 ${iconColor}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-k-black">
+                      {event.student?.full_name ?? "A student"}{" "}
+                      <span className="font-normal text-k-gray-600">
+                        {event.event_type === "service_started"
+                          ? "started"
+                          : "stopped"}{" "}
+                        a service
+                      </span>
+                    </p>
+                    <p className="text-xs text-k-gray-400 mt-0.5">
+                      {event.message} &middot;{" "}
+                      {new Date(event.created_at).toLocaleString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
       </div>

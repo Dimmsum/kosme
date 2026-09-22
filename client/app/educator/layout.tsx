@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
 import DemoBanner from "@/components/DemoBanner";
+import AlertsBell from "@/components/educator/AlertsBell";
 
 const navItems = [
   { href: "/educator/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -85,7 +86,7 @@ export default function EducatorLayout({
     <div className="flex min-h-screen bg-k-gray-100">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex md:w-[240px] md:flex-col md:fixed md:inset-y-0 bg-k-white border-r border-k-gray-200">
-        <div className="flex h-16 items-center px-6 border-b border-k-gray-200">
+        <div className="flex h-16 items-center justify-between px-6 border-b border-k-gray-200">
           <Link href="/" className="block">
             <Image
               src="/Logo Text Only.png"
@@ -96,6 +97,7 @@ export default function EducatorLayout({
               priority
             />
           </Link>
+          <AlertsBell />
         </div>
 
         <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
@@ -145,7 +147,13 @@ export default function EducatorLayout({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 md:ml-[240px] pb-24 md:pb-0"><DemoBanner />{children}</main>
+      <main className="flex-1 md:ml-[240px] pb-24 md:pb-0">
+        <div className="flex h-14 items-center justify-end border-b border-k-gray-200 bg-k-white px-4 md:hidden">
+          <AlertsBell />
+        </div>
+        <DemoBanner />
+        {children}
+      </main>
 
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-k-gray-200 bg-k-white px-1 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 md:hidden">

@@ -229,13 +229,29 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
     `client/app/student/services/[id]/page.tsx`,
     `client/app/student/services/page.tsx`.
 
-- [ ] **VER-9** — Enforce `approved` as the single source of truth for
+- [x] **VER-9** — Enforce `approved` as the single source of truth for
       verified hours
   - **Depends on:** VER-8
-  - Audit every place that counts/displays "verified hours" (student
-    dashboard, portfolio, future reports) and confirm they all filter on
-    `status = 'approved'` with no parallel "verified" flag. Consistency pass,
-    not new functionality — blocks **POR-1** and **RPT-1**.
+  - Audited every place that counts/displays "verified hours": student +
+    educator + client + employer dashboards (`server/src/routes/
+    dashboard.ts`), student/employer/volunteer portfolio reads
+    (`server/src/routes/portfolio.ts`), admin portfolio oversight
+    (`server/src/routes/admin/portfolios.ts`, `admin/index.ts`), the
+    shortlist route (`shortlist.ts`), the educator queue's own verified
+    count (`verifications.ts`), and their client-side consumers
+    (`client/app/student/{dashboard,portfolio,services}/page.tsx`,
+    `client/app/educator/{students,verify}/page.tsx`). Note: there is no
+    `'approved'` value anywhere in this schema — the CHECK constraints
+    (`0003_core_tables.sql`, tightened in `0017_service_timer.sql`,
+    `0024_educator_decisions.sql`) define the terminal state as `'verified'`,
+    which is what every one of the above already filters on
+    (`.eq("status", "verified")` / `s.status === "verified"`), consistently.
+    No parallel "verified" boolean or flag exists anywhere — the separate
+    `verifications.status` column is an audit-trail record of the educator's
+    decision, not used as an alternate source of truth for counting a
+    student's verified hours/services. No code changes needed; this was a
+    consistency pass that confirmed no divergence. Unblocks **POR-1** and
+    **RPT-1**.
   - **Files:** `server/src/routes/services.ts`, `server/src/routes/portfolio.ts`,
     `server/src/routes/dashboard.ts`.
 
@@ -259,35 +275,63 @@ Extends `server/src/routes/admin/alerts.ts` / the `alerts` table (migration `001
     against the full `event_type` enum up front.
   - `student_id`/`service_id` FKs identify the actor; which educator(s) see a
     row is resolved at query time via the student's `cohort_id` →
-    `educator_assignments` (no per-recipient fan-out row). `is_demo`
+    `educator_assignments` (no per-recipient fan-out row) — **note (ALT-2):**
+    not actually wired up this way in the end. No existing educator route
+    (`verifications.ts`'s `/students`, `/pending`, etc.) restricts by cohort
+    assignment either — every educator sees every non-demo student, filtered
+    only by `is_demo`. `events.ts` matches that established convention rather
+    than introducing cohort-scoping in one place only; revisit as its own
+    issue if cohort-restricted visibility is wanted app-wide. `is_demo`
     denormalized + trigger-synced from `student_id`, same pattern as
     `services.is_demo` (migration `0013`).
-  - **Files:** `supabase/migrations/0022_events.sql`.
+  - **Files:** `supabase/migrations/0023_events.sql` (filename corrected —
+    `0022` was taken by **CON-1** by the time this shipped).
 
-- [ ] **ALT-2** — Activity feed: emit + display
-  - **Depends on:** ALT-1
-  - Tracer-bullet slice: hook `POST /:id/start` and `POST /:id/stop` in
-    `services.ts` to write the non-urgent event row(s) (service
-    started/stopped) on whichever table ALT-1 settles on, *and* build the
-    non-urgent event feed on the educator dashboard (net-new — no existing
-    educator dashboard alerts UI) in the same issue, rather than shipping the
-    backend emit and the feed UI as separate tickets.
-  - **Files:** `server/src/routes/services.ts`,
-    `server/src/routes/admin/alerts.ts` (pattern reference), whichever table
-    ALT-1 settles on, educator dashboard page (locate/create under
-    `client/app/educator/`).
+- [x] **ALT-2** — Activity feed: emit + display. `POST /:id/start` and
+      `POST /:id/stop` in `server/src/routes/services.ts` now write
+      `activity`-tier `service_started`/`service_stopped` rows through a new
+      shared `logEvent()` helper (`server/src/lib/events.ts`) — also used by
+      **ALT-3**'s `duration_over`/`duration_under` priority rows in the same
+      `/stop` handler, so both tiers go through one insert path. New
+      `GET /api/events/activity` in `server/src/routes/events.ts` (mounted at
+      `/api/events` in `index.ts`, `requireRole("educator")`) returns the 50
+      most recent activity rows, not dismissible (it's a log, not an inbox —
+      matches the `acknowledged_at`/`_by` split in migration
+      `0023_events.sql`). UI: new "Activity Feed" card on
+      `client/app/educator/dashboard/page.tsx` (renamed the pre-existing
+      pending-verifications card from "Recent Activity" to "Pending Reviews"
+      to disambiguate from this net-new feed), start/stop icon per row,
+      student name + message + relative time. **Scope note:** query is
+      filtered only by `is_demo`, not cohort/`educator_assignments` — no
+      existing educator route (`verifications.ts`'s `/students`, `/pending`)
+      restricts by cohort assignment either, so this matches that established
+      convention rather than introducing cohort-scoping in one place only;
+      ALT-1's note about resolving visibility via `cohort_id` →
+      `educator_assignments` wasn't carried through for this reason.
+  - **Files:** `server/src/routes/services.ts`, `server/src/lib/events.ts`,
+    `server/src/routes/events.ts`, `server/src/index.ts`,
+    `client/app/educator/dashboard/page.tsx`.
 
-- [ ] **ALT-3** — Priority alerts: emit + display
-  - **Depends on:** ALT-1
-  - Tracer-bullet slice: hook `POST /:id/stop` in `services.ts` to write the
-    priority alert when `duration_tag` is `over` or `under`, *and* build the
-    bell/alert-area UI for the priority tier (separate from the activity
-    feed; can mirror `/admin/alerts`'s active-toggle pattern) in the same
-    issue.
-  - **Files:** `server/src/routes/services.ts`,
-    `server/src/routes/admin/alerts.ts` (pattern reference), educator
-    layout/dashboard under `client/app/educator/`,
-    `client/app/admin/alerts/page.tsx` (pattern reference).
+- [x] **ALT-3** — Priority alerts: emit + display. `POST /:id/stop` in
+      `server/src/routes/services.ts` writes a `priority`-tier event
+      (`duration_over`/`duration_under`) whenever `duration_tag` lands
+      outside the recommended range, alongside the `activity`-tier
+      `service_stopped` row **ALT-2** added — both go through the shared
+      `logEvent()` helper in `server/src/lib/events.ts`. New
+      `server/src/routes/events.ts` (mounted at `/api/events`,
+      `requireRole("educator")`) adds `GET /priority`
+      (`?unacknowledged=true` filters to undismissed rows, driving the badge
+      count) and `POST /:id/acknowledge` (sets `acknowledged_at`/`_by`) —
+      shares the file with **ALT-2**'s `GET /activity` since both read the
+      same `events` table. UI: new `client/components/educator/AlertsBell.tsx`
+      (bell icon, unread-count badge, dropdown list with per-alert Dismiss,
+      polls every 60s) wired into `client/app/educator/layout.tsx`'s desktop
+      sidebar header and a new mobile-only top bar (the sidebar is
+      `hidden md:flex`, so mobile had no header to put it in before this).
+  - **Files:** `server/src/routes/services.ts`, `server/src/routes/events.ts`,
+    `server/src/lib/events.ts`, `server/src/index.ts`,
+    `client/components/educator/AlertsBell.tsx`,
+    `client/app/educator/layout.tsx`.
 
 - [ ] **ALT-4** — Alert triggers for confirmation-completed /
       ready-for-verification

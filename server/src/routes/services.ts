@@ -3,6 +3,7 @@ import multer from "multer";
 import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
 import { isUuid } from "../lib/validation";
+import { logEvent } from "../lib/events";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -231,7 +232,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     const { data: service, error: svcErr } = await supabaseAdmin
       .from("services")
-      .select("id, status")
+      .select("id, name, status")
       .eq("id", req.params.id)
       .eq("student_id", req.userId!)
       .single();
@@ -264,6 +265,14 @@ router.post(
       return res.status(500).json({ error: "Failed to start service" });
     }
 
+    await logEvent(
+      "activity",
+      "service_started",
+      req.userId!,
+      service.id,
+      `Started "${service.name}"`,
+    );
+
     return res.json({ service: data });
   },
 );
@@ -277,7 +286,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     const { data: service, error: svcErr } = await supabaseAdmin
       .from("services")
-      .select("id, status, started_at, client_id, service_type_id")
+      .select("id, name, status, started_at, client_id, service_type_id")
       .eq("id", req.params.id)
       .eq("student_id", req.userId!)
       .single();
@@ -331,6 +340,26 @@ router.post(
     if (error) {
       console.error("services stop error:", error);
       return res.status(500).json({ error: "Failed to stop service" });
+    }
+
+    await logEvent(
+      "activity",
+      "service_stopped",
+      req.userId!,
+      service.id,
+      `Stopped "${service.name}" (${actualDurationMin} min)`,
+    );
+
+    // Priority alert for educators when the logged duration falls outside the
+    // service type's recommended range.
+    if (durationTag === "over" || durationTag === "under") {
+      await logEvent(
+        "priority",
+        durationTag === "over" ? "duration_over" : "duration_under",
+        req.userId!,
+        service.id,
+        `"${service.name}" ran ${durationTag} the recommended duration (${actualDurationMin} min).`,
+      );
     }
 
     return res.json({ service: data });

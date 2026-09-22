@@ -16,6 +16,7 @@ import dashboardRouter from "./routes/dashboard";
 import volunteerRequestsRouter from "./routes/volunteer-requests";
 import adminRouter from "./routes/admin";
 import kaiRouter from "./routes/kai";
+import eventsRouter from "./routes/events";
 import { requireAuth, requireRole } from "./middleware/auth";
 import { supabaseAdmin } from "./lib/supabase";
 
@@ -132,6 +133,7 @@ app.use("/api/dashboard", requireAuth, dashboardRouter);
 app.use("/api/volunteer-requests", requireAuth, volunteerRequestsRouter);
 app.use("/api/admin", requireAuth, requireRole("super_admin"), adminRouter);
 app.use("/api/kai", requireAuth, kaiRouter);
+app.use("/api/events", requireAuth, eventsRouter);
 
 app.listen(PORT, () => {
   console.log(`Kosmee API running on http://localhost:${PORT}`);
