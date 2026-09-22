@@ -57,8 +57,9 @@ open work.
   shortlist counts), `/admin/submissions` (all services + verification/
   confirmation state), `/admin/portfolios` (students + verified-work detail).
 
-**Still outstanding from this slice:** none functionally — see **OPS-1/OPS-2**
-below for the live-environment deploy/seed step that was never confirmed run.
+**Still outstanding from this slice:** none. The live-environment
+migration and seed steps (**OPS-1/OPS-2**, below) were confirmed done
+2026-09-22.
 
 ---
 
@@ -415,7 +416,7 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
     `client/app/student/services/[id]/page.tsx` has a consent checkbox card
     that the portfolio modal's hidden-photos note links to.
 
-- [ ] **POR-3** — Skill summary rollup
+- [x] **POR-3** — Skill summary rollup
   - **Depends on:** POR-1
   - Simple aggregate of approved service categories/types per student
     (count-based to start; **KAI-3** can later generate prose from this — don't
@@ -423,6 +424,21 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
     portfolio page together, not as a backend-only endpoint.
   - **Files:** `server/src/routes/portfolio.ts`,
     `client/app/student/portfolio/page.tsx`.
+  - **Done:** No new endpoint or query. `server/src/routes/portfolio.ts`
+    has a pure `summariseSkills()` helper that groups the verified rows the
+    reads already fetch. It returns `{ category, count, types: [{ name,
+    count }] }[]`, sorted by count. `GET /` and `GET /:studentId` now also
+    embed `service_type:service_type_id ( name )` and return the rollup as
+    `skills`. It is built on `/:studentId` too so **POR-5** gets it for free.
+    Counts are taken before consent gating, because consent hides photos,
+    not the service. Services with no `service_type_id` (logged before
+    `0017`, or no type picked) count toward their category but no type.
+    `client/app/student/portfolio/page.tsx` has a "Skill Summary" card
+    between the stats row and the category filters: one row per category
+    with a count and a bar scaled to the top category, and a chip per type
+    (`Name ×n`). The card is hidden when there are no verified services. It
+    doesn't show progress against `service_categories.max_required`, because
+    the student dashboard's progress rings already do that.
 
 - [x] **POR-4** — Verification badge
   - **Depends on:** POR-1
@@ -436,13 +452,39 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
     returns only `status = 'verified'` services. So the badge already
     reflects the VER-9 source of truth, with no new field.
 
-- [ ] **POR-5** — Employer-facing portfolio view
+- [x] **POR-5** — Employer-facing portfolio view
   - **Depends on:** POR-1, POR-4
   - A route under the employer route group (`client/app/employer/` — confirm
     vs. `employers/`, see **CLN-1**) reusing `GET /api/portfolio` for a
     read-only, employer-shareable student portfolio.
   - **Files:** new page under `client/app/employer/`,
     `server/src/routes/portfolio.ts`.
+  - **Done:** Confirmed `client/app/employer/` is the authenticated
+    dashboard, behind `employer/layout.tsx`'s role gate. `employers/` is the
+    public marketing page. New page `client/app/employer/browse/
+    [studentId]/page.tsx`, at the same path shape as the volunteer
+    `/volunteer/browse/[studentId]`. It reads the existing `GET
+    /api/portfolio/:studentId`, which was already open to employers, so
+    no new endpoint. The page is read-only and shows:
+    - a header with name and institution
+    - stats for verified count, categories and educators
+    - the POR-3 skill summary (`skills` from the same response)
+    - a category filter
+    - one card per verified service, with the POR-4 emerald "Verified"
+      badge, before/after photos and the verifying educator. Where
+      consent is missing, the card says "Photos withheld · no client
+      consent" (POR-2 gating is already applied server-side).
+
+    "Shareable" means a stable URL. "Copy link" copies it for another
+    employer account, and an "Add to shortlist" toggle reuses
+    `/api/shortlist`. There is no public or unauthenticated share link; that
+    would need its own token model. Linked from Browse cards (name +
+    "Portfolio →"), Shortlist cards ("Portfolio" replaces the duplicate
+    Remove button; the header X still removes) and dashboard Featured
+    Graduates rows. Server change in `server/src/routes/portfolio.ts`: the
+    `/:studentId` profile lookup now also requires `role = 'student'`.
+    Before, a shared link pointed at any user id returned that user's name
+    and institution, even for an educator or employer.
 
 ---
 
@@ -531,7 +573,7 @@ touchpoint below is assistive-only UI, not a decision-making path.
 
 Replaces the stub at `client/app/admin/reports/page.tsx`.
 
-- [ ] **RPT-1** — Reports & Analytics tracer slice
+- [x] **RPT-1** — Reports & Analytics tracer slice
   - **Depends on:** VER-9
   - Tracer-bullet slice: new endpoint(s) for basic counts/aggregates
     (verified hours per cohort, pending-verification counts, timing-trend
@@ -543,6 +585,30 @@ Replaces the stub at `client/app/admin/reports/page.tsx`.
     `server/src/routes/admin/index.ts` (mount),
     `client/app/admin/reports/page.tsx`,
     `client/components/admin/ModuleStub.tsx` (being replaced here).
+  - **Done:** One read-only endpoint, `GET /api/admin/reports?include_demo=`
+    in new `server/src/routes/admin/reports.ts` (mounted in
+    `admin/index.ts`, so it is behind the existing `super_admin` gate). It
+    returns four things. First, service counts per pipeline status. Second,
+    verified totals. Third, per-cohort rows (students, verified services,
+    verified minutes, `awaiting_educator` count), plus a "No cohort" row for
+    unplaced students. Fourth, timing counts: all-time
+    `under`/`within`/`over`, the number of timed services with no
+    recommended range, and an 8-week trend bucketed by the Monday of
+    `ended_at`. Verified means `status = 'verified'` (VER-9). A verified
+    service's minutes are `adjusted_duration_min ?? actual_duration_min`.
+    Verified services logged without the timer have neither value, so they
+    are counted as "untimed" and not as 0 hours. Services are read in
+    1000-row pages, because Supabase's default row cap would otherwise
+    undercount the totals. No migration.
+    `client/app/admin/reports/page.tsx` replaces the stub. It has headline
+    tiles, a pipeline card with a bar per status, a timing card, and a
+    per-cohort table with an inline hours bar. The timing card has a legend
+    with counts and percentages, a 100% stacked bar, and weekly stacked
+    columns with a hover/focus tooltip. The page also has an "Include demo"
+    toggle. Charts are plain Tailwind divs, with no new chart dependency.
+    Timing tags use the educator verify page's amber/emerald/red colors, and
+    each color also has a text label. `ModuleStub.tsx` is deleted because
+    nothing else used it.
 
 ---
 
@@ -573,12 +639,17 @@ Replaces the stub at `client/app/admin/reports/page.tsx`.
     migration added after `0024` still has to be applied live as part of the
     issue that adds it.
 
-- [ ] **OPS-2** — Run seed scripts against the live environment
+- [x] **OPS-2** — Run seed scripts against the live environment
   - **Depends on:** OPS-1
   - Run `npm run seed:super-admin` and `npm run seed:demo` against the real
     Clerk/Supabase project once migrations are applied.
   - **Files:** `server/src/scripts/seed-super-admin.ts`,
     `server/src/scripts/seed-demo-accounts.ts`.
+  - **Done:** Both run 2026-09-22 against the project in `server/.env`, which
+    is a Clerk **development** instance (`sk_test_`). The first
+    `seed:super-admin` run used a placeholder `@example.com` account. It was
+    re-run the same day with the real admin email. If the app moves to a
+    production Clerk instance, both scripts need running again there.
 
 ---
 
