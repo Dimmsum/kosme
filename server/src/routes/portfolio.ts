@@ -318,10 +318,13 @@ router.get("/:studentId", async (req: AuthRequest, res: Response) => {
 
   // Also return the student's profile — checked first so demo viewers can't
   // reach a real student's portfolio (and vice versa) by guessing an id.
+  // Restricted to role 'student' so a shared employer link (POR-5) can't be
+  // pointed at an educator/employer/client id to read their name/institution.
   const { data: profile } = await supabaseAdmin
     .from("user_profiles")
     .select("id, full_name, institution_id, institutions ( name ), is_demo")
     .eq("id", studentId)
+    .eq("role", "student")
     .single();
 
   if (!profile || (profile.is_demo ?? false) !== (req.isDemo ?? false)) {

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, Heart, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { Search, Heart, CheckCircle2, ArrowRight } from "lucide-react";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
@@ -230,13 +231,18 @@ export default function BrowsePage() {
               </div>
 
               <h3 className="text-sm font-medium text-k-black">
-                {student.full_name ?? "Unnamed Graduate"}
+                <Link
+                  href={`/employer/browse/${student.id}`}
+                  className="text-k-black no-underline hover:text-k-primary"
+                >
+                  {student.full_name ?? "Unnamed Graduate"}
+                </Link>
               </h3>
               <p className="text-xs text-k-gray-400 mt-0.5">
                 {student.institution_name ?? "No institution listed"}
               </p>
 
-              <div className="mt-3 flex flex-wrap gap-1.5">
+              <div className="mt-3 mb-4 flex flex-wrap gap-1.5">
                 {student.specialisations.map((spec) => (
                   <span
                     key={spec}
@@ -247,11 +253,19 @@ export default function BrowsePage() {
                 ))}
               </div>
 
-              <div className="mt-4 flex items-center gap-1.5 pt-3 border-t border-k-gray-200">
-                <CheckCircle2 size={14} className="text-emerald-600" />
-                <span className="text-xs font-medium text-k-gray-600">
-                  {student.verified_count} verified services
-                </span>
+              <div className="mt-auto flex items-center justify-between gap-2 pt-3 border-t border-k-gray-200">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 size={14} className="text-emerald-600" />
+                  <span className="text-xs font-medium text-k-gray-600">
+                    {student.verified_count} verified services
+                  </span>
+                </div>
+                <Link
+                  href={`/employer/browse/${student.id}`}
+                  className="flex shrink-0 items-center gap-1 text-xs font-medium text-k-primary no-underline hover:underline"
+                >
+                  Portfolio <ArrowRight size={12} />
+                </Link>
               </div>
             </div>
           ))}

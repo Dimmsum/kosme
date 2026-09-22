@@ -212,9 +212,10 @@ export default function EmployerDashboard() {
             </div>
           ) : (
             featuredGraduates.map((grad) => (
-              <div
+              <Link
                 key={grad.id}
-                className="flex items-center justify-between rounded-2xl bg-k-gray-100 px-4 py-3.5 transition-colors hover:bg-k-gray-200/60"
+                href={`/employer/browse/${grad.id}`}
+                className="flex items-center justify-between rounded-2xl bg-k-gray-100 px-4 py-3.5 no-underline transition-colors hover:bg-k-gray-200/60"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="h-10 w-10 shrink-0 rounded-full bg-gradient-to-br from-k-primary to-k-primary-light flex items-center justify-center">
@@ -239,7 +240,7 @@ export default function EmployerDashboard() {
                     <CheckCircle2 size={12} /> {grad.verifiedCount}
                   </span>
                 </div>
-              </div>
+              </Link>
             ))
           )}
         </div>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, X, MessageCircle, HeartOff } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, X, MessageCircle, HeartOff, Eye } from "lucide-react";
 import { apiDelete, apiGet } from "@/lib/api";
 
 interface ShortlistedStudent {
@@ -173,13 +174,13 @@ export default function ShortlistPage() {
                   <MessageCircle size={14} />
                   Contact
                 </button>
-                <button
-                  onClick={() => removeFromShortlist(student.id)}
-                  disabled={pendingRemoveIds.has(student.id)}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-k-gray-200 px-4 py-2.5 text-xs font-medium text-k-gray-600 transition-colors hover:bg-k-gray-100"
+                <Link
+                  href={`/employer/browse/${student.id}`}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-k-gray-200 px-4 py-2.5 text-xs font-medium text-k-gray-600 no-underline transition-colors hover:bg-k-gray-100"
                 >
-                  Remove
-                </button>
+                  <Eye size={14} />
+                  Portfolio
+                </Link>
               </div>
             </div>
           ))}
