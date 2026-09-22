@@ -14,7 +14,7 @@ import {
   List,
   Sparkles,
 } from "lucide-react";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 
 type PortfolioApiRow = {
   id: string;
@@ -45,6 +45,10 @@ type PortfolioApiResponse = {
   skills: SkillSummaryRow[];
 };
 
+type KaiAssistResponse = { available: boolean; message: string };
+
+const KAI_FALLBACK = "KAI Portfolio Assist is not yet available.";
+
 type PortfolioItem = {
   id: string;
   name: string;
@@ -65,6 +69,14 @@ export default function PortfolioPage() {
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [kaiBioLoading, setKaiBioLoading] = useState(false);
+  const [kaiBioMessage, setKaiBioMessage] = useState<string | null>(null);
+  const [kaiCaptionLoading, setKaiCaptionLoading] = useState(false);
+  // Keyed by service so a caption reply doesn't carry over to the next modal.
+  const [kaiCaption, setKaiCaption] = useState<{
+    serviceId: string;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -143,6 +155,38 @@ export default function PortfolioPage() {
     );
   };
 
+  // KAI-3 — assistive only; the stub never writes to the portfolio.
+  async function askKaiForBio() {
+    setKaiBioLoading(true);
+    setKaiBioMessage(null);
+    try {
+      const res = await apiPost<KaiAssistResponse>("/api/kai/portfolio-assist", {
+        kind: "bio",
+      });
+      setKaiBioMessage(res.message);
+    } catch {
+      setKaiBioMessage(KAI_FALLBACK);
+    } finally {
+      setKaiBioLoading(false);
+    }
+  }
+
+  async function askKaiForCaption(serviceId: string) {
+    setKaiCaptionLoading(true);
+    setKaiCaption(null);
+    try {
+      const res = await apiPost<KaiAssistResponse>("/api/kai/portfolio-assist", {
+        kind: "caption",
+        service_id: serviceId,
+      });
+      setKaiCaption({ serviceId, message: res.message });
+    } catch {
+      setKaiCaption({ serviceId, message: KAI_FALLBACK });
+    } finally {
+      setKaiCaptionLoading(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="px-4 py-6 sm:px-6 md:px-8 md:py-8">
@@ -203,14 +247,30 @@ export default function PortfolioPage() {
       {/* Skill summary (POR-3) — count-based rollup of verified services */}
       {skills.length > 0 && (
         <div className="mb-6 rounded-3xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
-          <div className="mb-4 flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-k-primary/10">
-              <Sparkles size={14} className="text-k-primary" />
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-k-primary/10">
+                <Sparkles size={14} className="text-k-primary" />
+              </div>
+              <h2 className="font-serif text-lg font-light text-k-black">
+                Skill Summary
+              </h2>
             </div>
-            <h2 className="font-serif text-lg font-light text-k-black">
-              Skill Summary
-            </h2>
+            <button
+              type="button"
+              onClick={askKaiForBio}
+              disabled={kaiBioLoading}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-k-primary/30 bg-k-primary/5 px-3 py-1 text-xs font-medium text-k-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Sparkles size={12} />
+              {kaiBioLoading ? "Asking KAI…" : "Generate bio"}
+            </button>
           </div>
+          {kaiBioMessage && (
+            <p className="mb-4 rounded-xl bg-k-primary/5 px-3.5 py-2.5 text-xs text-k-primary">
+              {kaiBioMessage}
+            </p>
+          )}
           <div className="flex flex-col gap-4">
             {skills.map((skill) => (
               <div key={skill.category}>
@@ -511,6 +571,24 @@ export default function PortfolioPage() {
                   {selectedPhotos.length} in carousel
                 </p>
               </div>
+            </div>
+
+            {/* KAI caption (KAI-3) */}
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={() => askKaiForCaption(selected.id)}
+                disabled={kaiCaptionLoading}
+                className="inline-flex items-center gap-1.5 rounded-full border border-k-primary/30 bg-k-primary/5 px-3 py-1 text-xs font-medium text-k-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Sparkles size={12} />
+                {kaiCaptionLoading ? "Asking KAI…" : "Generate caption"}
+              </button>
+              {kaiCaption?.serviceId === selected.id && (
+                <p className="mt-3 rounded-xl bg-k-primary/5 px-3.5 py-2.5 text-xs text-k-primary">
+                  {kaiCaption.message}
+                </p>
+              )}
             </div>
 
             {photoError && (
