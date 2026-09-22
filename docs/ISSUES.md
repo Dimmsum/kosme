@@ -187,12 +187,16 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
   `shownCheckpoints` ref that resets when the running service changes.
   Purely client-side, no server/schema changes.
 
-- [ ] **VER-7** — Wire timer/duration fields into the educator review queue
-  - **Depends on:** none (data already exists; UI is stale)
-  - `client/app/educator/verify/page.tsx` (439 lines) predates migrations
-    `0017`/`0018` — zero references to `duration_tag`, `started_at`, `ended_at`,
-    `actual_duration_min`. Add these to the review list/detail view.
-  - **Files:** `client/app/educator/verify/page.tsx`.
+- [x] **VER-7** — Wire timer/duration fields into the educator review queue.
+  `server/src/routes/verifications.ts`'s `GET /pending` and `GET /history`
+  selects now include `started_at, ended_at, actual_duration_min,
+  duration_tag`. `client/app/educator/verify/page.tsx` carries these through
+  the `VerificationItem` type/mapping and adds a "Timing" card (start–end
+  time, computed duration, `duration_tag` badge colored
+  red/amber/emerald for over/under/within) rendered above the photos block
+  on each queue item, for both pending and history entries.
+  - **Files:** `server/src/routes/verifications.ts`,
+    `client/app/educator/verify/page.tsx`.
 
 - [ ] **VER-8** — Educator actions: approve / adjust hours / request
       corrections / reject / flag
@@ -221,17 +225,24 @@ Extends `server/src/routes/services.ts`, `server/src/routes/confirmations.ts`,
 
 Extends `server/src/routes/admin/alerts.ts` / the `alerts` table (migration `0016`).
 
-- [ ] **ALT-1** — Decide the alert event model
-  - **Depends on:** none
-  - Define the concrete event list and tier: **activity feed** (non-urgent:
-    service started/stopped, client confirmation completed) vs. **priority
-    alerts** (bell/alert area: exceeded/under recommended time, ready for
-    verification). Decide whether to reuse the existing `alerts` table
-    (audience/severity already present) or add a lighter-weight `events` table
-    for the non-urgent feed. Record the decision inline in the migration this
-    unblocks.
-  - **Files:** `supabase/migrations/0016_admin_subsystems.sql` (reference),
-    new migration if a separate events table is chosen.
+- [x] **ALT-1** — Decide the alert event model. New `public.events` table
+  (migration `0022_events.sql`), not a reuse of `alerts` — `alerts` is
+  admin-authored broadcast messages (manual, role-wide, manual active
+  toggle); these are system-generated, per-student/service, auto-fired. One
+  table, not two, gated by a `tier` column (`activity` | `priority`) since
+  both share the same shape and only differ in urgency:
+  - **activity** (log only, no dismiss): `service_started`, `service_stopped`
+  - **priority** (dismissible via `acknowledged_at`/`acknowledged_by`, drives
+    the bell badge): `duration_over`, `duration_under`,
+    `confirmation_completed`, `ready_for_verification` — the last two land
+    with **ALT-4**, listed now so **ALT-2**/**ALT-3**'s UI can be built
+    against the full `event_type` enum up front.
+  - `student_id`/`service_id` FKs identify the actor; which educator(s) see a
+    row is resolved at query time via the student's `cohort_id` →
+    `educator_assignments` (no per-recipient fan-out row). `is_demo`
+    denormalized + trigger-synced from `student_id`, same pattern as
+    `services.is_demo` (migration `0013`).
+  - **Files:** `supabase/migrations/0022_events.sql`.
 
 - [ ] **ALT-2** — Activity feed: emit + display
   - **Depends on:** ALT-1
@@ -322,14 +333,21 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
 
 Extends `server/src/routes/client-signup.ts`, `server/src/routes/volunteer-requests.ts`.
 
-- [ ] **CON-1** — General reusable consent-record model
-  - **Depends on:** none
-  - Replace/extend the single `photo_consent` boolean on `client_signups` with
-    a proper consent-record model covering all client sources from **VER-1**
-    (not just volunteer sign-ups), so **POR-2** has one place to check consent
-    regardless of client source.
-  - **Files:** new migration extending/replacing consent storage,
-    `server/src/routes/client-signup.ts`.
+- [x] **CON-1** — General reusable consent-record model. New
+  `public.consent_records` table (migration `0022_consent_records.sql`):
+  polymorphic `subject_type` (`client_signup | service`) + `subject_id`
+  rather than a single FK, since 5 of `client_source`'s 6 values (all but
+  `kosme_volunteer`) have no `client_signups` row to attach consent to at
+  all — those will attach directly to a `services` row once POR-2 wires
+  consent capture into the log-service form for non-signup sources (out of
+  scope here; this issue is the schema + the one existing write path).
+  Backfilled one row per existing `client_signups` submission.
+  `client_signups.photo_consent` is kept (not dropped) for backward
+  compatibility with existing reads; `server/src/routes/client-signup.ts`'s
+  `POST /` now also mirrors the captured consent into `consent_records`
+  (non-fatal on failure — the signup write is still the source of truth if
+  the mirror insert fails). `consent_records` is service-role-only, same RLS
+  pattern as `client_signups`.
 
 - [ ] **CON-2** — Manual admin-assisted student↔client matching
   - **Depends on:** none

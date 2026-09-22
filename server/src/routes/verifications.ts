@@ -106,6 +106,7 @@ router.get(
       .select(
         `
       id, name, category_id, notes, status, created_at,
+      started_at, ended_at, actual_duration_min, duration_tag,
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
       service_photos ( id, type, url )
@@ -136,6 +137,7 @@ router.get(
       id, status, notes, created_at,
       service:service_id (
         id, name, category_id, notes, created_at,
+        started_at, ended_at, actual_duration_min, duration_tag,
         student:student_id ( id, full_name ),
         service_photos ( id, type, url )
       )

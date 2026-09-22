@@ -68,23 +68,40 @@ router.post("/", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Trainee acknowledgement is required" });
     }
 
-    const { error } = await supabaseAdmin.from("client_signups").insert({
-      full_name: full_name.trim(),
-      gender,
-      whatsapp: whatsapp.trim(),
-      email: email.toLowerCase().trim(),
-      parish,
-      service_preferences,
-      availability,
-      preferred_time,
-      willing_to_travel,
-      photo_consent,
-      trainee_acknowledgement,
-    });
+    const { data: signup, error } = await supabaseAdmin
+      .from("client_signups")
+      .insert({
+        full_name: full_name.trim(),
+        gender,
+        whatsapp: whatsapp.trim(),
+        email: email.toLowerCase().trim(),
+        parish,
+        service_preferences,
+        availability,
+        preferred_time,
+        willing_to_travel,
+        photo_consent,
+        trainee_acknowledgement,
+      })
+      .select("id")
+      .single();
 
     if (error) {
       console.error("client_signups insert error:", error);
       return res.status(500).json({ error: "Failed to save your sign-up. Please try again." });
+    }
+
+    // Mirror into the general consent-record model (CON-1) so POR-2 can check
+    // consent from one place regardless of client source. Non-fatal: the
+    // signup itself already succeeded, and `client_signups.photo_consent`
+    // remains the fallback source of truth if this insert fails.
+    const { error: consentError } = await supabaseAdmin.from("consent_records").insert({
+      subject_type: "client_signup",
+      subject_id: signup.id,
+      photo_consent,
+    });
+    if (consentError) {
+      console.error("consent_records insert error:", consentError);
     }
 
     return res.json({ success: true });

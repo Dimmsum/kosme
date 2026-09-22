@@ -18,6 +18,10 @@ interface VerificationItem {
   statusColor: string;
   notes: string | null;
   photos: Array<{ id: string; type: "before" | "after"; url: string }>;
+  startedAt: string | null;
+  endedAt: string | null;
+  actualDurationMin: number | null;
+  durationTag: "under" | "within" | "over" | null;
 }
 
 const filters: VerifyStatus[] = ["All", "Awaiting Review", "Verified"];
@@ -35,6 +39,10 @@ interface PendingResponse {
     category_id: string;
     notes: string | null;
     created_at: string;
+    started_at: string | null;
+    ended_at: string | null;
+    actual_duration_min: number | null;
+    duration_tag: "under" | "within" | "over" | null;
     student: { full_name: string | null } | null;
     client: { full_name: string | null } | null;
     service_photos: Array<{
@@ -54,6 +62,10 @@ interface HistoryResponse {
       category_id: string;
       notes: string | null;
       created_at: string;
+      started_at: string | null;
+      ended_at: string | null;
+      actual_duration_min: number | null;
+      duration_tag: "under" | "within" | "over" | null;
       student: { full_name: string | null } | null;
       service_photos: Array<{
         id: string;
@@ -62,6 +74,60 @@ interface HistoryResponse {
       }>;
     };
   }>;
+}
+
+function durationTagColor(tag: VerificationItem["durationTag"]): string {
+  if (tag === "over") return "bg-red-100 text-red-700";
+  if (tag === "under") return "bg-amber-100 text-amber-700";
+  if (tag === "within") return "bg-emerald-100 text-emerald-700";
+  return "bg-k-gray-100 text-k-gray-500";
+}
+
+function formatDurationMin(min: number | null): string {
+  if (min === null) return "—";
+  const hours = Math.floor(min / 60);
+  const mins = min % 60;
+  if (hours === 0) return `${mins}m`;
+  return `${hours}h ${mins}m`;
+}
+
+function formatTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function renderTiming(item: VerificationItem) {
+  if (!item.startedAt && item.actualDurationMin === null) return null;
+
+  return (
+    <div className="mb-4 rounded-2xl border border-k-gray-200 bg-k-white px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
+            Timing
+          </p>
+          <p className="mt-1 text-sm text-k-gray-600">
+            {formatTime(item.startedAt)} &ndash; {formatTime(item.endedAt)}
+            {item.actualDurationMin !== null && (
+              <span className="ml-2 text-k-gray-400">
+                ({formatDurationMin(item.actualDurationMin)})
+              </span>
+            )}
+          </p>
+        </div>
+        {item.durationTag && (
+          <span
+            className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-medium uppercase tracking-[0.1em] ${durationTagColor(item.durationTag)}`}
+          >
+            {item.durationTag}
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function renderPhotos(photos: VerificationItem["photos"]) {
@@ -151,6 +217,10 @@ export default function VerifyPage() {
             statusColor: statusColor("Awaiting Review"),
             notes: item.notes,
             photos: item.service_photos ?? [],
+            startedAt: item.started_at,
+            endedAt: item.ended_at,
+            actualDurationMin: item.actual_duration_min,
+            durationTag: item.duration_tag,
           }),
         );
 
@@ -169,6 +239,10 @@ export default function VerifyPage() {
               statusColor: statusColor(label),
               notes: item.service.notes ?? null,
               photos: item.service.service_photos ?? [],
+              startedAt: item.service.started_at,
+              endedAt: item.service.ended_at,
+              actualDurationMin: item.service.actual_duration_min,
+              durationTag: item.service.duration_tag,
             };
           },
         );
@@ -392,6 +466,8 @@ export default function VerifyPage() {
                   </div>
                 </div>
               </div>
+
+              {renderTiming(item)}
 
               {renderPhotos(item.photos)}
 
