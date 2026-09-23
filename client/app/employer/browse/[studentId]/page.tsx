@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import { VerifiedHours, formatHours, untimedNote } from "@/lib/hours";
 
 interface Photo {
   id: string;
@@ -52,6 +53,7 @@ interface PortfolioResponse {
   student: StudentProfile | null;
   portfolio: PortfolioService[];
   skills: SkillSummaryRow[];
+  hours: VerifiedHours;
 }
 
 interface ShortlistResponse {
@@ -170,6 +172,11 @@ export default function EmployerStudentPortfolioPage() {
   const [student, setStudent] = useState<StudentProfile | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioService[]>([]);
   const [skills, setSkills] = useState<SkillSummaryRow[]>([]);
+  const [hours, setHours] = useState<VerifiedHours>({
+    verified_minutes: 0,
+    timed_services: 0,
+    untimed_services: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState("All");
@@ -194,6 +201,7 @@ export default function EmployerStudentPortfolioPage() {
         setStudent(portfolioResult.value.student);
         setPortfolio(portfolioResult.value.portfolio ?? []);
         setSkills(portfolioResult.value.skills ?? []);
+        if (portfolioResult.value.hours) setHours(portfolioResult.value.hours);
 
         if (shortlistResult.status === "fulfilled") {
           setShortlisted(
@@ -332,12 +340,23 @@ export default function EmployerStudentPortfolioPage() {
       )}
 
       {/* Stats */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
           <p className="font-serif text-2xl text-k-primary">
             {portfolio.length}
           </p>
           <p className="mt-1 text-xs text-k-gray-400">Verified services</p>
+        </div>
+        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
+          <p className="font-serif text-2xl text-k-black">
+            {formatHours(hours.verified_minutes)}
+          </p>
+          <p className="mt-1 text-xs text-k-gray-400">Verified hours</p>
+          {untimedNote(hours.untimed_services) && (
+            <p className="mt-0.5 text-[10px] text-k-gray-400">
+              {untimedNote(hours.untimed_services)}
+            </p>
+          )}
         </div>
         <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
           <p className="font-serif text-2xl text-k-black">

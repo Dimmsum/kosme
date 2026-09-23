@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Clock, CheckCircle2, ClipboardList, RotateCcw } from "lucide-react";
 import { apiGet } from "@/lib/api";
+import { formatHours } from "@/lib/hours";
 import AdminHeader from "@/components/admin/AdminHeader";
 import { LoadingCard, EmptyCard, ErrorBanner } from "@/components/admin/DataStates";
 
@@ -50,11 +51,6 @@ const TAGS: { key: Tag; label: string; fill: string }[] = [
 
 function errMsg(e: unknown, fallback: string) {
   return e instanceof Error ? e.message : fallback;
-}
-
-function hours(minutes: number) {
-  const h = minutes / 60;
-  return h === 0 ? "0" : h < 10 ? h.toFixed(1) : Math.round(h).toLocaleString();
 }
 
 function weekLabel(isoDate: string) {
@@ -125,7 +121,7 @@ function HeadlineTiles({ data }: { data: Reports }) {
   const tiles = [
     {
       label: "Verified hours",
-      value: hours(data.totals.verified_minutes),
+      value: formatHours(data.totals.verified_minutes),
       note:
         data.totals.untimed_verified > 0
           ? `${data.totals.untimed_verified} verified service${data.totals.untimed_verified === 1 ? "" : "s"} untimed`
@@ -342,7 +338,7 @@ function CohortTable({ cohorts }: { cohorts: CohortRow[] }) {
                             style={{ width: c.verified_minutes ? `${Math.max(2, (c.verified_minutes / maxMinutes) * 100)}%` : 0 }}
                           />
                         </div>
-                        <span className="w-12 text-right font-medium text-k-black">{hours(c.verified_minutes)}</span>
+                        <span className="w-12 text-right font-medium text-k-black">{formatHours(c.verified_minutes)}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3 text-right text-k-gray-600">{c.verified_services}</td>

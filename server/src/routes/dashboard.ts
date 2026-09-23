@@ -1,6 +1,8 @@
 import { Router, Response } from "express";
 import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest } from "../middleware/auth";
+import { summariseVerifiedHours } from "../lib/verified-hours";
+import { educatorStudentScope } from "../lib/educator-scope";
 
 const router = Router();
 
@@ -14,7 +16,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // Count services by status
       const { data: services } = await supabaseAdmin
         .from("services")
-        .select("id, status, category_id")
+        .select("id, status, category_id, service_type_id, actual_duration_min, adjusted_duration_min")
         .eq("student_id", userId);
 
       const all = services ?? [];
@@ -28,6 +30,29 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         byCategory[s.category_id] = (byCategory[s.category_id] ?? 0) + 1;
       }
 
+      // POR-6: progress toward the per-type practical requirements set in the
+      // admin Service Catalog. Types with no requirement (both 0, the seeded
+      // default) are left out.
+      const { data: requiredTypes } = await supabaseAdmin
+        .from("service_types")
+        .select("id, category_id, name, required_practical_hours, required_practical_count")
+        .or("required_practical_hours.gt.0,required_practical_count.gt.0")
+        .order("category_id")
+        .order("name");
+
+      const requirements = (requiredTypes ?? []).map((t) => {
+        const done = verified.filter((s) => s.service_type_id === t.id);
+        return {
+          service_type_id: t.id,
+          name: t.name,
+          category_id: t.category_id,
+          required_hours: t.required_practical_hours,
+          required_count: t.required_practical_count,
+          verified_count: done.length,
+          ...summariseVerifiedHours(done),
+        };
+      });
+
       return res.json({
         role,
         stats: {
@@ -36,6 +61,8 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           awaiting_educator: awaiting_educator.length,
           awaiting_client: awaiting_client.length,
           by_category: byCategory,
+          hours: summariseVerifiedHours(verified),
+          requirements,
         },
       });
     }
@@ -44,11 +71,17 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // Demo educators only ever see demo services, and real educators never
       // see demo services — keeps the public demo login from exposing real
       // student submissions (or polluting real educators' queues with demo noise).
-      const { count: pending } = await supabaseAdmin
+      // The pending count also follows cohort scoping (EDU-1) so it matches
+      // GET /api/verifications/pending. The verified counts below are the
+      // educator's own decisions, so they need no scoping.
+      const scope = await educatorStudentScope(userId);
+      let pendingQuery = supabaseAdmin
         .from("services")
         .select("*", { count: "exact", head: true })
         .eq("status", "awaiting_educator")
         .eq("is_demo", req.isDemo ?? false);
+      if (scope) pendingQuery = pendingQuery.in("student_id", scope);
+      const { count: pending } = await pendingQuery;
 
       const { count: totalVerified } = await supabaseAdmin
         .from("verifications")

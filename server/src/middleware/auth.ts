@@ -6,6 +6,9 @@ export interface AuthRequest extends Request {
   userId?: string;
   userRole?: string;
   isDemo?: boolean;
+  // Set by attachEducatorScope (lib/educator-scope.ts) on educator routes:
+  // null = unrestricted, otherwise the student ids the educator may access.
+  educatorScope?: string[] | null;
 }
 
 export async function requireAuth(

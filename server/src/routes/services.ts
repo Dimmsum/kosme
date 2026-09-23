@@ -5,6 +5,7 @@ import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
 import { isUuid } from "../lib/validation";
 import { logEvent } from "../lib/events";
+import { educatorStudentScope, inEducatorScope } from "../lib/educator-scope";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -847,6 +848,21 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
 
   if (!demoBoundaryOk || (!isOwner && !isClient && !isPrivileged)) {
     return res.status(403).json({ error: "Forbidden" });
+  }
+
+  // Cohort scoping (EDU-1): an assigned educator can't open a service whose
+  // student is outside their cohorts.
+  if (req.userRole === "educator") {
+    let scope: string[] | null;
+    try {
+      scope = await educatorStudentScope(req.userId!);
+    } catch (err) {
+      console.error("educator scope lookup error:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+    if (!inEducatorScope(scope, (student as { id: string } | null)?.id)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
   }
 
   // Portfolio photo consent (POR-2). consent_records has no FK to services,

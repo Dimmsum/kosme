@@ -1,8 +1,15 @@
 import { Router, Response } from "express";
 import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
+import { attachEducatorScope, inEducatorScope } from "../lib/educator-scope";
 
 const router = Router();
+
+// Cohort scoping (EDU-1): an educator with cohort assignments only sees and
+// acts on students in those cohorts. Every route below applies
+// req.educatorScope except GET /history, which is already limited to the
+// educator's own decisions. null means unassigned, so unrestricted.
+router.use(attachEducatorScope);
 
 // GET /api/verifications/students — list all students with service stats (educator only)
 router.get(
@@ -11,7 +18,7 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     // A demo educator only browses demo students; a real educator never sees
     // demo students mixed into their real roster.
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("user_profiles")
       .select(
         `
@@ -23,6 +30,9 @@ router.get(
       .eq("role", "student")
       .eq("is_demo", req.isDemo ?? false)
       .order("full_name");
+    if (req.educatorScope) query = query.in("id", req.educatorScope);
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("DB error:", error);
@@ -61,6 +71,10 @@ router.get(
   requireRole("educator"),
   async (req: AuthRequest, res: Response) => {
     const { studentId } = req.params;
+
+    if (!inEducatorScope(req.educatorScope, studentId)) {
+      return res.status(404).json({ error: "Student not found" });
+    }
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("user_profiles")
@@ -101,7 +115,7 @@ router.get(
   "/pending",
   requireRole("educator"),
   async (req: AuthRequest, res: Response) => {
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("services")
       .select(
         `
@@ -116,7 +130,9 @@ router.get(
       .eq("status", "awaiting_educator")
       .eq("is_demo", req.isDemo ?? false)
       .order("created_at", { ascending: false });
+    if (req.educatorScope) query = query.in("student_id", req.educatorScope);
 
+    const { data, error } = await query;
     if (error) {
       console.error("DB error:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -181,15 +197,16 @@ router.post(
 
     // Every educator action scopes its service lookup by is_demo, same as the
     // reads above: the demo educator is publicly reachable, so a real
-    // service's id must 404 for it rather than be actionable.
+    // service's id must 404 for it rather than be actionable. A service whose
+    // student is outside the educator's cohorts (EDU-1) 404s the same way.
     const { data: service, error: svcErr } = await supabaseAdmin
       .from("services")
-      .select("id, status")
+      .select("id, status, student_id")
       .eq("id", serviceId)
       .eq("is_demo", req.isDemo ?? false)
       .single();
 
-    if (svcErr || !service) {
+    if (svcErr || !service || !inEducatorScope(req.educatorScope, service.student_id)) {
       return res.status(404).json({ error: "Service not found" });
     }
     if (service.status !== "awaiting_educator") {
@@ -244,12 +261,12 @@ router.post(
 
     const { data: service, error: svcErr } = await supabaseAdmin
       .from("services")
-      .select("id, status")
+      .select("id, status, student_id")
       .eq("id", serviceId)
       .eq("is_demo", req.isDemo ?? false)
       .single();
 
-    if (svcErr || !service) {
+    if (svcErr || !service || !inEducatorScope(req.educatorScope, service.student_id)) {
       return res.status(404).json({ error: "Service not found" });
     }
     if (service.status !== "awaiting_educator") {
@@ -313,12 +330,12 @@ router.post(
 
     const { data: service, error: svcErr } = await supabaseAdmin
       .from("services")
-      .select("id, status")
+      .select("id, status, student_id")
       .eq("id", serviceId)
       .eq("is_demo", req.isDemo ?? false)
       .single();
 
-    if (svcErr || !service) {
+    if (svcErr || !service || !inEducatorScope(req.educatorScope, service.student_id)) {
       return res.status(404).json({ error: "Service not found" });
     }
     if (service.status !== "awaiting_educator") {
@@ -379,12 +396,12 @@ router.post(
 
     const { data: service, error: svcErr } = await supabaseAdmin
       .from("services")
-      .select("id")
+      .select("id, student_id")
       .eq("id", serviceId)
       .eq("is_demo", req.isDemo ?? false)
       .single();
 
-    if (svcErr || !service) {
+    if (svcErr || !service || !inEducatorScope(req.educatorScope, service.student_id)) {
       return res.status(404).json({ error: "Service not found" });
     }
 

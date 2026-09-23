@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
+import { TimedRow, summariseVerifiedHours } from "../lib/verified-hours";
 
 const router = Router();
 
@@ -81,6 +82,13 @@ function summariseSkills(rows: SkillSourceRow[]): SkillSummary {
     .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
 }
 
+// POR-6: the duration columns are selected only to total the student's
+// verified hours, then dropped from each row so viewers (employers included)
+// don't see logged-vs-educator-adjusted minutes per service.
+function withoutDurations<T extends TimedRow>(rows: T[]): Array<Omit<T, keyof TimedRow>> {
+  return rows.map(({ actual_duration_min, adjusted_duration_min, ...rest }) => rest);
+}
+
 // GET /api/portfolio — student's own verified services
 router.get(
   "/",
@@ -90,7 +98,7 @@ router.get(
       .from("services")
       .select(
         `
-      id, name, category_id, created_at,
+      id, name, category_id, created_at, actual_duration_min, adjusted_duration_min,
       service_type:service_type_id ( name ),
       service_photos ( id, type, url ),
       verifications ( id, educator_id, created_at, educator:educator_id ( full_name ) )
@@ -106,8 +114,9 @@ router.get(
     }
 
     return res.json({
-      portfolio: await withConsentGating(data ?? []),
+      portfolio: await withConsentGating(withoutDurations(data ?? [])),
       skills: summariseSkills(data ?? []),
+      hours: summariseVerifiedHours(data ?? []),
     });
   },
 );
@@ -335,7 +344,7 @@ router.get("/:studentId", async (req: AuthRequest, res: Response) => {
     .from("services")
     .select(
       `
-      id, name, category_id, created_at,
+      id, name, category_id, created_at, actual_duration_min, adjusted_duration_min,
       service_type:service_type_id ( name ),
       service_photos ( id, type, url ),
       verifications ( id, created_at, educator:educator_id ( full_name ) )
@@ -352,8 +361,9 @@ router.get("/:studentId", async (req: AuthRequest, res: Response) => {
 
   return res.json({
     student: profile,
-    portfolio: await withConsentGating(data ?? []),
+    portfolio: await withConsentGating(withoutDurations(data ?? [])),
     skills: summariseSkills(data ?? []),
+    hours: summariseVerifiedHours(data ?? []),
   });
 });
 

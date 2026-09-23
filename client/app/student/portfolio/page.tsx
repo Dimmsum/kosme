@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
+import { VerifiedHours, formatHours, untimedNote } from "@/lib/hours";
 
 type PortfolioApiRow = {
   id: string;
@@ -43,6 +44,7 @@ type SkillSummaryRow = {
 type PortfolioApiResponse = {
   portfolio: PortfolioApiRow[];
   skills: SkillSummaryRow[];
+  hours: VerifiedHours;
 };
 
 type KaiAssistResponse = { available: boolean; message: string };
@@ -62,6 +64,11 @@ type PortfolioItem = {
 export default function PortfolioPage() {
   const [verifiedServices, setVerifiedServices] = useState<PortfolioItem[]>([]);
   const [skills, setSkills] = useState<SkillSummaryRow[]>([]);
+  const [hours, setHours] = useState<VerifiedHours>({
+    verified_minutes: 0,
+    timed_services: 0,
+    untimed_services: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState("All");
@@ -103,6 +110,7 @@ export default function PortfolioPage() {
 
         setVerifiedServices(mapped);
         setSkills(data.skills ?? []);
+        if (data.hours) setHours(data.hours);
         setError(null);
       } catch (err) {
         if (!mounted) return;
@@ -223,12 +231,23 @@ export default function PortfolioPage() {
       </div>
 
       {/* Portfolio stats */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
           <p className="font-serif text-2xl text-k-primary">
             {verifiedServices.length}
           </p>
           <p className="text-xs text-k-gray-400 mt-1">Verified</p>
+        </div>
+        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
+          <p className="font-serif text-2xl text-k-black">
+            {formatHours(hours.verified_minutes)}
+          </p>
+          <p className="mt-1 text-xs text-k-gray-400">Verified hours</p>
+          {untimedNote(hours.untimed_services) && (
+            <p className="mt-0.5 text-[10px] text-k-gray-400">
+              {untimedNote(hours.untimed_services)}
+            </p>
+          )}
         </div>
         <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
           <p className="font-serif text-2xl text-k-black">

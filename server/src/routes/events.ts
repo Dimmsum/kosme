@@ -2,10 +2,15 @@ import { Router, Response } from "express";
 import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
 import { isUuid } from "../lib/validation";
+import { attachEducatorScope } from "../lib/educator-scope";
 
 // Mounted at /api/events. Priority-tier rows drive the educator alert bell
 // (ALT-3); the activity feed (ALT-2) is a separate endpoint on this router.
 const router = Router();
+
+// Cohort scoping (EDU-1): an assigned educator only sees, and can only
+// acknowledge, events for students in their cohorts.
+router.use(attachEducatorScope);
 
 const SELECT =
   "id, tier, event_type, student_id, service_id, message, acknowledged_at, acknowledged_by, created_at, student:student_id ( id, full_name ), service:service_id ( id, name )";
@@ -19,14 +24,16 @@ router.get(
   "/activity",
   requireRole("educator"),
   async (req: AuthRequest, res: Response) => {
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("events")
       .select(SELECT)
       .eq("tier", "activity")
       .eq("is_demo", req.isDemo ?? false)
       .order("created_at", { ascending: false })
       .limit(ACTIVITY_FEED_LIMIT);
+    if (req.educatorScope) query = query.in("student_id", req.educatorScope);
 
+    const { data, error } = await query;
     if (error) {
       console.error("events GET /activity error:", error);
       return res.status(500).json({ error: "Failed to load activity feed" });
@@ -52,6 +59,7 @@ router.get(
     if (req.query.unacknowledged === "true") {
       query = query.is("acknowledged_at", null);
     }
+    if (req.educatorScope) query = query.in("student_id", req.educatorScope);
 
     const { data, error } = await query;
     if (error) {
@@ -72,14 +80,15 @@ router.post(
       return res.status(400).json({ error: "Invalid event id" });
     }
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("events")
       .update({ acknowledged_at: new Date().toISOString(), acknowledged_by: req.userId })
       .eq("id", req.params.id)
       .eq("tier", "priority")
-      .eq("is_demo", req.isDemo ?? false)
-      .select(SELECT)
-      .single();
+      .eq("is_demo", req.isDemo ?? false);
+    if (req.educatorScope) query = query.in("student_id", req.educatorScope);
+
+    const { data, error } = await query.select(SELECT).single();
 
     if (error || !data) {
       return res.status(error ? 500 : 404).json({ error: error ? "Failed to acknowledge alert" : "Alert not found" });

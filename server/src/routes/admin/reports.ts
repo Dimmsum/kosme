@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { supabaseAdmin } from "../../lib/supabase";
 import { AuthRequest } from "../../middleware/auth";
+import { verifiedMinutes } from "../../lib/verified-hours";
 
 // Mounted at /api/admin/reports (super_admin only). Read-only MVP aggregates for
 // the Reports & Analytics module (RPT-1): verified hours per cohort, pipeline /
@@ -120,7 +121,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       if (s.status in pipeline) pipeline[s.status as keyof typeof pipeline] += 1;
 
       if (s.status === "verified") {
-        const minutes = s.adjusted_duration_min ?? s.actual_duration_min;
+        const minutes = verifiedMinutes(s);
         totals.verified_services += 1;
         if (minutes == null) totals.untimed_verified += 1;
         else totals.verified_minutes += minutes;

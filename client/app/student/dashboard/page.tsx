@@ -6,6 +6,7 @@ import { ArrowRight, Plus, Camera, Clock, CheckCircle2, AlertCircle } from "luci
 import { useAuth } from "@/lib/auth-context";
 import { apiGet } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { VerifiedHours, formatHours, untimedNote } from "@/lib/hours";
 
 type ServiceStatus = "awaiting_client" | "awaiting_educator" | "verified" | "rejected";
 
@@ -24,6 +25,19 @@ interface DashboardStats {
   awaiting_educator: number;
   awaiting_client: number;
   by_category: Record<string, number>;
+  hours: VerifiedHours;
+  requirements: Requirement[];
+}
+
+// POR-6: progress toward a service type's required practical hours/count, as
+// set in the admin Service Catalog. Only types with a requirement are sent.
+interface Requirement extends VerifiedHours {
+  service_type_id: string;
+  name: string;
+  category_id: string;
+  required_hours: number;
+  required_count: number;
+  verified_count: number;
 }
 
 interface Profile {
@@ -113,6 +127,9 @@ export default function StudentDashboard() {
     }));
 
   const totalVerified = stats?.verified ?? 0;
+  const hours = stats?.hours ?? { verified_minutes: 0, timed_services: 0, untimed_services: 0 };
+  const hoursNote = untimedNote(hours.untimed_services);
+  const requirements = stats?.requirements ?? [];
   const totalNeeded = categoryTargets.reduce((a, b) => a + b.max_required, 0);
 
   if (loading) {
@@ -149,6 +166,57 @@ export default function StudentDashboard() {
           </div>
           <span className="text-sm font-medium text-k-black">Portfolio</span>
         </Link>
+      </div>
+
+      <div className="mb-8 rounded-3xl border border-k-gray-200 bg-k-white p-6 sm:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-serif text-lg text-k-black">Verified Hours</h2>
+            <p className="text-xs text-k-gray-400 mt-0.5">Practical time signed off by an educator</p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="font-serif text-3xl text-k-primary">
+              {formatHours(hours.verified_minutes)}
+              <span className="ml-1 font-sans text-sm text-k-gray-400">hrs</span>
+            </p>
+            {hoursNote && <p className="mt-0.5 text-xs text-k-gray-400">{hoursNote}</p>}
+          </div>
+        </div>
+
+        {requirements.length > 0 && (
+          <div className="mt-6 flex flex-col gap-4 border-t border-k-gray-200 pt-5">
+            {requirements.map((req) => {
+              // Both targets must be met, so the bar tracks whichever is further behind.
+              const fractions = [
+                req.required_hours > 0 ? req.verified_minutes / (req.required_hours * 60) : null,
+                req.required_count > 0 ? req.verified_count / req.required_count : null,
+              ].filter((f): f is number => f !== null);
+              const progress = Math.min(1, ...fractions);
+              const targets = [
+                req.required_hours > 0 ? `${formatHours(req.verified_minutes)}/${req.required_hours} hrs` : null,
+                req.required_count > 0 ? `${req.verified_count}/${req.required_count} services` : null,
+                req.untimed_services > 0 ? `${req.untimed_services} untimed` : null,
+              ].filter(Boolean);
+              return (
+                <div key={req.service_type_id}>
+                  <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                    <p className="min-w-0 truncate text-sm font-medium text-k-black">
+                      {req.name}
+                      <span className="ml-1.5 text-xs font-normal text-k-gray-400">{req.category_id}</span>
+                    </p>
+                    <p className="shrink-0 text-xs text-k-gray-400">{targets.join(" · ")}</p>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-k-gray-100">
+                    <div
+                      className={`h-full rounded-full ${progress >= 1 ? "bg-emerald-500" : "bg-k-primary"}`}
+                      style={{ width: `${progress * 100}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="mb-8 rounded-3xl border border-k-gray-200 bg-k-white p-6 sm:p-8">
