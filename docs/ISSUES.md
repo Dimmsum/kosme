@@ -770,9 +770,9 @@ Extends `server/src/routes/client-signup.ts`, `server/src/routes/volunteer-reque
     and the admin contacts both parties outside the platform. There's no
     notification, and no link from a match to the `services` it produces
     (`services.client_id` points at a client user account, which a
-    signup doesn't have). Migration `0025` must be applied live before
-    deploying (see **OPS-1**). Until then, `GET /signups` fails because
-    it embeds the new table.
+    signup doesn't have). `GET /signups` embeds the new table, so it
+    needs migration `0025` applied live. Confirmed applied 2026-09-23
+    (see **OPS-1**).
 
 ---
 
@@ -1027,9 +1027,10 @@ Replaces the stub at `client/app/admin/reports/page.tsx`.
     everything already built, not just new work.
   - **Files:** `supabase/migrations/*`.
   - **Done:** Confirmed 2026-09-22 that every migration through
-    `0024_educator_decisions.sql` is applied to the live project. Any
-    migration added after `0024` still has to be applied live as part of the
-    issue that adds it.
+    `0024_educator_decisions.sql` is applied to the live project.
+    Re-confirmed 2026-09-23 through `0025_client_matches.sql` (**CON-2**),
+    which is the latest migration. Any migration added after `0025` still
+    has to be applied live as part of the issue that adds it.
 
 - [x] **OPS-2** — Run seed scripts against the live environment
   - **Depends on:** OPS-1
