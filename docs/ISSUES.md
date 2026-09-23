@@ -398,7 +398,7 @@ VER-14 needs a product decision first.
     because it is already scoped to `educator_id = req.userId`. No schema or
     client changes.
 
-- [ ] **VER-14** — Evidence checklist for services with no client
+- [x] **VER-14** — Evidence checklist for services with no client
   - **Depends on:** a product decision
   - Services with no client go straight to `awaiting_educator` on
     `POST /` or `POST /:id/stop`, skipping VER-5's photo and reflection
@@ -414,6 +414,19 @@ VER-14 needs a product decision first.
     `server/src/routes/services.ts`,
     `client/app/student/services/[id]/page.tsx`, plus a migration for
     option A.
+  - **Done:** **Decision: option B.** No-client services still go straight
+    to `awaiting_educator` without the VER-5 checklist. Missing evidence is
+    left for the educator to judge. **VER-11** already makes it visible on
+    every item in `client/app/educator/verify/page.tsx`: the photo count
+    chip reads "0 photos", the Reflection card says "No reflection
+    written.", and the Client Confirmation card says "No client". The
+    educator can then use **VER-8**'s Request Corrections to ask for what's
+    missing. Students can add photos (**VER-10**, open at every status
+    except `verified` per **VER-12**) and a reflection (`PATCH /:id`)
+    while the service waits, then `POST /:id/resubmit`. Evidence is
+    therefore required for services with a client and educator-judged for
+    those without. Option A is still available if that changes. No code or
+    schema changes.
 
 ---
 
@@ -645,7 +658,7 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
     Before, a shared link pointed at any user id returned that user's name
     and institution, even for an educator or employer.
 
-- [ ] **POR-6** — Show verified hours to students and employers
+- [x] **POR-6** — Show verified hours to students and employers
   - **Depends on:** a product decision on whether this is MVP (from the
     2026-09-22 MVP audit)
   - MVP item 7 ("Verified hours") is only met in admin reports (RPT-1).
@@ -666,6 +679,37 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
     `client/app/student/dashboard/page.tsx`,
     `client/app/student/portfolio/page.tsx`,
     `client/app/employer/browse/[studentId]/page.tsx`.
+  - **Done:** Built as MVP, which settles the product decision. RPT-1's
+    rule now lives in one place, new `server/src/lib/verified-hours.ts`:
+    `verifiedMinutes()` (`adjusted_duration_min ?? actual_duration_min`) and
+    `summariseVerifiedHours()` → `{ verified_minutes, timed_services,
+    untimed_services }`. `admin/reports.ts` now calls `verifiedMinutes()`
+    instead of inlining the rule. Changes by file:
+    - `server/src/routes/dashboard.ts`: the student branch returns
+      `stats.hours` and `stats.requirements`. `requirements` lists every
+      `service_type` with `required_practical_hours` or
+      `required_practical_count` above 0, with the student's verified count
+      and hours for that type. Types left at the seeded 0/0 are omitted.
+    - `server/src/routes/portfolio.ts`: `GET /` and `GET /:studentId`
+      return `hours`. The duration columns are selected only to compute the
+      total and are dropped from each row by `withoutDurations()`, so
+      employers don't see logged-vs-adjusted minutes per service.
+    - `client/lib/hours.ts` (new): `formatHours()`, moved out of the admin
+      reports page, which now imports it, plus `untimedNote()`.
+    - `client/app/student/dashboard/page.tsx`: new "Verified Hours" card
+      above My Progress with the total and an "+ N untimed services" note.
+      Below that is one progress bar per required type, showing e.g.
+      "3.5/10 hrs · 4/6 services". When a type has both targets, the bar
+      tracks whichever is further behind, and it turns emerald when both
+      are met.
+    - `client/app/student/portfolio/page.tsx` and
+      `client/app/employer/browse/[studentId]/page.tsx`: a fourth "Verified
+      hours" stat tile (grid is now `sm:grid-cols-4`) with the same untimed
+      note.
+
+    Untimed verified services are never counted as 0 hours. No schema
+    changes. Until an admin sets requirements in `/admin/service-catalog`,
+    the dashboard card shows only the total.
 
 ---
 
@@ -911,7 +955,7 @@ Replaces the stub at `client/app/admin/reports/page.tsx`.
 
 ## Educator access (EDU)
 
-- [ ] **EDU-1** — Limit educators to the students in their assigned cohorts
+- [x] **EDU-1** — Limit educators to the students in their assigned cohorts
   - **Depends on:** a product decision on whether this is MVP (from the
     2026-09-22 MVP audit)
   - `educator_assignments` (FND-4) is managed in `/admin/educators`, and
@@ -928,6 +972,49 @@ Replaces the stub at `client/app/admin/reports/page.tsx`.
   - **Files:** `server/src/routes/verifications.ts`,
     `server/src/routes/events.ts`, `server/src/routes/dashboard.ts`, likely a
     new `server/src/lib/` helper.
+  - **Done:** Built as MVP. **Decision: an educator with no assignments
+    sees everyone, as before.** Scoping starts once an admin assigns them a
+    cohort in `/admin/educators`. When this shipped, the live project had
+    0 cohorts and 0 assignments. The strict rule would have emptied every
+    educator's queue on deploy and hidden every unplaced student. The demo
+    educator is never assigned, so the demo is unaffected. The catch:
+    removing an educator's last assignment makes every student visible to
+    them again.
+    New `server/src/lib/educator-scope.ts`:
+    - `educatorStudentScope()` returns `null` (unrestricted) or the student
+      ids in the educator's cohorts (`educator_assignments.cohort_id` →
+      `user_profiles.cohort_id`). The list can be empty, and `.in(col, [])`
+      then matches nothing. It is read fresh on every request, like the
+      role in `requireAuth`, and throws on a DB error so callers fail
+      closed.
+    - `inEducatorScope()` checks a single student id against the scope.
+    - `attachEducatorScope` is router middleware that stores the scope on
+      the new `AuthRequest.educatorScope` field
+      (`server/src/middleware/auth.ts`). It is mounted with `router.use` on
+      `verifications.ts` and `events.ts`.
+
+    Where it applies:
+    - `server/src/routes/verifications.ts`: `GET /students` and
+      `GET /pending` filter by the scope. `GET /students/:studentId` returns
+      404 for a student outside it. `POST /:serviceId/verify`, `/reject`,
+      `/request-corrections` and `/flag` now select `student_id` and return
+      the existing 404 "Service not found" when the student is out of
+      scope, the same as a demo mismatch (VER-13).
+    - `server/src/routes/events.ts`: `GET /activity`, `GET /priority` (so
+      also the bell badge count) and `POST /:id/acknowledge` filter on
+      `student_id`.
+    - `server/src/routes/dashboard.ts`: the educator's
+      `pending_verifications` count is scoped to match `GET /pending`.
+    - `server/src/routes/services.ts`: `GET /:id` returns 403 to an
+      educator for a service outside their scope. It wasn't in this
+      issue's Files list, but without it an educator could open any
+      service's evidence by id.
+
+    Left unscoped: `GET /history` and the educator's own
+    `total_verified`/`verified_this_week` counts, because those are that
+    educator's own past decisions. `GET /api/portfolio/:studentId` is also
+    unscoped, because every employer can already see verified portfolios.
+    No schema or client changes.
 
 ---
 
@@ -985,7 +1072,8 @@ rather than a separate backend pass and frontend pass.
     server guards, no deps) → **VER-10** (after VER-12 settles which
     statuses allow uploads), **VER-11** (no deps). Then product decisions
     on **VER-14**, **POR-6** and **EDU-1**. Build VER-14 option B only
-    after VER-11.
+    after VER-11. All done: VER-14 went with option B, and POR-6 and
+    EDU-1 were both built as MVP.
 
 **Explicitly post-MVP:** real KAI model integration, automated student-client
 matching (KAI-5's eventual "KAI Match"), deep analytics beyond RPT-1's basic
