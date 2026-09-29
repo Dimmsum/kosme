@@ -14,12 +14,14 @@ import { supabaseAdmin } from "../lib/supabase";
 //
 // Idempotent: re-running with the same email updates the role/name rather
 // than creating a duplicate. The password is only used the first time the
-// Clerk user is created; re-running does not change an existing password.
+// Clerk user is created; re-running does not change an existing password
+// unless SUPER_ADMIN_RESET_PASSWORD=true is also set.
 
 async function main() {
   const email = process.env.SUPER_ADMIN_EMAIL;
   const password = process.env.SUPER_ADMIN_PASSWORD;
   const fullName = process.env.SUPER_ADMIN_NAME ?? "Super Admin";
+  const resetPassword = process.env.SUPER_ADMIN_RESET_PASSWORD === "true";
 
   if (!email || !password) {
     console.error("Set SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD env vars before running this script.");
@@ -47,6 +49,15 @@ async function main() {
       publicMetadata: { role: "super_admin" },
     });
     console.log(`Reusing existing Clerk user: ${clerkUser.id}`);
+
+    if (resetPassword) {
+      await clerkClient.users.updateUser(clerkUser.id, {
+        password,
+        skipPasswordChecks: true,
+        signOutOfOtherSessions: true,
+      });
+      console.log("Password reset; other sessions signed out.");
+    }
   }
 
   const { error } = await supabaseAdmin

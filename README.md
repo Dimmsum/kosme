@@ -117,6 +117,31 @@ This creates one real Clerk user per demo role (`demo-student@kosme.app`,
 marks their `user_profiles` row `is_demo = true`, and records the mapping in
 `public.demo_accounts`. Safe to re-run — it upserts rather than duplicating.
 
+## Test accounts
+
+For manual testing there's one password-login account per role, with seeded
+data (services in every status, a verified portfolio, a pending confirmation,
+an educator review queue, a shortlist, an open flag):
+
+```bash
+cd server
+npm run seed:test
+```
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Student | `test-student@kosme.app` | `kosme-student` |
+| Educator | `test-educator@kosme.app` | `kosme-educator` |
+| Client | `test-client@kosme.app` | `kosme-client` |
+| Employer | `test-employer@kosme.app` | `kosme-employer` |
+| Super Admin | `test-admin@kosme.app` | `kosme-admin` |
+
+Log in at `/login`. These are `is_demo = false` accounts in a dedicated
+"Kosmè Test Academy" institution. Because the passwords are simple, the script
+refuses to run against a live Clerk instance (`sk_live_` key) unless
+`ALLOW_LIVE_SEED=true`. Re-running resets the passwords and rebuilds the test
+student's services from scratch.
+
 ## Super Admin
 
 The Super Admin dashboard lives at **/admin** (redirects to `/admin/dashboard`)

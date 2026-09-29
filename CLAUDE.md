@@ -36,7 +36,8 @@ Inside `server/`: `npm start` (run compiled `dist/index.js` after `npm run build
 One-off scripts (from `server/`, need env vars set — see `server/.env.example`):
 ```bash
 npm run seed:demo          # creates the 4 seeded demo accounts (idempotent upsert)
-npm run seed:super-admin   # SUPER_ADMIN_EMAIL/PASSWORD/NAME env vars — only way to provision super_admin
+npm run seed:super-admin   # SUPER_ADMIN_EMAIL/PASSWORD/NAME env vars — provisions a real super_admin
+npm run seed:test          # 5 password-login test accounts (one per role incl. super_admin) + seeded data; refuses sk_live_ keys
 ```
 
 There is no test suite configured in this repo (no Jest/Vitest/Playwright) — don't invent test commands.
@@ -64,7 +65,7 @@ Env vars: `server/.env.example` and `client/.env.example` list what's required (
 - `lib/supabase.ts` — the two Supabase clients (anon vs. service-role — service-role is what routes actually use).
 - `lib/audit.ts` — every admin mutation writes an `audit_log` row through this; reuse it for any new admin write rather than inserting into `audit_log` directly.
 - `lib/validation.ts` — shared UUID validation used across admin routes.
-- `scripts/` — the two seed scripts (demo accounts, super admin), the only provisioning paths for those account types.
+- `scripts/` — the seed scripts (demo accounts, super admin, test accounts), the only provisioning paths for those account types.
 
 ### Client structure (`client/app`)
 

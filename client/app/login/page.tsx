@@ -12,6 +12,12 @@ import { useAuth, ROLE_DASHBOARD } from "@/lib/auth-context";
 
 type ForgotStep = "idle" | "send" | "reset";
 
+// Clerk's Client Trust answers a correct password from an unrecognised device
+// with `needs_second_factor` and an emailed code. The installed @clerk/types
+// predates email_code as a second factor, so these params are cast below;
+// clerk-js passes them straight through to Clerk's API.
+type LooseSecondFactor = { strategy: string; emailAddressId?: string; safeIdentifier?: string };
+
 export default function LoginPage() {
   const router = useRouter();
   const { isLoaded, signIn, setActive } = useSignIn();
@@ -25,6 +31,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+
+  // New-device email code (Client Trust) state — set once the password is accepted
+  const [codeEmailId, setCodeEmailId] = useState<string | null>(null);
+  const [codeSentTo, setCodeSentTo] = useState("");
+  const [deviceCode, setDeviceCode] = useState("");
+  const [codeResent, setCodeResent] = useState(false);
 
   // Forgot password flow state
   const [forgotStep, setForgotStep] = useState<ForgotStep>("idle");
@@ -62,6 +74,20 @@ export default function LoginPage() {
         await setActive({ session: result.createdSessionId });
         setRedirecting(true);
         // AuthProvider resolves the role and the useEffect above redirects
+        return;
+      }
+
+      const emailFactor = result.status === "needs_second_factor"
+        ? (result.supportedSecondFactors as unknown as LooseSecondFactor[] | null)?.find(
+            (f) => f.strategy === "email_code" && f.emailAddressId,
+          )
+        : undefined;
+
+      if (emailFactor?.emailAddressId) {
+        await sendDeviceCode(emailFactor.emailAddressId);
+        setCodeEmailId(emailFactor.emailAddressId);
+        setCodeSentTo(emailFactor.safeIdentifier ?? email);
+        setLoading(false);
       } else {
         setError("Sign-in could not be completed. Please try again.");
         setLoading(false);
@@ -80,6 +106,64 @@ export default function LoginPage() {
       setError(clerkErr?.errors?.[0]?.message ?? msg);
       setLoading(false);
     }
+  };
+
+  // ── New-device email code (Client Trust) ─────────────────────────────────
+
+  type PrepareSecondFactor = Parameters<NonNullable<typeof signIn>["prepareSecondFactor"]>[0];
+  type AttemptSecondFactor = Parameters<NonNullable<typeof signIn>["attemptSecondFactor"]>[0];
+
+  const sendDeviceCode = async (emailAddressId: string) => {
+    await signIn!.prepareSecondFactor({
+      strategy: "email_code",
+      emailAddressId,
+    } as unknown as PrepareSecondFactor);
+  };
+
+  const handleDeviceCode = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!deviceCode || !isLoaded) return;
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await signIn.attemptSecondFactor({
+        strategy: "email_code",
+        code: deviceCode,
+      } as unknown as AttemptSecondFactor);
+
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        setRedirecting(true);
+        // AuthProvider resolves the role and the useEffect above redirects
+      } else {
+        setError("Sign-in could not be completed. Please try again.");
+        setLoading(false);
+      }
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: Array<{ message: string }> };
+      setError(clerkErr?.errors?.[0]?.message ?? "That code didn't work. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const handleResendDeviceCode = async () => {
+    if (!codeEmailId || !isLoaded) return;
+    setError("");
+    try {
+      await sendDeviceCode(codeEmailId);
+      setCodeResent(true);
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: Array<{ message: string }> };
+      setError(clerkErr?.errors?.[0]?.message ?? "Failed to resend the code.");
+    }
+  };
+
+  const cancelDeviceCode = () => {
+    setCodeEmailId(null);
+    setDeviceCode("");
+    setCodeResent(false);
+    setError("");
   };
 
   // ── Forgot password: send reset code ─────────────────────────────────────
@@ -296,8 +380,71 @@ export default function LoginPage() {
               </>
             )}
 
+            {/* ── Step: New-device email code ── */}
+            {forgotStep === "idle" && codeEmailId && (
+              <>
+                <h1 className="mb-1.5 font-serif text-3xl font-light tracking-tight3 text-k-black sm:text-4xl">
+                  Check your email
+                </h1>
+                <p className="mb-8 text-sm font-light text-k-gray-600">
+                  You&apos;re signing in on a new device. Enter the code we sent to{" "}
+                  <span className="font-medium text-k-black">{codeSentTo}</span>.
+                </p>
+
+                {error && (
+                  <div className="mb-5 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleDeviceCode} className="flex flex-col gap-4" noValidate>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="device-code" className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600">
+                      Verification code
+                    </label>
+                    <input
+                      id="device-code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      required
+                      autoFocus
+                      placeholder="000000"
+                      value={deviceCode}
+                      onChange={(e) => setDeviceCode(e.target.value.replace(/\D/g, ""))}
+                      className="w-full rounded-full border border-k-gray-200 bg-k-white px-5 py-3.5 text-sm text-k-black placeholder:text-k-gray-400 outline-none transition-all duration-200 focus:border-k-primary focus:shadow-[0_0_0_3px_rgba(59,10,42,0.08)]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading || !deviceCode}
+                    className="mt-1 w-full rounded-full bg-k-primary px-8 py-3.5 text-sm font-medium tracking-wide text-k-white shadow-[0_4px_20px_rgba(59,10,42,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-k-primary-light hover:shadow-[0_8px_28px_rgba(59,10,42,0.28)] disabled:cursor-not-allowed disabled:opacity-50 disabled:translate-y-0 disabled:shadow-none"
+                  >
+                    {redirecting ? "Redirecting…" : loading ? "Verifying…" : "Verify and log in"}
+                  </button>
+                </form>
+
+                <button
+                  type="button"
+                  onClick={handleResendDeviceCode}
+                  disabled={codeResent}
+                  className="mt-6 w-full text-center text-sm font-light text-k-gray-400 transition-colors duration-200 hover:text-k-primary disabled:cursor-default disabled:hover:text-k-gray-400"
+                >
+                  {codeResent ? "Code sent again" : "Resend code"}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelDeviceCode}
+                  className="mt-2 w-full text-center text-sm font-light text-k-gray-400 transition-colors duration-200 hover:text-k-primary"
+                >
+                  ← Back to login
+                </button>
+              </>
+            )}
+
             {/* ── Step: Normal login ── */}
-            {forgotStep === "idle" && (
+            {forgotStep === "idle" && !codeEmailId && (
               <>
                 <h1 className="mb-1.5 font-serif text-3xl font-light tracking-tight3 text-k-black sm:text-4xl">
                   Welcome back
