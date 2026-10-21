@@ -12,6 +12,10 @@ import confirmationsRouter from "./routes/confirmations";
 import verificationsRouter from "./routes/verifications";
 import portfolioRouter from "./routes/portfolio";
 import shortlistRouter from "./routes/shortlist";
+import progressRouter from "./routes/progress";
+import clientProfileRouter from "./routes/client-profile";
+import appointmentsRouter from "./routes/appointments";
+import messagesRouter from "./routes/messages";
 import dashboardRouter from "./routes/dashboard";
 import volunteerRequestsRouter from "./routes/volunteer-requests";
 import adminRouter from "./routes/admin";
@@ -69,7 +73,7 @@ app.use(
 
       return callback(new Error("Not allowed by CORS"));
     },
-    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
@@ -123,13 +127,19 @@ app.use("/api/demo", demoLimiter, demoRouter);
 
 // Protected routes — all require a valid Clerk JWT
 app.use("/api/profile", requireAuth, profileRouter);
-app.use("/api/services/:id/photos", requireAuth, uploadLimiter, servicesRouter);
+// Middleware only: mounting servicesRouter here would strip the path, so
+// POST /:id/photos would reach the create-service handler as POST /.
+app.use("/api/services/:id/photos", uploadLimiter);
 app.use("/api/services", requireAuth, servicesRouter);
 app.use("/api/confirmations", requireAuth, confirmationsRouter);
 app.use("/api/verifications", requireAuth, verificationsRouter);
 app.use("/api/portfolio", requireAuth, portfolioRouter);
 app.use("/api/shortlist", requireAuth, shortlistRouter);
 app.use("/api/dashboard", requireAuth, dashboardRouter);
+app.use("/api/progress", requireAuth, progressRouter);
+app.use("/api/client-profile", requireAuth, clientProfileRouter);
+app.use("/api/appointments", requireAuth, appointmentsRouter);
+app.use("/api/messages", requireAuth, messagesRouter);
 app.use("/api/volunteer-requests", requireAuth, volunteerRequestsRouter);
 app.use("/api/admin", requireAuth, requireRole("super_admin"), adminRouter);
 app.use("/api/kai", requireAuth, kaiRouter);

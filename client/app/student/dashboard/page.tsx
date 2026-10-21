@@ -8,7 +8,13 @@ import { apiGet } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { VerifiedHours, formatHours, untimedNote } from "@/lib/hours";
 
-type ServiceStatus = "awaiting_client" | "awaiting_educator" | "verified" | "rejected";
+type ServiceStatus =
+  | "in_progress"
+  | "awaiting_client"
+  | "awaiting_educator"
+  | "corrections_requested"
+  | "verified"
+  | "rejected";
 
 interface Service {
   id: string;
@@ -55,6 +61,8 @@ const STATUS_CONFIG: Record<ServiceStatus, { label: string; color: string; Icon:
   verified: { label: "Verified", color: "bg-emerald-100 text-emerald-700", Icon: CheckCircle2 },
   awaiting_educator: { label: "Awaiting Educator", color: "bg-blue-100 text-blue-700", Icon: Clock },
   awaiting_client: { label: "Awaiting Client", color: "bg-amber-100 text-amber-700", Icon: AlertCircle },
+  in_progress: { label: "In Progress", color: "bg-k-primary/10 text-k-primary", Icon: Clock },
+  corrections_requested: { label: "Corrections Requested", color: "bg-orange-100 text-orange-700", Icon: AlertCircle },
   rejected: { label: "Rejected", color: "bg-red-100 text-red-700", Icon: AlertCircle },
 };
 
@@ -116,15 +124,12 @@ export default function StudentDashboard() {
   const firstName = profile?.full_name?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "there";
   const byCategory = stats?.by_category ?? {};
   const ringColors = ["#ee0384", "#3B0A2A", "#551840", "#9B9690"];
-  const progressRings = categoryTargets
-    .filter((cat) => byCategory[cat.id] !== undefined || Object.keys(byCategory).length === 0)
-    .slice(0, 4)
-    .map((cat, i) => ({
-      label: cat.id,
-      value: byCategory[cat.id] ?? 0,
-      max: cat.max_required,
-      color: ringColors[i % ringColors.length],
-    }));
+  const progressRings = categoryTargets.map((cat, i) => ({
+    label: cat.id,
+    value: byCategory[cat.id] ?? 0,
+    max: cat.max_required,
+    color: ringColors[i % ringColors.length],
+  }));
 
   const totalVerified = stats?.verified ?? 0;
   const hours = stats?.hours ?? { verified_minutes: 0, timed_services: 0, untimed_services: 0 };
@@ -231,11 +236,26 @@ export default function StudentDashboard() {
         </div>
         <div className="flex flex-wrap items-end justify-around gap-4">
           {progressRings.length > 0 ? (
-            progressRings.map((ring) => <ProgressRing key={ring.label} {...ring} />)
+            progressRings.map((ring) => (
+              <Link
+                key={ring.label}
+                href={`/student/progress#category-${encodeURIComponent(ring.label)}`}
+                aria-label={`${ring.label}: ${ring.value} of ${ring.max} completed. View required practicals`}
+                className="rounded-2xl no-underline transition-opacity hover:opacity-80"
+              >
+                <ProgressRing {...ring} />
+              </Link>
+            ))
           ) : (
             <p className="text-sm text-k-gray-400 py-4">No services logged yet.</p>
           )}
         </div>
+        <Link
+          href="/student/progress"
+          className="mt-6 flex items-center justify-center gap-1 text-xs font-medium text-k-primary no-underline hover:underline"
+        >
+          View all required practicals <ArrowRight size={12} />
+        </Link>
       </div>
 
       <div className="rounded-3xl border border-k-gray-200 bg-k-white p-6 sm:p-8">
@@ -246,6 +266,23 @@ export default function StudentDashboard() {
             View all <ArrowRight size={12} />
           </Link>
         </div>
+
+        {stats && (stats.awaiting_client > 0 || stats.awaiting_educator > 0) && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {stats.awaiting_client > 0 && (
+              <Link href="/student/services?status=awaiting_client"
+                className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 no-underline hover:bg-amber-200">
+                <AlertCircle size={12} /> {stats.awaiting_client} awaiting client
+              </Link>
+            )}
+            {stats.awaiting_educator > 0 && (
+              <Link href="/student/services?status=awaiting_educator"
+                className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 no-underline hover:bg-blue-200">
+                <Clock size={12} /> {stats.awaiting_educator} awaiting educator
+              </Link>
+            )}
+          </div>
+        )}
 
         {recentServices.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">

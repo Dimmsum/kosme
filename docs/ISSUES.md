@@ -428,6 +428,64 @@ VER-14 needs a product decision first.
     those without. Option A is still available if that changes. No code or
     schema changes.
 
+- [x] **VER-15** — Persistent service timer with single-timer guard
+  - **Depends on:** none (builds on **VER-0b**, **VER-6**)
+  - Student feedback: starting a service gave no visible confirmation, and the
+    running timer only showed on the Services page.
+  - **Files:** `supabase/migrations/0026_single_active_timer.sql`,
+    `server/src/routes/services.ts`, `client/lib/timer.ts`,
+    `client/components/student/TimerProvider.tsx`,
+    `client/components/student/ActiveTimerBar.tsx`,
+    `client/app/student/layout.tsx`, `client/app/student/services/page.tsx`.
+  - **Done:** `TimerProvider` (mounted in the student layout) restores the
+    running service from the server's `started_at` via new
+    `GET /api/services/active`, ticks the clock, and owns the toast. Starting
+    a service shows "Timer started — <name> is now being recorded". A sticky
+    `ActiveTimerBar` ("Service in progress — 00:14:37 — <name>" plus Stop
+    Service) shows on every student page except the Services list, which keeps
+    its own card. The VER-6 15-minute checkpoint now fires on any page. The
+    Start button becomes "Timer already running" while a timer runs.
+    Server: `POST /api/services` (`start_now`) and `POST /:id/start` return
+    409 with the active service if another timer is running, and `/:id/start`
+    no longer resets `started_at` on an already-running service. `POST /`
+    now logs `service_started`. Migration `0026` adds a partial unique index
+    (`student_id` where `status = 'in_progress'`) and aborts with a message if
+    any student already has two running services. **Needs `0026` applied
+    live** (see **OPS-1**).
+
+- [x] **VER-16** — Fix photo uploads (and the false "name and category_id are required")
+  - **Depends on:** none (regression from the security hardening that added
+    the upload limiter)
+  - **Files:** `server/src/index.ts`, `server/src/routes/services.ts`,
+    `client/app/student/services/page.tsx`,
+    `client/app/student/services/[id]/page.tsx`.
+  - **Done:** `index.ts` mounted `servicesRouter` on `/api/services/:id/photos`,
+    so Express stripped the path and `POST .../photos` hit the create-service
+    handler with an empty multipart body (400 "name and category_id are
+    required"); the real photo route was unreachable. That mount is now
+    `uploadLimiter` only. `/:id/photos` validates the id as a UUID, and CORS
+    now allows `PUT` (used by `apiPut` for `/:id/consent`). The log form no
+    longer leaves a created service behind a failed upload (it sends the
+    student to the entry instead of inviting a duplicate retry), and the
+    detail page's upload error includes the server's reason.
+
+- [x] **VER-17** — Fix a flagged entry, and "Awaiting client" navigation
+  - **Depends on:** none (builds on **VER-8**)
+  - **Files:** `server/src/routes/services.ts`,
+    `client/app/student/services/[id]/page.tsx`,
+    `client/app/student/services/page.tsx`,
+    `client/app/student/dashboard/page.tsx`.
+  - **Done:** `PATCH /api/services/:id` now also edits `name`, `notes`,
+    `category_id` and `service_type_id` while the entry is
+    `corrections_requested` or `awaiting_client` (type must belong to the
+    category). The detail page gets an "Edit details" form, and the
+    corrections notice now shows (even when no verification row exists) with
+    "How to fix this entry" buttons for details, reflection and photos. The
+    dashboard shows "N awaiting client / educator" chips linking to
+    `/student/services?status=...`, which the Services page reads as its
+    initial filter; the dashboard also now labels `in_progress` and
+    `corrections_requested` correctly instead of "Rejected".
+
 ---
 
 ## Timing & Educator Alerts (ALT) — outstanding
@@ -711,6 +769,24 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
     changes. Until an admin sets requirements in `/admin/service-catalog`,
     the dashboard card shows only the total.
 
+- [x] **POR-7** — Required practicals list
+  - **Depends on:** **POR-6**
+  - Student feedback: 4/63 is not useful without seeing the other 59.
+  - **Files:** `server/src/routes/progress.ts`, `server/src/index.ts`,
+    `client/app/student/progress/page.tsx`,
+    `client/app/student/dashboard/page.tsx`.
+  - **Done:** `GET /api/progress` returns every category with its catalog
+    service types plus "Any other <category> service" slots up to
+    `max_required` (so the rows total 63; the catalog alone has 24 types),
+    each with the student's furthest status. Leftover services (untyped or
+    repeat attempts) fill the generic slots. New `/student/progress` page:
+    category cards that expand their list (deep-linkable via
+    `#category-<id>`), a filter All | Outstanding | In Progress | Awaiting
+    Verification | Completed (awaiting-client, corrections and rejected sit
+    under In Progress with their own badges), rows link to the service. The
+    dashboard rings now show all categories (they were capped at four) and
+    link to the page.
+
 ---
 
 ## Kosmè Connect (CON) — outstanding
@@ -773,6 +849,78 @@ Extends `server/src/routes/client-signup.ts`, `server/src/routes/volunteer-reque
     signup doesn't have). `GET /signups` embeds the new table, so it
     needs migration `0025` applied live. Confirmed applied 2026-09-23
     (see **OPS-1**).
+
+- [x] **CON-3** — Volunteer profile and availability
+  - **Depends on:** none
+  - **Files:** `supabase/migrations/0027_client_profiles.sql`,
+    `server/src/routes/client-profile.ts`,
+    `client/components/appointments/ClientProfileEditor.tsx`,
+    `client/components/appointments/AvailabilityEditor.tsx`,
+    `client/components/appointments/VolunteerDirectory.tsx`,
+    `client/app/volunteer/profile/page.tsx`,
+    `client/app/student/volunteers/page.tsx`.
+  - **Done:** New `client_profiles` table (bio, area, willing to travel,
+    `services_willing` category ids, weekly `availability` windows, `is_listed`).
+    `GET/PUT /api/client-profile/me` (client), `GET /directory` and `GET /:id`
+    (student; demo/real partitioned through `user_profiles.is_demo`). Clients
+    edit it on their Profile page; the student Volunteers page has a "Find
+    volunteers" tab with a profile view (services, availability). Phone
+    numbers are not shown. **Scope note:** a client only appears once they
+    save a profile; `client_signups` data is not migrated. **Needs `0027`
+    applied live.**
+
+- [x] **CON-4** — Appointments
+  - **Depends on:** **CON-3**
+  - **Files:** `supabase/migrations/0028_appointments.sql`,
+    `server/src/routes/appointments.ts`,
+    `client/components/appointments/AppointmentList.tsx`,
+    `client/components/appointments/RequestAppointmentForm.tsx`,
+    `client/app/volunteer/appointments/page.tsx`,
+    `client/app/student/volunteers/page.tsx`.
+  - **Done:** `appointments` table with status `pending | confirmed |
+    reschedule_requested | cancelled | completed`. A reschedule is a proposal
+    on the same row (`proposed_starts_at`/`proposed_by`). Routes under
+    `/api/appointments`: list, create (student), `accept`, `decline`,
+    `suggest`, `cancel`; transitions are guarded on the current status so
+    double taps return 409. Students request from a volunteer's profile
+    (practical, date/time, duration, location, note); clients get an
+    Appointments page to accept, decline or suggest another time; both see
+    status badges, and the student's Schedule tab lists upcoming and past.
+    A client declining a request shows as Cancelled. **Needs `0028` applied
+    live.**
+
+- [x] **CON-5** — In-app messaging
+  - **Depends on:** **CON-3**
+  - **Files:** `supabase/migrations/0029_messages.sql`,
+    `server/src/routes/messages.ts`,
+    `client/components/appointments/MessageThread.tsx`,
+    `client/components/appointments/MessagesPanel.tsx`,
+    `client/app/volunteer/messages/page.tsx`,
+    `client/app/student/volunteers/page.tsx`.
+  - **Done:** `messages` table keyed on the (student, client) pair. Routes
+    `/api/messages/threads`, `/unread-count`, `/thread/:otherId` (read, marks
+    read) and POST to send. A student may message any volunteer on their side
+    of the demo boundary; a client can reply only into an existing thread or
+    to a student they share a booking or accepted request with. Delivery is
+    by polling (15s while the tab is visible), so the client never talks to
+    Supabase directly. The accepted-request card now offers "Message" instead
+    of the volunteer's phone number, and `/incoming` no longer returns it.
+    **Not built:** an unread badge in the nav (`/unread-count` exists for it).
+    **Needs `0029` applied live.**
+
+- [x] **CON-6** — Start a service from a booking
+  - **Depends on:** **CON-4**, **VER-15**
+  - **Files:** `server/src/routes/services.ts`, `server/src/lib/appointments.ts`,
+    `client/app/student/volunteers/page.tsx`.
+  - **Done:** On the day of a confirmed appointment the student's card shows
+    "Start Service". It calls `POST /api/services` with `appointment_id` and
+    `start_now`; the server checks the booking is the student's, confirmed,
+    unused, dated today (judged in `America/Jamaica`, see
+    `lib/appointments.ts`) and matches the volunteer and category, then links
+    `appointments.service_id`. The timer then runs in the global bar. Stopping
+    the service marks the appointment `completed`; the service continues
+    through the existing client confirmation and educator verification.
+    Photo consent defaults to unchecked and can be set on the service page.
 
 ---
 
@@ -1075,6 +1223,11 @@ rather than a separate backend pass and frontend pass.
     on **VER-14**, **POR-6** and **EDU-1**. Build VER-14 option B only
     after VER-11. All done: VER-14 went with option B, and POR-6 and
     EDU-1 were both built as MVP.
+11. **Student feedback round (2026-10-21):** **VER-16** (root-cause fix) →
+    **VER-17**, **VER-15** → **POR-7** → **CON-3** → **CON-4**, **CON-5**
+    (parallel) → **CON-6** (needs CON-4 and VER-15). Migrations
+    `0027`–`0029` must be applied live before CON-3..6 work; `0026` only
+    adds database-level enforcement to VER-15.
 
 **Explicitly post-MVP:** real KAI model integration, automated student-client
 matching (KAI-5's eventual "KAI Match"), deep analytics beyond RPT-1's basic

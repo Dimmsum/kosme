@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { apiGet, apiPatch } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import ClientProfileEditor from "@/components/appointments/ClientProfileEditor";
 
 interface ProfileRes {
   profile: {
@@ -199,6 +200,8 @@ export default function VolunteerProfilePage() {
             </div>
           </div>
         </div>
+
+        <ClientProfileEditor />
 
         <div className="mb-6 rounded-3xl border border-k-gray-200 bg-k-white p-6">
           <div className="mb-5">

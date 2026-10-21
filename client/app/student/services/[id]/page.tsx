@@ -16,12 +16,14 @@ import {
   ImageOff,
   EyeOff,
   Lock,
+  Pencil,
   Timer,
   Sparkles,
   ImagePlus,
   X,
 } from "lucide-react";
 import { apiGet, apiPatch, apiPost, apiPut, apiUpload } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 type ServiceStatus =
   | "in_progress"
@@ -76,6 +78,7 @@ interface ServiceDetail {
   id: string;
   name: string;
   category_id: string;
+  service_type_id: string | null;
   notes: string | null;
   reflection_notes: string | null;
   status: ServiceStatus;
@@ -215,6 +218,18 @@ export default function ServiceDetailPage() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const photoIdCounter = useRef(0);
   const evidenceRef = useRef<HTMLDivElement>(null);
+  const reflectionRef = useRef<HTMLDivElement>(null);
+  const [editing, setEditing] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editTypeId, setEditTypeId] = useState("");
+  const [categories, setCategories] = useState<{ id: string; label: string }[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<
+    { id: string; category_id: string; name: string }[]
+  >([]);
 
   useEffect(() => {
     apiGet<{ service: ServiceDetail }>(`/api/services/${id}`)
@@ -225,6 +240,61 @@ export default function ServiceDetailPage() {
       .catch(() => setError("Could not load service."))
       .finally(() => setLoading(false));
   }, [id]);
+
+  function startEditing() {
+    if (!service) return;
+    setEditName(service.name);
+    setEditNotes(service.notes ?? "");
+    setEditCategory(service.category_id);
+    setEditTypeId(service.service_type_id ?? "");
+    setDetailsError(null);
+    setEditing(true);
+    if (categories.length === 0) {
+      supabase
+        .from("service_categories")
+        .select("id, label")
+        .order("label")
+        .then(({ data }) => setCategories(data ?? []));
+      apiGet<{ serviceTypes: { id: string; category_id: string; name: string }[] }>(
+        "/api/services/service-types",
+      )
+        .then((res) => setServiceTypes(res.serviceTypes))
+        .catch(() => {});
+    }
+  }
+
+  async function saveDetails() {
+    if (!service) return;
+    if (!editName.trim() || !editCategory) {
+      setDetailsError("Service name and category are required.");
+      return;
+    }
+    setSavingDetails(true);
+    setDetailsError(null);
+    try {
+      const res = await apiPatch<{
+        service: {
+          name: string;
+          notes: string | null;
+          category_id: string;
+          service_type_id: string | null;
+        };
+      }>(`/api/services/${service.id}`, {
+        name: editName.trim(),
+        notes: editNotes.trim() || null,
+        category_id: editCategory,
+        service_type_id: editTypeId || null,
+      });
+      setService((prev) => (prev ? { ...prev, ...res.service } : prev));
+      setEditing(false);
+    } catch (err) {
+      setDetailsError(
+        err instanceof Error ? err.message : "Could not save your changes. Please try again.",
+      );
+    } finally {
+      setSavingDetails(false);
+    }
+  }
 
   async function saveReflection() {
     if (!service) return;
@@ -320,8 +390,13 @@ export default function ServiceDetailPage() {
       );
       pendingPhotos.forEach((p) => URL.revokeObjectURL(p.preview));
       setPendingPhotos([]);
-    } catch {
-      setUploadError("Could not upload your photos. Please try again.");
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "";
+      setUploadError(
+        detail
+          ? `Could not upload your photos (${detail}). Please try again.`
+          : "Could not upload your photos. Please try again.",
+      );
     } finally {
       setUploadingPhotos(false);
     }
@@ -424,6 +499,8 @@ export default function ServiceDetailPage() {
     photos: photos.filter((p) => (p.stage ?? p.type) === opt.value),
   })).filter((g) => g.photos.length > 0);
   const canUploadPhotos = service.status !== "verified";
+  const canEditDetails =
+    service.status === "corrections_requested" || service.status === "awaiting_client";
   const stepIndex = pipelineStep(service.status);
   const rejection = verifications.find((v) => v.status === "rejected");
   const corrections = verifications.find(
@@ -478,9 +555,101 @@ export default function ServiceDetailPage() {
         <div className="flex flex-col gap-4 lg:col-span-2">
           {/* Details card */}
           <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
-            <h2 className="mb-4 font-serif text-base font-medium text-k-black">
-              Details
-            </h2>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="font-serif text-base font-medium text-k-black">
+                Details
+              </h2>
+              {canEditDetails && !editing && (
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-k-gray-200 px-3 py-1 text-xs font-medium text-k-gray-600 transition-colors hover:border-k-primary/30 hover:text-k-primary"
+                >
+                  <Pencil size={12} /> Edit details
+                </button>
+              )}
+            </div>
+            {editing ? (
+              <div className="flex flex-col gap-3">
+                <label className="flex flex-col gap-1 text-xs font-medium text-k-gray-600">
+                  Service name
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    maxLength={255}
+                    className="rounded-xl border border-k-gray-200 bg-k-white p-2.5 text-sm font-normal text-k-black focus:border-k-primary focus:outline-none"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-k-gray-600">
+                  Category
+                  <select
+                    value={editCategory}
+                    onChange={(e) => {
+                      setEditCategory(e.target.value);
+                      setEditTypeId("");
+                    }}
+                    className="rounded-xl border border-k-gray-200 bg-k-white p-2.5 text-sm font-normal text-k-black focus:border-k-primary focus:outline-none"
+                  >
+                    {!categories.some((c) => c.id === editCategory) && (
+                      <option value={editCategory}>{editCategory}</option>
+                    )}
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-k-gray-600">
+                  Service type
+                  <select
+                    value={editTypeId}
+                    onChange={(e) => setEditTypeId(e.target.value)}
+                    className="rounded-xl border border-k-gray-200 bg-k-white p-2.5 text-sm font-normal text-k-black focus:border-k-primary focus:outline-none"
+                  >
+                    <option value="">Not specified</option>
+                    {serviceTypes
+                      .filter((t) => t.category_id === editCategory)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-k-gray-600">
+                  Notes
+                  <textarea
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    maxLength={2000}
+                    rows={3}
+                    className="resize-none rounded-xl border border-k-gray-200 bg-k-white p-2.5 text-sm font-normal text-k-black focus:border-k-primary focus:outline-none"
+                  />
+                </label>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={saveDetails}
+                    disabled={savingDetails}
+                    className="rounded-full bg-k-primary px-4 py-1.5 text-xs font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {savingDetails ? "Saving…" : "Save changes"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(false)}
+                    disabled={savingDetails}
+                    className="text-xs font-medium text-k-gray-600 hover:text-k-black"
+                  >
+                    Cancel
+                  </button>
+                  {detailsError && (
+                    <span className="text-xs text-red-600">{detailsError}</span>
+                  )}
+                </div>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-k-gray-100">
@@ -581,10 +750,11 @@ export default function ServiceDetailPage() {
                 </div>
               )}
             </div>
+            )}
           </div>
 
           {/* Reflection notes */}
-          <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
+          <div ref={reflectionRef} className="rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
             <div className="mb-1 flex items-center justify-between gap-3">
               <h2 className="font-serif text-base font-medium text-k-black">
                 Reflection
@@ -724,7 +894,7 @@ export default function ServiceDetailPage() {
           )}
 
           {/* Corrections requested by educator */}
-          {service.status === "corrections_requested" && corrections && (
+          {service.status === "corrections_requested" && (
             <div className="rounded-2xl border border-orange-200 bg-orange-50 p-5 sm:p-6">
               <div className="flex items-start gap-3">
                 <AlertCircle size={18} className="mt-0.5 shrink-0 text-orange-600" />
@@ -732,17 +902,51 @@ export default function ServiceDetailPage() {
                   <p className="text-sm font-medium text-orange-700">
                     Corrections Requested
                   </p>
-                  {corrections.notes && (
+                  {corrections?.notes && (
                     <p className="mt-1 text-sm leading-relaxed text-orange-700">
                       {corrections.notes}
                     </p>
                   )}
-                  <p className="mt-1.5 text-xs text-orange-400">
-                    {new Date(corrections.created_at).toLocaleDateString(
-                      "en-GB",
-                      { day: "numeric", month: "short", year: "numeric" },
-                    )}
+                  {corrections && (
+                    <p className="mt-1.5 text-xs text-orange-400">
+                      {new Date(corrections.created_at).toLocaleDateString(
+                        "en-GB",
+                        { day: "numeric", month: "short", year: "numeric" },
+                      )}
+                    </p>
+                  )}
+                  <p className="mt-3 text-xs font-medium text-orange-700">
+                    How to fix this entry
                   </p>
+                  <p className="mt-1 text-xs leading-relaxed text-orange-700">
+                    Update whatever the educator flagged, then press Resubmit
+                    for review.
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={startEditing}
+                      className="rounded-full border border-orange-300 bg-white px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-100"
+                    >
+                      Edit details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        reflectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+                      }
+                      className="rounded-full border border-orange-300 bg-white px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-100"
+                    >
+                      Edit reflection
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addPhotosFromChecklist}
+                      className="rounded-full border border-orange-300 bg-white px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-100"
+                    >
+                      Add photos
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="mt-4 flex items-center gap-3">
@@ -1045,7 +1249,7 @@ export default function ServiceDetailPage() {
                     Rejected by educator
                   </p>
                   <p className="mt-0.5 text-xs text-k-gray-400">
-                    Review the feedback and resubmit.
+                    Review the feedback. If a client is assigned, send the entry back to them for confirmation.
                   </p>
                 </div>
               </div>
@@ -1059,7 +1263,7 @@ export default function ServiceDetailPage() {
                     Corrections requested
                   </p>
                   <p className="mt-0.5 text-xs text-k-gray-400">
-                    Fix the feedback below, then resubmit for review.
+                    Use the buttons in the corrections notice to fix the feedback, then resubmit for review.
                   </p>
                 </div>
               </div>

@@ -92,7 +92,7 @@ router.get("/incoming", requireRole("student"), async (req: AuthRequest, res: Re
     .from("volunteer_requests")
     .select(`
       id, message, status, created_at,
-      volunteer:volunteer_id ( id, full_name, phone )
+      volunteer:volunteer_id ( id, full_name )
     `)
     .eq("student_id", req.userId!)
     .order("created_at", { ascending: false });

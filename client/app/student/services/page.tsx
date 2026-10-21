@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import {
   Plus,
@@ -22,10 +23,11 @@ import {
   Play,
   Square,
   Timer,
-  Bell,
 } from "lucide-react";
 import { apiGet, apiPost, apiUpload } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { formatElapsed } from "@/lib/timer";
+import { useTimer } from "@/components/student/TimerProvider";
 
 /* ── Types ── */
 
@@ -127,20 +129,6 @@ function formatDateShort(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-/** Elapsed seconds → "HH:MM:SS" (or "MM:SS" under an hour). */
-function formatElapsed(totalSeconds: number) {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  const hh = Math.floor(s / 3600);
-  const mm = Math.floor((s % 3600) / 60);
-  const ss = s % 60;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return hh > 0 ? `${hh}:${pad(mm)}:${pad(ss)}` : `${pad(mm)}:${pad(ss)}`;
-}
-
-// How often (in minutes of elapsed time) to nudge the student with a
-// checkpoint reminder while a service is running.
-const CHECKPOINT_INTERVAL_MIN = 15;
-
 function formatRange(min: number | null, max: number | null) {
   if (min != null && max != null) return `${min}–${max} min`;
   if (min != null) return `min ${min} min`;
@@ -150,11 +138,16 @@ function formatRange(min: number | null, max: number | null) {
 
 /* ── Component ── */
 
-export default function ServicesPage() {
+function ServicesPageInner() {
   /* list state */
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<FilterOption>("all");
+  const [activeFilter, setActiveFilter] = useState<FilterOption>(() => {
+    const status = searchParams.get("status");
+    return FILTERS.some((f) => f.key === status) ? (status as FilterOption) : "all";
+  });
   const [search, setSearch] = useState("");
 
   /* form state */
@@ -175,14 +168,9 @@ export default function ServicesPage() {
   const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  /* live timer tick for the active (in_progress) service */
-  const [now, setNow] = useState(() => Date.now());
-  const [stoppingId, setStoppingId] = useState<string | null>(null);
-
-  /* checkpoint reminders while a service is running */
-  const [checkpointReminder, setCheckpointReminder] = useState<number | null>(null);
-  const shownCheckpoints = useRef<Set<number>>(new Set());
-  const reminderServiceIdRef = useRef<string | null>(null);
+  /* running timer lives in the layout-level provider so it survives navigation */
+  const timer = useTimer();
+  const activeService = timer.active;
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -195,8 +183,13 @@ export default function ServicesPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
 
+  // Reload the list on mount and whenever the timer starts or stops anywhere
+  // (e.g. from the global bar), so statuses here never go stale.
   useEffect(() => {
     loadServices();
+  }, [timer.version]);
+
+  useEffect(() => {
     // Loaded on mount too (not just when the form opens) so the active-service
     // card can show the recommended range for a running service.
     apiGet<{ serviceTypes: ServiceType[] }>("/api/services/service-types")
@@ -219,56 +212,6 @@ export default function ServicesPage() {
       .catch(() => {});
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   }, [showForm]);
-
-  /* ── Active service + live timer ── */
-
-  const activeService = services.find((s) => s.status === "in_progress") ?? null;
-
-  useEffect(() => {
-    if (!activeService) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [activeService]);
-
-  // Reset which checkpoints have fired whenever the running service changes
-  // (or timer stops), so reminders don't carry over between services.
-  useEffect(() => {
-    if (activeService?.id !== reminderServiceIdRef.current) {
-      reminderServiceIdRef.current = activeService?.id ?? null;
-      shownCheckpoints.current = new Set();
-      setCheckpointReminder(null);
-    }
-  }, [activeService?.id]);
-
-  // Fire a checkpoint reminder every CHECKPOINT_INTERVAL_MIN of elapsed time.
-  useEffect(() => {
-    if (!activeService?.started_at) return;
-    const elapsedMin = (now - new Date(activeService.started_at).getTime()) / 60000;
-    const checkpoint = Math.floor(elapsedMin / CHECKPOINT_INTERVAL_MIN) * CHECKPOINT_INTERVAL_MIN;
-    if (checkpoint > 0 && !shownCheckpoints.current.has(checkpoint)) {
-      shownCheckpoints.current.add(checkpoint);
-      setCheckpointReminder(checkpoint);
-    }
-  }, [now, activeService]);
-
-  // Auto-dismiss the toast after a while so it doesn't linger indefinitely.
-  useEffect(() => {
-    if (checkpointReminder == null) return;
-    const t = setTimeout(() => setCheckpointReminder(null), 12000);
-    return () => clearTimeout(t);
-  }, [checkpointReminder]);
-
-  const handleStop = async (id: string) => {
-    setStoppingId(id);
-    try {
-      await apiPost(`/api/services/${id}/stop`, {});
-      await loadServices();
-    } catch {
-      /* leave the card in place; user can retry */
-    } finally {
-      setStoppingId(null);
-    }
-  };
 
   /* ── Filtering ── */
 
@@ -350,12 +293,25 @@ export default function ServicesPage() {
       setFormError("Client source is required.");
       return;
     }
+    if (timed && timer.active) {
+      setFormError(
+        `"${timer.active.name}" is already being timed. Stop it before starting another service.`,
+      );
+      return;
+    }
     setFormError(null);
     setSubmitting(true);
 
     try {
       setUploadProgress(timed ? "Starting service…" : "Creating service…");
-      const { service } = await apiPost<{ service: { id: string } }>("/api/services", {
+      const { service } = await apiPost<{
+        service: {
+          id: string;
+          name: string;
+          started_at: string | null;
+          service_type_id: string | null;
+        };
+      }>("/api/services", {
         name: serviceName.trim(),
         category_id: category,
         service_type_id: serviceTypeId || undefined,
@@ -366,12 +322,23 @@ export default function ServicesPage() {
         start_now: timed,
       });
 
+      // Confirm immediately: the bar and "Timer started" toast appear before
+      // any photo upload finishes.
+      if (timed) timer.started(service);
+
       if (photos.length > 0) {
         setUploadProgress(`Uploading ${photos.length} photo${photos.length > 1 ? "s" : ""}…`);
         const formData = new FormData();
         photos.forEach((p) => formData.append("photos", p.file));
         formData.append("stages", JSON.stringify(photos.map((p) => p.stage)));
-        await apiUpload(`/api/services/${service.id}/photos`, formData);
+        try {
+          await apiUpload(`/api/services/${service.id}/photos`, formData);
+        } catch {
+          // The service already exists, so retrying this form would create a
+          // duplicate. Send the student to the entry to add evidence there.
+          router.push(`/student/services/${service.id}`);
+          return;
+        }
       }
 
       await loadServices();
@@ -383,7 +350,17 @@ export default function ServicesPage() {
         setSubmitted(true);
       }
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to submit service.");
+      const raw = err instanceof Error ? err.message : "";
+      // apiPost throws `API <status>: <json body>`; show just the server's message.
+      let message = "Failed to submit service.";
+      try {
+        const body = JSON.parse(raw.replace(/^API \d+: /, ""));
+        if (typeof body.error === "string") message = body.error;
+      } catch {
+        if (raw) message = raw;
+      }
+      setFormError(message);
+      if (timed) timer.refresh();
     } finally {
       setSubmitting(false);
       setUploadProgress(null);
@@ -423,9 +400,7 @@ export default function ServicesPage() {
           const range = type
             ? formatRange(type.recommended_duration_min, type.recommended_duration_max)
             : null;
-          const elapsedSec = activeService.started_at
-            ? (now - new Date(activeService.started_at).getTime()) / 1000
-            : 0;
+          const elapsedSec = timer.elapsedSec;
           const overMax =
             type?.recommended_duration_max != null &&
             elapsedSec / 60 > type.recommended_duration_max;
@@ -466,52 +441,18 @@ export default function ServicesPage() {
                     <p className="text-[10px] uppercase tracking-[0.1em] text-k-gray-400">Elapsed</p>
                   </div>
                   <button
-                    onClick={() => handleStop(activeService.id)}
-                    disabled={stoppingId === activeService.id}
+                    onClick={timer.stop}
+                    disabled={timer.stopping}
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-k-primary px-6 py-3 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 shadow-[0_4px_20px_rgba(59,10,42,0.18)]"
                   >
                     <Square size={15} className="fill-current" />
-                    {stoppingId === activeService.id ? "Stopping…" : "Stop Service"}
+                    {timer.stopping ? "Stopping…" : "Stop Service"}
                   </button>
                 </div>
               </div>
             </motion.div>
           );
         })()}
-      </AnimatePresence>
-
-      {/* ━━ Checkpoint reminder toast ━━ */}
-      <AnimatePresence>
-        {checkpointReminder != null && activeService && (
-          <motion.div
-            key="checkpoint-toast"
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.95 }}
-            transition={{ type: "spring", damping: 22, stiffness: 300 }}
-            className="fixed bottom-6 right-6 z-50 flex max-w-sm items-start gap-3 rounded-2xl border border-k-primary/20 bg-k-white px-5 py-4 shadow-[0_12px_40px_rgba(59,10,42,0.18)]"
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-k-primary/10">
-              <Bell size={16} className="text-k-primary" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-k-black">
-                {checkpointReminder}-minute checkpoint
-              </p>
-              <p className="mt-0.5 text-xs leading-relaxed text-k-gray-400">
-                &ldquo;{activeService.name}&rdquo; has been running {checkpointReminder} min —
-                a good moment for a progress photo or a quick check-in with your client.
-              </p>
-            </div>
-            <button
-              onClick={() => setCheckpointReminder(null)}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-k-gray-400 transition-colors hover:bg-k-gray-100 hover:text-k-black"
-              aria-label="Dismiss reminder"
-            >
-              <X size={14} />
-            </button>
-          </motion.div>
-        )}
       </AnimatePresence>
 
       {/* ━━ Inline New Service Form ━━ */}
@@ -844,11 +785,11 @@ export default function ServicesPage() {
                         </button>
                         <button
                           onClick={() => handleSubmit(true)}
-                          disabled={submitting}
+                          disabled={submitting || !!timer.active}
                           className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-k-primary px-7 py-2.5 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 shadow-[0_4px_20px_rgba(59,10,42,0.15)] sm:w-auto"
                         >
                           <Play size={15} />
-                          {submitting ? (uploadProgress ?? "Working…") : "Start Service"}
+                          {submitting ? (uploadProgress ?? "Working…") : timer.active ? "Timer already running" : "Start Service"}
                         </button>
                       </div>
                     </div>
@@ -1013,3 +954,10 @@ export default function ServicesPage() {
   );
 }
 
+export default function ServicesPage() {
+  return (
+    <Suspense fallback={null}>
+      <ServicesPageInner />
+    </Suspense>
+  );
+}

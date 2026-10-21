@@ -12,6 +12,8 @@ import {
   User,
   LogOut,
   Compass,
+  CalendarClock,
+  MessageSquare,
 } from "lucide-react";
 import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
 import DemoBanner from "@/components/DemoBanner";
@@ -23,6 +25,8 @@ const navItems = [
     label: "Confirmations",
     icon: ClipboardCheck,
   },
+  { href: "/volunteer/appointments", label: "Appointments", icon: CalendarClock },
+  { href: "/volunteer/messages", label: "Messages", icon: MessageSquare },
   { href: "/volunteer/browse", label: "Browse", icon: Compass },
   { href: "/volunteer/history", label: "History", icon: Clock },
   { href: "/volunteer/profile", label: "Profile", icon: User },

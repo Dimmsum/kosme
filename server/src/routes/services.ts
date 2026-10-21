@@ -5,7 +5,21 @@ import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
 import { isUuid } from "../lib/validation";
 import { logEvent } from "../lib/events";
+import { isSameAppointmentDay } from "../lib/appointments";
 import { educatorStudentScope, inEducatorScope } from "../lib/educator-scope";
+
+// A student can run one timer at a time (migration 0026 enforces it with a
+// partial unique index; these checks give a readable 409 first).
+async function findActiveService(studentId: string, exceptId?: string) {
+  let query = supabaseAdmin
+    .from("services")
+    .select("id, name, status, started_at, service_type_id")
+    .eq("student_id", studentId)
+    .eq("status", "in_progress");
+  if (exceptId) query = query.neq("id", exceptId);
+  const { data } = await query.limit(1).maybeSingle();
+  return data;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -73,6 +87,17 @@ function parsePhotoStages(raw: unknown, count: number): (PhotoStage | null)[] {
 }
 
 // GET /api/services/clients — list volunteer clients for the new-service form (student only)
+// GET /api/services/active — the student's running timer, if any. Powers the
+// persistent timer bar and restores it after a reload or re-login.
+router.get(
+  "/active",
+  requireRole("student"),
+  async (req: AuthRequest, res: Response) => {
+    const service = await findActiveService(req.userId!);
+    return res.json({ service: service ?? null });
+  },
+);
+
 router.get(
   "/clients",
   requireRole("student"),
@@ -159,6 +184,7 @@ router.post(
       notes,
       start_now,
       photo_consent,
+      appointment_id,
     } = req.body;
 
     if (!name || !category_id) {
@@ -209,10 +235,49 @@ router.post(
       }
     }
 
+    // CON-6: starting from a booking. The appointment must be the caller's,
+    // confirmed, dated today and not yet used, and the service has to be for the
+    // same volunteer and category the booking was made with.
+    if (appointment_id != null) {
+      if (!isUuid(appointment_id)) {
+        return res.status(400).json({ error: "Invalid appointment_id format" });
+      }
+      if (start_now !== true) {
+        return res.status(400).json({ error: "An appointment can only be started with the timer" });
+      }
+      const { data: appt } = await supabaseAdmin
+        .from("appointments")
+        .select("id, student_id, client_id, category_id, status, starts_at, service_id")
+        .eq("id", appointment_id)
+        .eq("student_id", req.userId!)
+        .maybeSingle();
+      if (!appt) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+      if (appt.status !== "confirmed" || appt.service_id) {
+        return res.status(400).json({ error: "This appointment can't be started" });
+      }
+      if (!isSameAppointmentDay(new Date(appt.starts_at), new Date())) {
+        return res.status(400).json({ error: "You can start this service on the day of the appointment" });
+      }
+      if (client_id !== appt.client_id || category_id !== appt.category_id) {
+        return res.status(400).json({ error: "Service doesn't match the appointment" });
+      }
+    }
+
     // start_now begins the timer immediately: the service opens in 'in_progress'
     // and is only routed to a client/educator once the student stops it. Without
     // it, the current instant-log behaviour is preserved.
     const timing = start_now === true;
+    if (timing) {
+      const active = await findActiveService(req.userId!);
+      if (active) {
+        return res.status(409).json({
+          error: `"${active.name}" is already being timed. Stop it before starting another service.`,
+          service: active,
+        });
+      }
+    }
     const status = timing
       ? "in_progress"
       : client_id
@@ -238,8 +303,39 @@ router.post(
       .single();
 
     if (error) {
+      // Lost a race with another tab: the unique index caught the second timer.
+      if (error.code === "23505" && timing) {
+        const active = await findActiveService(req.userId!);
+        return res.status(409).json({
+          error: "Another service is already being timed. Stop it before starting a new one.",
+          service: active ?? null,
+        });
+      }
       console.error("services POST error:", error);
       return res.status(500).json({ error: "Failed to create service" });
+    }
+
+    if (appointment_id != null) {
+      // One booking yields one service (UNIQUE service_id); if this loses a
+      // race the extra service is still a valid, timed entry.
+      const { error: linkError } = await supabaseAdmin
+        .from("appointments")
+        .update({ service_id: data.id })
+        .eq("id", appointment_id)
+        .is("service_id", null);
+      if (linkError) {
+        console.error("appointment link error:", linkError);
+      }
+    }
+
+    if (data.status === "in_progress") {
+      await logEvent(
+        "activity",
+        "service_started",
+        req.userId!,
+        data.id,
+        `Started "${data.name}"`,
+      );
     }
 
     // POR-2: record the client's photo consent against this service (CON-1's
@@ -293,6 +389,23 @@ router.post(
       return res
         .status(400)
         .json({ error: "This service can no longer be timed" });
+    }
+    // Already running (double click, second tab): keep the original start time
+    // rather than silently resetting the clock.
+    if (service.status === "in_progress") {
+      const { data: running } = await supabaseAdmin
+        .from("services")
+        .select("id, status, started_at")
+        .eq("id", service.id)
+        .single();
+      return res.json({ service: running });
+    }
+    const active = await findActiveService(req.userId!, service.id);
+    if (active) {
+      return res.status(409).json({
+        error: `"${active.name}" is already being timed. Stop it before starting another service.`,
+        service: active,
+      });
     }
 
     const { data, error } = await supabaseAdmin
@@ -390,6 +503,13 @@ router.post(
       return res.status(500).json({ error: "Failed to stop service" });
     }
 
+    // CON-6: a booking whose service has been timed to the end is done.
+    await supabaseAdmin
+      .from("appointments")
+      .update({ status: "completed" })
+      .eq("service_id", service.id)
+      .eq("status", "confirmed");
+
     await logEvent(
       "activity",
       "service_stopped",
@@ -435,6 +555,9 @@ router.post(
     { name: "photos", maxCount: 20 },
   ]),
   async (req: AuthRequest, res: Response) => {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid service id" });
+    }
     // Verify the service belongs to this student
     const { data: service, error: serviceError } = await supabaseAdmin
       .from("services")
@@ -578,27 +701,62 @@ router.post(
   },
 );
 
-// PATCH /api/services/:id — student updates their own reflection notes.
-// Reflection is written after the service has happened, from the detail page
-// — separate from `notes`, which is the service description set at log time.
-// Locked once the service is verified, matching the "no further changes"
-// messaging shown on the detail page for verified services.
+// PATCH /api/services/:id — student updates their own entry.
+// `reflection_notes` is written after the service has happened, from the
+// detail page — separate from `notes`, which is the service description set
+// at log time. Both are locked once the service is verified, matching the
+// "no further changes" messaging on the detail page.
+// `name`, `notes`, `category_id` and `service_type_id` (the log-time details)
+// are only editable while the entry is being corrected or is still waiting on
+// the client, so a student can fix a mistake an educator flagged without
+// rewriting an entry that's already in review or finished.
+const DETAIL_EDITABLE_STATUSES = ["corrections_requested", "awaiting_client"];
+
 router.patch(
   "/:id",
   requireRole("student"),
   async (req: AuthRequest, res: Response) => {
-    const { reflection_notes } = req.body as { reflection_notes?: unknown };
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid service id" });
+    }
+    const { reflection_notes, name, notes, category_id, service_type_id } =
+      req.body as Record<string, unknown>;
 
-    if (reflection_notes === undefined) {
-      return res.status(400).json({ error: "reflection_notes is required" });
+    const touchesDetails =
+      name !== undefined ||
+      notes !== undefined ||
+      category_id !== undefined ||
+      service_type_id !== undefined;
+
+    if (reflection_notes === undefined && !touchesDetails) {
+      return res.status(400).json({ error: "Nothing to update" });
     }
     if (
+      reflection_notes !== undefined &&
       reflection_notes !== null &&
       (typeof reflection_notes !== "string" || reflection_notes.length > 2000)
     ) {
       return res
         .status(400)
         .json({ error: "reflection_notes must be at most 2000 characters" });
+    }
+    if (name !== undefined) {
+      if (typeof name !== "string" || name.trim().length === 0 || name.length > 255) {
+        return res.status(400).json({ error: "name must be between 1 and 255 characters" });
+      }
+    }
+    if (notes !== undefined && notes !== null) {
+      if (typeof notes !== "string" || notes.length > 2000) {
+        return res.status(400).json({ error: "notes must be at most 2000 characters" });
+      }
+    }
+    if (category_id !== undefined) {
+      if (typeof category_id !== "string" || !category_id || category_id.length > 255) {
+        return res.status(400).json({ error: "Invalid category_id" });
+      }
+    }
+    if (service_type_id != null && !isUuid(service_type_id)) {
+      return res.status(400).json({ error: "Invalid service_type_id format" });
     }
 
     const { data: service, error: svcErr } = await supabaseAdmin
@@ -616,17 +774,58 @@ router.patch(
         .status(400)
         .json({ error: "This service is verified and can no longer be edited" });
     }
+    if (touchesDetails && !DETAIL_EDITABLE_STATUSES.includes(service.status)) {
+      return res.status(400).json({
+        error: "Details can only be edited while corrections are requested or the client is yet to confirm",
+      });
+    }
+
+    const update: Record<string, unknown> = {};
+    if (reflection_notes !== undefined) {
+      update.reflection_notes =
+        typeof reflection_notes === "string" ? reflection_notes.trim() || null : null;
+    }
+    if (name !== undefined) update.name = (name as string).trim();
+    if (notes !== undefined) {
+      update.notes = typeof notes === "string" ? notes.trim() || null : null;
+    }
+    if (category_id !== undefined) update.category_id = category_id;
+    if (service_type_id !== undefined) update.service_type_id = service_type_id;
+
+    // A type belongs to one category; reject a mismatched pair so the progress
+    // rollup never counts a service under the wrong category.
+    if (category_id !== undefined || service_type_id != null) {
+      const { data: current } = await supabaseAdmin
+        .from("services")
+        .select("category_id, service_type_id")
+        .eq("id", req.params.id)
+        .single();
+      const nextCategory = (update.category_id ?? current?.category_id) as string;
+      const nextType = (
+        "service_type_id" in update ? update.service_type_id : current?.service_type_id
+      ) as string | null;
+      if (nextType) {
+        const { data: type } = await supabaseAdmin
+          .from("service_types")
+          .select("category_id")
+          .eq("id", nextType)
+          .maybeSingle();
+        if (!type || type.category_id !== nextCategory) {
+          return res
+            .status(400)
+            .json({ error: "service_type_id does not belong to that category" });
+        }
+      } else if (category_id !== undefined && !("service_type_id" in update)) {
+        // Category changed with no type given: drop a now-mismatched type.
+        update.service_type_id = null;
+      }
+    }
 
     const { data, error } = await supabaseAdmin
       .from("services")
-      .update({
-        reflection_notes:
-          typeof reflection_notes === "string"
-            ? reflection_notes.trim() || null
-            : null,
-      })
+      .update(update)
       .eq("id", req.params.id)
-      .select("id, reflection_notes")
+      .select("id, name, notes, category_id, service_type_id, reflection_notes")
       .single();
 
     if (error) {

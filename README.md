@@ -119,28 +119,51 @@ marks their `user_profiles` row `is_demo = true`, and records the mapping in
 
 ## Test accounts
 
-For manual testing there's one password-login account per role, with seeded
-data (services in every status, a verified portfolio, a pending confirmation,
-an educator review queue, a shortlist, an open flag):
+For manual testing on the **development** Clerk instance there's one
+password-login account per role, with seeded data (services in every status
+with before/during/after evidence photos, a verified portfolio, a pending
+confirmation, an educator review queue, a shortlist, an open flag). The photos
+are downloaded at seed time from Pexels (Pexels licence) and Wikimedia Commons
+(CC0) and uploaded to the `service-photos` bucket:
 
 ```bash
 cd server
 npm run seed:test
 ```
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Student | `test-student@kosme.app` | `kosme-student` |
-| Educator | `test-educator@kosme.app` | `kosme-educator` |
-| Client | `test-client@kosme.app` | `kosme-client` |
-| Employer | `test-employer@kosme.app` | `kosme-employer` |
-| Super Admin | `test-admin@kosme.app` | `kosme-admin` |
+| Role | Email |
+| --- | --- |
+| Student | `test-student+clerk_test@kosme.app` |
+| Educator | `test-educator+clerk_test@kosme.app` |
+| Client | `test-client+clerk_test@kosme.app` |
+| Employer | `test-employer+clerk_test@kosme.app` |
+| Super Admin | `test-admin+clerk_test@kosme.app` |
 
-Log in at `/login`. These are `is_demo = false` accounts in a dedicated
-"Kosmè Test Academy" institution. Because the passwords are simple, the script
-refuses to run against a live Clerk instance (`sk_live_` key) unless
-`ALLOW_LIVE_SEED=true`. Re-running resets the passwords and rebuilds the test
-student's services from scratch.
+Passwords are not in the repo. The script reads them from
+`TEST_PASSWORD_STUDENT`, `TEST_PASSWORD_EDUCATOR`, `TEST_PASSWORD_CLIENT`,
+`TEST_PASSWORD_EMPLOYER` and `TEST_PASSWORD_SUPER_ADMIN` (see
+`server/.env.example`) and fails before writing anything if one is missing.
+Share them with testers privately. To seed staging from your machine, keep
+its variables in `server/.env.staging.local` (ignored by git) and run
+`DOTENV_CONFIG_PATH=.env.staging.local npm run seed:test`.
+
+Log in at `/login`. The first sign-in from a new browser triggers Clerk's
+Client Trust check, which asks for an emailed code. These inboxes don't
+exist, but `+clerk_test` addresses are Clerk
+[test emails](https://clerk.com/docs/testing/test-emails-and-phones): no mail
+is sent and the code is always **`424242`**. That relies on test mode, which is
+on by default for development instances.
+
+These are `is_demo = false` accounts in a dedicated "Kosmè Test Academy"
+institution. Re-running resets the passwords and rebuilds the test student's
+services from scratch. It also moves accounts seeded under the old
+`test-<role>@kosme.app` addresses onto the `+clerk_test` ones.
+
+**Dev Clerk only.** The admin account is a real `super_admin`, and staging
+shares the production database, so it can see and change real data. The
+script refuses to run against a live Clerk instance (`sk_live_` key). On
+production, use the demo login for the four non-admin roles and
+`seed:super-admin` (strong password, a real inbox) for admin access.
 
 ## Super Admin
 

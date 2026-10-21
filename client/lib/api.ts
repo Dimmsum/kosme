@@ -87,3 +87,15 @@ export async function apiDelete(path: string): Promise<void> {
   handleExpiry(res);
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
 }
+
+/** The server's `{ error }` message from an api* failure, or `fallback`. */
+export function apiErrorMessage(err: unknown, fallback: string): string {
+  const raw = err instanceof Error ? err.message : "";
+  try {
+    const body = JSON.parse(raw.replace(/^API \d+: /, ""));
+    if (typeof body?.error === "string") return body.error;
+  } catch {
+    /* not a JSON body */
+  }
+  return fallback;
+}
