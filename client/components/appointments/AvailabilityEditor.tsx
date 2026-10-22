@@ -3,7 +3,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { AvailabilityWindow, DAYS, Day } from "@/lib/appointments";
 
-/** Weekly windows when a volunteer can receive a service. */
+/** Weekly windows when someone can give or receive a service. */
 export default function AvailabilityEditor({
   value,
   onChange,
@@ -20,7 +20,7 @@ export default function AvailabilityEditor({
   return (
     <div className="flex flex-col gap-2">
       {value.length === 0 && (
-        <p className="text-xs text-k-gray-400">No times added yet. Students will see you as flexible.</p>
+        <p className="text-xs text-k-gray-400">No times added yet. You&apos;ll be shown as flexible.</p>
       )}
       {value.map((w, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2">

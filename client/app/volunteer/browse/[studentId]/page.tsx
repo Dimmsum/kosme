@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   ArrowLeft,
+  CalendarClock,
   CheckCircle2,
   ImageOff,
-  HandHeart,
-  Loader2,
-  X,
+  MapPin,
 } from "lucide-react";
-import { apiGet, apiPost, apiDelete } from "@/lib/api";
+import { apiGet } from "@/lib/api";
+import { DAYS, StudentListing } from "@/lib/appointments";
+import RequestAppointmentForm from "@/components/appointments/RequestAppointmentForm";
 
 interface Photo {
   id: string;
@@ -41,22 +42,8 @@ interface StudentProfile {
 
 interface PortfolioResponse {
   student: StudentProfile | null;
+  listing: StudentListing | null;
   portfolio: PortfolioService[];
-}
-
-interface VolunteerRequest {
-  id: string;
-  status: "pending" | "accepted" | "declined";
-  message: string | null;
-}
-
-interface MyRequestsResponse {
-  requests: Array<{
-    id: string;
-    status: "pending" | "accepted" | "declined";
-    message: string | null;
-    student: { id: string; full_name: string | null } | null;
-  }>;
 }
 
 function initials(name: string | null | undefined): string {
@@ -191,85 +178,20 @@ export default function StudentPortfolioPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Volunteer request state
-  const [existingRequest, setExistingRequest] =
-    useState<VolunteerRequest | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [withdrawing, setWithdrawing] = useState(false);
-  const [requestError, setRequestError] = useState<string | null>(null);
+  const [listing, setListing] = useState<StudentListing | null>(null);
+  const [requesting, setRequesting] = useState(false);
+  const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    Promise.allSettled([
-      apiGet<PortfolioResponse>(
-        `/api/portfolio/${encodeURIComponent(studentId)}`,
-      ),
-      apiGet<MyRequestsResponse>("/api/volunteer-requests/my"),
-    ])
-      .then(([portfolioResult, requestsResult]) => {
-        if (portfolioResult.status === "rejected") {
-          setError("Could not load this portfolio.");
-          return;
-        }
-
-        setStudent(portfolioResult.value.student);
-        setPortfolio(portfolioResult.value.portfolio ?? []);
-
-        if (requestsResult.status === "fulfilled") {
-          const match = (requestsResult.value.requests ?? []).find(
-            (r) => r.student?.id === studentId,
-          );
-          if (match) {
-            setExistingRequest({
-              id: match.id,
-              status: match.status,
-              message: match.message,
-            });
-          }
-        }
+    apiGet<PortfolioResponse>(`/api/portfolio/${encodeURIComponent(studentId)}`)
+      .then((res) => {
+        setStudent(res.student);
+        setListing(res.listing);
+        setPortfolio(res.portfolio ?? []);
       })
+      .catch(() => setError("Could not load this portfolio."))
       .finally(() => setLoading(false));
   }, [studentId]);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setRequestError(null);
-    try {
-      const res = await apiPost<{ request: VolunteerRequest }>(
-        "/api/volunteer-requests",
-        {
-          student_id: studentId,
-          message: message.trim() || undefined,
-        },
-      );
-      setExistingRequest(res.request);
-      setShowForm(false);
-      setMessage("");
-    } catch (err: unknown) {
-      setRequestError(
-        err instanceof Error ? err.message : "Failed to send request.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleWithdraw() {
-    if (!existingRequest) return;
-    setWithdrawing(true);
-    try {
-      await apiDelete(`/api/volunteer-requests/${existingRequest.id}`);
-      setExistingRequest(null);
-    } catch (err: unknown) {
-      setRequestError(
-        err instanceof Error ? err.message : "Failed to withdraw.",
-      );
-    } finally {
-      setWithdrawing(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -286,7 +208,7 @@ export default function StudentPortfolioPage() {
           href="/volunteer/browse"
           className="mb-6 inline-flex items-center gap-2 text-sm text-k-gray-400 no-underline hover:text-k-black"
         >
-          <ArrowLeft size={16} /> Back to browse
+          <ArrowLeft size={16} /> Back to Find a Service
         </Link>
         <p className="text-sm text-red-600">
           {error ?? "Portfolio not found."}
@@ -303,7 +225,7 @@ export default function StudentPortfolioPage() {
         href="/volunteer/browse"
         className="mb-6 inline-flex items-center gap-2 text-sm text-k-gray-400 no-underline hover:text-k-black transition-colors"
       >
-        <ArrowLeft size={16} /> Back to browse
+        <ArrowLeft size={16} /> Back to Find a Service
       </Link>
 
       {/* Student profile header */}
@@ -339,112 +261,85 @@ export default function StudentPortfolioPage() {
         </div>
       </div>
 
-      {/* Volunteer CTA */}
-      <div className="mb-8">
-        {!existingRequest && !showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 rounded-full bg-k-primary px-6 py-2.5 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-px"
-          >
-            <HandHeart size={16} />
-            Volunteer as a client
-          </button>
-        )}
+      {/* Availability + request a service */}
+      <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-k-gray-200 bg-k-white p-5">
+          {listing?.bio && <p className="mb-4 text-sm leading-relaxed text-k-gray-600">{listing.bio}</p>}
 
-        {existingRequest && (
-          <div className="flex items-center gap-3">
-            {existingRequest.status === "pending" && (
-              <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-4 py-2 text-sm font-medium text-amber-700">
-                <CheckCircle2 size={14} />
-                Request sent — awaiting response
-              </span>
-            )}
-            {existingRequest.status === "accepted" && (
-              <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-4 py-2 text-sm font-medium text-emerald-700">
-                <CheckCircle2 size={14} />
-                Request accepted
-              </span>
-            )}
-            {existingRequest.status === "declined" && (
-              <span className="inline-flex items-center gap-2 rounded-full bg-red-50 border border-red-200 px-4 py-2 text-sm font-medium text-red-600">
-                <X size={14} />
-                Request declined
-              </span>
-            )}
-            {existingRequest.status === "pending" && (
-              <button
-                onClick={handleWithdraw}
-                disabled={withdrawing}
-                className="text-xs text-k-gray-400 hover:text-red-500 transition-colors"
-              >
-                {withdrawing ? "Withdrawing…" : "Withdraw"}
-              </button>
-            )}
-          </div>
-        )}
-
-        {showForm && (
-          <form
-            onSubmit={handleSubmit}
-            className="mt-2 rounded-2xl border border-k-gray-200 bg-k-white p-5 max-w-md"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-medium text-k-black">
-                Volunteer as a client
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  setMessage("");
-                  setRequestError(null);
-                }}
-                className="text-k-gray-400 hover:text-k-black transition-colors"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <p className="mb-3 text-xs text-k-gray-400">
-              Let {student.full_name?.split(" ")[0] ?? "this student"} know
-              you're interested. They'll be able to reach out to you.
+          {listing?.location && (
+            <p className="mb-4 flex items-center gap-1.5 text-xs text-k-gray-600">
+              <MapPin size={12} className="text-k-gray-400" />
+              {listing.location}
+              {listing.willing_to_travel ? " · willing to travel" : ""}
             </p>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Optional message — e.g. what service you're interested in, your availability…"
-              rows={3}
-              className="w-full rounded-xl border border-k-gray-200 bg-k-gray-100 px-4 py-2.5 text-sm text-k-black placeholder:text-k-gray-400 outline-none transition-colors focus:border-k-primary focus:bg-k-white resize-none"
-            />
-            {requestError && (
-              <p className="mt-2 text-xs text-red-600">{requestError}</p>
-            )}
-            <div className="mt-3 flex gap-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="inline-flex items-center gap-2 rounded-full bg-k-primary px-5 py-2 text-sm font-medium text-k-white transition-all hover:bg-k-primary-light disabled:opacity-60"
+          )}
+
+          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-k-gray-400">
+            Availability
+          </h3>
+          {!listing || listing.availability.length === 0 ? (
+            <p className="text-sm text-k-gray-400">No set times. Request a time and they can suggest another.</p>
+          ) : (
+            <ul className="flex flex-col gap-1 text-sm text-k-black">
+              {DAYS.flatMap((d) =>
+                listing.availability
+                  .filter((w) => w.day === d.key)
+                  .map((w, i) => (
+                    <li key={`${d.key}-${i}`} className="flex gap-3">
+                      <span className="w-24 text-k-gray-600">{d.label}</span>
+                      <span>
+                        {w.from}–{w.to}
+                      </span>
+                    </li>
+                  )),
+              )}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          {sent ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+              <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
+                <CheckCircle2 size={15} />
+                Request sent to {student.full_name?.split(" ")[0] ?? "the student"}
+              </p>
+              <p className="mt-1 text-xs text-emerald-700/80">
+                They&apos;ll accept, decline or suggest another time. Follow it under Upcoming.
+              </p>
+              <Link
+                href="/volunteer/appointments"
+                className="mt-3 inline-block text-xs font-medium text-k-primary no-underline hover:underline"
               >
-                {submitting ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <HandHeart size={14} />
-                )}
-                {submitting ? "Sending…" : "Send request"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  setMessage("");
-                }}
-                className="rounded-full border border-k-gray-200 px-5 py-2 text-sm font-medium text-k-gray-600 hover:bg-k-gray-100 transition-colors"
-              >
-                Cancel
-              </button>
+                View upcoming services →
+              </Link>
             </div>
-          </form>
-        )}
+          ) : requesting ? (
+            <RequestAppointmentForm
+              studentId={student.id}
+              otherName={student.full_name?.split(" ")[0] ?? null}
+              availability={listing?.availability ?? []}
+              preferredCategories={Array.from(new Set([...(listing?.services_offered ?? []), ...categories]))}
+              onCancel={() => setRequesting(false)}
+              onSent={() => {
+                setRequesting(false);
+                setSent(true);
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setRequesting(true)}
+              className="inline-flex items-center gap-2 rounded-full bg-k-primary px-6 py-2.5 text-sm font-medium text-k-white transition-all duration-200 hover:bg-k-primary-light hover:-translate-y-px"
+            >
+              <CalendarClock size={16} />
+              Request a service
+            </button>
+          )}
+        </div>
       </div>
+
+      <h2 className="mb-3 font-serif text-lg text-k-black">Verified portfolio</h2>
 
       {/* Portfolio grid */}
       {portfolio.length === 0 ? (

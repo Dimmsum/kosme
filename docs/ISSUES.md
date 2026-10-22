@@ -924,6 +924,119 @@ Extends `server/src/routes/client-signup.ts`, `server/src/routes/volunteer-reque
 
 ---
 
+## Client Journey (CLI)
+
+From the stakeholder review of the client login (`client-feedback.md`): the
+client dashboard should lead with finding a service and arranging a practice
+appointment, not with services already received. Target journey: Find Service →
+Find Student → View Portfolio → Check Availability → Request Appointment →
+Confirm Appointment → Receive Service → Confirm Completion → Service Moves to
+History. **Migration `0030_client_journey.sql` must be applied live** before
+CLI-1..CLI-4 work (it adds `student_profiles`, `appointments.requested_by` and
+`confirmations.issue_reason`/`issue_note`).
+
+- [x] **CLI-1** — Find a service / student
+  - **Depends on:** **CON-3**
+  - **Files:** `supabase/migrations/0030_client_journey.sql`,
+    `server/src/routes/student-profile.ts`, `server/src/lib/availability.ts`,
+    `server/src/routes/portfolio.ts`,
+    `client/components/appointments/StudentProfileEditor.tsx`,
+    `client/app/student/profile/page.tsx`,
+    `client/app/volunteer/browse/page.tsx`,
+    `client/app/volunteer/browse/[studentId]/page.tsx`.
+  - **Done:** New `student_profiles` table (bio, location, willing to travel,
+    `services_offered`, weekly `availability`, `is_listed`), mirroring
+    `client_profiles`. Students edit it on their Profile page
+    (`GET/PUT /api/student-profile/me`). New `GET /api/portfolio/students`
+    (client only; demo/real partitioned) filters by `category`, `institution_id`,
+    `location`, `day` and name `q`, and returns the filter options. A student
+    matches a category if they offer it *or* have it verified, and students with
+    no verified work yet are still listed (they need practice clients most).
+    `/volunteer/browse` is now "Find a Service": service chips, filters, student
+    cards, with the old verified-work feed kept as a second tab. The student
+    page shows their listing (location, availability) above the verified
+    portfolio. `parseAvailability` moved to `lib/availability.ts` and is shared
+    with `client-profile.ts`. **Scope notes:** availability is advisory, not
+    enforced. The old "Volunteer as a client" interest button was removed from
+    this page (the `volunteer_requests` routes and the student Requests tab are
+    untouched).
+
+- [x] **CLI-2** — Client requests an appointment
+  - **Depends on:** **CLI-1**, **CON-4**
+  - **Files:** `supabase/migrations/0030_client_journey.sql`,
+    `server/src/routes/appointments.ts`,
+    `client/components/appointments/RequestAppointmentForm.tsx`,
+    `client/components/appointments/AppointmentList.tsx`,
+    `client/app/volunteer/browse/[studentId]/page.tsx`.
+  - **Done:** `POST /api/appointments` now accepts a client (body `student_id`)
+    as well as a student (body `client_id`). New `appointments.requested_by`
+    (backfilled to `student_id`) records who opened it; while `pending`, the
+    *other* party accepts, declines or suggests another time, replacing the old
+    "client answers, student asks" assumption in `accept`/`decline`/`suggest`.
+    `RequestAppointmentForm` works from either side and warns when the chosen
+    time is outside the other person's listed availability.
+    `AppointmentList` shows "Waiting for …" to the requester and Accept/Decline
+    to the responder, for both roles. Student-initiated bookings behave as
+    before.
+
+- [x] **CLI-3** — Upcoming Services
+  - **Depends on:** **CLI-2**
+  - **Files:** `client/app/volunteer/appointments/page.tsx`,
+    `client/app/volunteer/layout.tsx`.
+  - **Done:** The client's Appointments page is now "Upcoming Services":
+    requested and confirmed appointments with service details, Message,
+    Accept/Decline, Suggest another time, Reschedule and Cancel (all already
+    supported by `AppointmentList`; "need a reply" now keys off `requested_by`).
+    Empty state links to Find a Service. Nav reordered to follow the journey
+    (Dashboard, Find a Service, Upcoming, Confirm Service, Messages, History,
+    Profile).
+
+- [x] **CLI-4** — Confirm Service / Report an Issue
+  - **Depends on:** **VER-4**
+  - **Files:** `supabase/migrations/0030_client_journey.sql`,
+    `server/src/routes/confirmations.ts`, `server/src/routes/services.ts`,
+    `client/app/volunteer/confirmations/page.tsx`,
+    `client/app/volunteer/layout.tsx`,
+    `client/app/student/services/[id]/page.tsx`.
+  - **Done:** "Dispute" is now "Report an Issue" with a reason (Service was
+    cancelled / incomplete / I did not receive this service / details are
+    incorrect / Other, with a required note for Other). New
+    `POST /api/confirmations/:id/report-issue` (replaces `/dispute`) stores
+    `issue_reason`/`issue_note` on the confirmation and raises one open `flags`
+    row for admin review. It does **not** change `services.status`, so the
+    student's submission isn't treated as invalid; it just can't go to the
+    educator until the client confirms. A client can still confirm later, which
+    clears the reason and resolves the flag. `GET /pending` now also returns
+    `reported` ("Issues under review"). The page shows a "what happens next"
+    message after Confirm Service, and the nav shows a count badge of services
+    waiting on the client. The student's service page shows "Issue reported"
+    with the reason. Legacy `rejected` services from the old dispute still use
+    the existing resend flow. **Not built:** a notification to the student
+    (they see it on the service page), and any admin action beyond the
+    existing flags module (`events.event_type` is CHECK-constrained, so no new
+    event type was added).
+
+- [x] **CLI-5** — Dashboard leads with the journey; History tracks it
+  - **Depends on:** **CLI-3**, **CLI-4**
+  - **Files:** `client/app/volunteer/dashboard/page.tsx`,
+    `client/app/volunteer/history/page.tsx`, `client/lib/appointments.ts`,
+    `server/src/routes/confirmations.ts`,
+    `server/src/scripts/seed-test-accounts.ts`.
+  - **Done:** Dashboard order is now Find a service (primary), services waiting
+    for confirmation (only when there are some), then Upcoming Services; the
+    "Services Received" stats and "Recently Resolved" list are gone. Received
+    services live in History, which now shows each one's stage with a tracker
+    (Confirmed → Student submits → Educator review → Verified) from
+    `services.status`, so after confirming the client can follow it through to
+    the student's verified record. `GET /history` returns the service status
+    and issue reason. `seed:test` now gives the test student a listing, and
+    already seeds one `awaiting_client` service for the test client to confirm.
+    **Scope note:** the client still can't push a service forward: the student
+    must add photos and reflection notes and submit it (VER-5), by design.
+
+
+---
+
 ## KAI Placeholders (KAI)
 
 New `server/src/routes/kai/*`, dashboard cards. **Hard constraint:** KAI never

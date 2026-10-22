@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { apiGet, apiPatch } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import StudentProfileEditor from "@/components/appointments/StudentProfileEditor";
 
 interface ProfileRes {
   profile: {
@@ -205,6 +206,8 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        <StudentProfileEditor />
 
         {/* Programme information (read-only) */}
         <div className="mb-6 rounded-3xl border border-k-gray-200 bg-k-white p-6">

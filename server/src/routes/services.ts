@@ -1025,7 +1025,7 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
       student:student_id ( id, full_name ),
       client:client_id ( id, full_name ),
       service_photos ( id, type, stage, url, created_at ),
-      confirmations ( id, status, created_at ),
+      confirmations ( id, status, issue_reason, created_at ),
       verifications ( id, status, notes, created_at )
     `,
     )

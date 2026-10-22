@@ -316,6 +316,130 @@ router.get(
   },
 );
 
+const LISTING_FIELDS = "bio, location, willing_to_travel, services_offered, availability, is_listed";
+
+const EMPTY_LISTING = {
+  bio: null,
+  location: null,
+  willing_to_travel: false,
+  services_offered: [],
+  availability: [],
+  is_listed: true,
+};
+
+// GET /api/portfolio/students — client-facing student directory (CLI-1).
+// Supports ?category=&institution_id=&location=&day=&q=. Every active student
+// on the viewer's side of the demo boundary is listed unless they opted out,
+// including students with no verified work yet (they are the ones who most
+// need a practice client). The category filter matches what a student says
+// they offer *or* what they already have verified.
+router.get(
+  "/students",
+  requireRole("client"),
+  async (req: AuthRequest, res: Response) => {
+    const { category, institution_id, location, day, q } = req.query;
+
+    let query = supabaseAdmin
+      .from("user_profiles")
+      .select(
+        `
+      id, full_name, institution_id,
+      institutions ( name ),
+      student_profiles ( ${LISTING_FIELDS} ),
+      services!services_student_id_fkey ( category_id, status )
+    `,
+      )
+      .eq("role", "student")
+      .eq("status", "active")
+      .eq("is_demo", req.isDemo ?? false);
+
+    if (typeof institution_id === "string" && institution_id) {
+      query = query.eq("institution_id", institution_id);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("DB error:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+
+    type Listing = {
+      bio: string | null;
+      location: string | null;
+      willing_to_travel: boolean;
+      services_offered: string[];
+      availability: Array<{ day: string; from: string; to: string }>;
+      is_listed: boolean;
+    };
+    type Row = {
+      id: string;
+      full_name: string | null;
+      institution_id: string | null;
+      institutions: { name: string } | { name: string }[] | null;
+      student_profiles: Listing | Listing[] | null;
+      services: Array<{ category_id: string; status: string }> | null;
+    };
+
+    const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? v[0] ?? null : v);
+
+    const all = ((data ?? []) as unknown as Row[])
+      .map((row) => {
+        const listing = one(row.student_profiles) ?? EMPTY_LISTING;
+        const verified = (row.services ?? []).filter((s) => s.status === "verified");
+        const verifiedCategories = [...new Set(verified.map((s) => s.category_id))];
+        return {
+          id: row.id,
+          full_name: row.full_name,
+          institution_id: row.institution_id,
+          institution_name: one(row.institutions)?.name ?? null,
+          verified_count: verified.length,
+          verified_categories: verifiedCategories,
+          categories: [...new Set([...listing.services_offered, ...verifiedCategories])],
+          location: listing.location,
+          willing_to_travel: listing.willing_to_travel,
+          availability: listing.availability,
+          is_listed: listing.is_listed,
+        };
+      })
+      .filter((s) => s.is_listed);
+
+    // Filter options come from the unfiltered set so choosing one doesn't
+    // collapse the other dropdowns.
+    const institutions = [
+      ...new Map(
+        all
+          .filter((s) => s.institution_id && s.institution_name)
+          .map((s) => [s.institution_id!, { id: s.institution_id!, name: s.institution_name! }]),
+      ).values(),
+    ].sort((a, b) => a.name.localeCompare(b.name));
+    const categories = [...new Set(all.flatMap((s) => s.categories))].sort();
+
+    const needle = typeof q === "string" ? q.trim().toLowerCase() : "";
+    const where = typeof location === "string" ? location.trim().toLowerCase() : "";
+
+    const students = all
+      .filter((s) => {
+        if (typeof category === "string" && category && !s.categories.includes(category)) return false;
+        if (where && !(s.location ?? "").toLowerCase().includes(where)) return false;
+        // A student with no weekly times listed is treated as flexible.
+        if (
+          typeof day === "string" &&
+          day &&
+          s.availability.length > 0 &&
+          !s.availability.some((w) => w.day === day)
+        ) {
+          return false;
+        }
+        if (needle && !(s.full_name ?? "").toLowerCase().includes(needle)) return false;
+        return true;
+      })
+      .sort((a, b) => b.verified_count - a.verified_count || (a.full_name ?? "").localeCompare(b.full_name ?? ""))
+      .map(({ is_listed: _listed, ...rest }) => rest);
+
+    return res.json({ students, filters: { institutions, categories } });
+  },
+);
+
 // GET /api/portfolio/:studentId — educator, employer, or volunteer client views a student's portfolio
 router.get("/:studentId", async (req: AuthRequest, res: Response) => {
   const { studentId } = req.params;
@@ -359,8 +483,24 @@ router.get("/:studentId", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 
+  // CLI-1: the booking details a client needs before requesting a service.
+  // Only clients get these; educators and employers don't need them.
+  let listing = null;
+  if (req.userRole === "client") {
+    const { data: row } = await supabaseAdmin
+      .from("student_profiles")
+      .select(LISTING_FIELDS)
+      .eq("user_id", studentId)
+      .maybeSingle();
+    if (row && !row.is_listed) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+    listing = row ?? EMPTY_LISTING;
+  }
+
   return res.json({
     student: profile,
+    listing,
     portfolio: await withConsentGating(withoutDurations(data ?? [])),
     skills: summariseSkills(data ?? []),
     hours: summariseVerifiedHours(data ?? []),

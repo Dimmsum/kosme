@@ -8,7 +8,7 @@ const router = Router();
 const SELECT = `
   id, student_id, client_id, category_id, service_type_id, service_name,
   starts_at, est_duration_min, location, notes, status,
-  proposed_starts_at, proposed_by, confirmed_at, cancelled_by, service_id,
+  proposed_starts_at, proposed_by, confirmed_at, cancelled_by, service_id, requested_by,
   created_at, updated_at,
   student:student_id ( id, full_name ),
   client:client_id ( id, full_name )
@@ -23,6 +23,7 @@ interface Appointment {
   proposed_starts_at: string | null;
   confirmed_at: string | null;
   service_id: string | null;
+  requested_by: string | null;
 }
 
 /** Parse a future ISO timestamp, or return an error message. */
@@ -44,7 +45,7 @@ async function loadOwn(req: AuthRequest, res: Response): Promise<Appointment | n
   }
   const { data } = await supabaseAdmin
     .from("appointments")
-    .select("id, student_id, client_id, status, proposed_by, proposed_starts_at, confirmed_at, service_id")
+    .select("id, student_id, client_id, status, proposed_by, proposed_starts_at, confirmed_at, service_id, requested_by")
     .eq("id", req.params.id)
     .maybeSingle();
   if (!data || (data.student_id !== req.userId && data.client_id !== req.userId)) {
@@ -96,10 +97,13 @@ router.get("/", requireRole("student", "client"), async (req: AuthRequest, res: 
   return res.json({ appointments: data ?? [] });
 });
 
-// POST /api/appointments — a student requests an appointment with a volunteer
-router.post("/", requireRole("student"), async (req: AuthRequest, res: Response) => {
+// POST /api/appointments — either side opens a request: a student books a
+// volunteer (body: client_id), or a client books a student from the student's
+// profile (body: student_id). The other party then accepts or declines.
+router.post("/", requireRole("student", "client"), async (req: AuthRequest, res: Response) => {
   const {
-    client_id,
+    client_id: bodyClientId,
+    student_id: bodyStudentId,
     category_id,
     service_type_id,
     service_name,
@@ -109,8 +113,11 @@ router.post("/", requireRole("student"), async (req: AuthRequest, res: Response)
     notes,
   } = req.body as Record<string, unknown>;
 
-  if (!isUuid(client_id)) {
-    return res.status(400).json({ error: "client_id is required" });
+  const asClient = req.userRole === "client";
+  const client_id = asClient ? req.userId! : bodyClientId;
+  const student_id = asClient ? bodyStudentId : req.userId!;
+  if (!isUuid(asClient ? student_id : client_id)) {
+    return res.status(400).json({ error: asClient ? "student_id is required" : "client_id is required" });
   }
   if (typeof category_id !== "string" || !category_id) {
     return res.status(400).json({ error: "category_id is required" });
@@ -140,16 +147,18 @@ router.post("/", requireRole("student"), async (req: AuthRequest, res: Response)
     return res.status(400).json({ error: when });
   }
 
-  // The volunteer must be a client on the same side of the demo boundary.
-  const { data: client } = await supabaseAdmin
+  // The other party must hold the opposite role on the same side of the demo
+  // boundary (and, for a student, still be an active account).
+  const otherId = (asClient ? student_id : client_id) as string;
+  const { data: other } = await supabaseAdmin
     .from("user_profiles")
     .select("id")
-    .eq("id", client_id)
-    .eq("role", "client")
+    .eq("id", otherId)
+    .eq("role", asClient ? "student" : "client")
     .eq("is_demo", req.isDemo ?? false)
     .maybeSingle();
-  if (!client) {
-    return res.status(400).json({ error: "Invalid client_id" });
+  if (!other) {
+    return res.status(400).json({ error: asClient ? "Invalid student_id" : "Invalid client_id" });
   }
 
   const { data: category } = await supabaseAdmin
@@ -174,8 +183,9 @@ router.post("/", requireRole("student"), async (req: AuthRequest, res: Response)
   const { data, error } = await supabaseAdmin
     .from("appointments")
     .insert({
-      student_id: req.userId!,
+      student_id,
       client_id,
+      requested_by: req.userId!,
       category_id,
       service_type_id: service_type_id ?? null,
       service_name: service_name.trim(),
@@ -193,16 +203,16 @@ router.post("/", requireRole("student"), async (req: AuthRequest, res: Response)
   return res.status(201).json({ appointment: data });
 });
 
-// POST /api/appointments/:id/accept — client accepts a request, or either party
-// accepts the other's proposed new time.
+// POST /api/appointments/:id/accept — the party who didn't open a request
+// accepts it, or either party accepts the other's proposed new time.
 router.post("/:id/accept", requireRole("student", "client"), async (req: AuthRequest, res: Response) => {
   const appt = await loadOwn(req, res);
   if (!appt) return;
   const now = new Date().toISOString();
 
   if (appt.status === "pending") {
-    if (req.userId !== appt.client_id) {
-      return res.status(403).json({ error: "Only the volunteer can accept a request" });
+    if (req.userId === appt.requested_by) {
+      return res.status(403).json({ error: "The other person needs to accept your request" });
     }
     return transition(req, res, appt, { status: "confirmed", confirmed_at: now });
   }
@@ -221,15 +231,15 @@ router.post("/:id/accept", requireRole("student", "client"), async (req: AuthReq
   return res.status(400).json({ error: "Nothing to accept on this appointment" });
 });
 
-// POST /api/appointments/:id/decline — client declines a request, or either
-// party declines the other's proposed new time.
+// POST /api/appointments/:id/decline — the party who didn't open a request
+// declines it, or either party declines the other's proposed new time.
 router.post("/:id/decline", requireRole("student", "client"), async (req: AuthRequest, res: Response) => {
   const appt = await loadOwn(req, res);
   if (!appt) return;
 
   if (appt.status === "pending") {
-    if (req.userId !== appt.client_id) {
-      return res.status(403).json({ error: "Only the volunteer can decline a request" });
+    if (req.userId === appt.requested_by) {
+      return res.status(403).json({ error: "You opened this request; cancel it instead" });
     }
     return transition(req, res, appt, { status: "cancelled", cancelled_by: req.userId });
   }
@@ -260,7 +270,7 @@ router.post("/:id/suggest", requireRole("student", "client"), async (req: AuthRe
   }
 
   const allowed =
-    (appt.status === "pending" && req.userId === appt.client_id) ||
+    (appt.status === "pending" && req.userId !== appt.requested_by) ||
     appt.status === "confirmed" ||
     (appt.status === "reschedule_requested" && req.userId !== appt.proposed_by);
   if (!allowed) {

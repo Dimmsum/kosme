@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiErrorMessage, apiGet, apiPost } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
-import { nowLocalInput } from "@/lib/appointments";
+import { AvailabilityWindow, nowLocalInput, withinAvailability } from "@/lib/appointments";
 
 interface Category {
   id: string;
@@ -17,14 +17,25 @@ interface ServiceType {
 
 const DURATIONS = [30, 45, 60, 90, 120, 180, 240];
 
+/**
+ * Books an appointment from either side. A student passes `clientId` (booking a
+ * volunteer); a client passes `studentId` (booking a student).
+ */
 export default function RequestAppointmentForm({
   clientId,
+  studentId,
+  otherName,
+  availability = [],
   preferredCategories,
   onSent,
   onCancel,
 }: {
-  clientId: string;
-  /** Categories the volunteer said they will receive, listed first. */
+  clientId?: string;
+  studentId?: string;
+  otherName?: string | null;
+  /** The other person's weekly windows; used to warn about a poor fit. */
+  availability?: AvailabilityWindow[];
+  /** Categories to list first (what the other person offers or will receive). */
   preferredCategories: string[];
   onSent: () => void;
   onCancel: () => void;
@@ -60,6 +71,7 @@ export default function RequestAppointmentForm({
   }, [preferredCategories]);
 
   const typesForCategory = types.filter((t) => t.category_id === category);
+  const outsideHours = !!startsAt && !withinAvailability(new Date(startsAt).toISOString(), availability);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,6 +84,7 @@ export default function RequestAppointmentForm({
     try {
       await apiPost("/api/appointments", {
         client_id: clientId,
+        student_id: studentId,
         category_id: category,
         service_type_id: typeId || undefined,
         service_name: name.trim(),
@@ -149,6 +162,12 @@ export default function RequestAppointmentForm({
             onChange={(e) => setStartsAt(e.target.value)}
             className={field}
           />
+          {outsideHours && (
+            <span className="font-normal text-amber-700">
+              That&apos;s outside {otherName ?? "their"} listed availability. You can still send it; they may suggest
+              another time.
+            </span>
+          )}
         </label>
         <label className={label}>
           Estimated duration
@@ -167,7 +186,7 @@ export default function RequestAppointmentForm({
           value={location}
           onChange={(e) => setLocation(e.target.value)}
           maxLength={200}
-          placeholder="e.g. Training salon, or the volunteer's home"
+          placeholder={studentId ? "e.g. Your home, or the training salon" : "e.g. Training salon, or the volunteer's home"}
           className={field}
         />
       </label>

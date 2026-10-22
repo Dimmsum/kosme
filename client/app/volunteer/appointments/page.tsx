@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Compass } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { Appointment } from "@/lib/appointments";
 import AppointmentList from "@/components/appointments/AppointmentList";
@@ -22,8 +24,9 @@ export default function VolunteerAppointmentsPage() {
     load();
   }, []);
 
+  // Waiting on me: a request the student opened, or a new time they suggested.
   const needsReply = (a: Appointment) =>
-    a.status === "pending" ||
+    (a.status === "pending" && (a.requested_by ?? a.student_id) !== a.client_id) ||
     (a.status === "reschedule_requested" && a.proposed_by !== a.client_id);
   const upcoming = appointments.filter((a) =>
     ["pending", "confirmed", "reschedule_requested"].includes(a.status),
@@ -35,7 +38,7 @@ export default function VolunteerAppointmentsPage() {
     <div className="px-4 py-6 sm:px-6 md:px-8 md:py-8">
       <div className="mb-6">
         <div className="flex items-center gap-3">
-          <h1 className="font-serif text-2xl font-light text-k-black sm:text-3xl">Appointments</h1>
+          <h1 className="font-serif text-2xl font-light text-k-black sm:text-3xl">Upcoming Services</h1>
           {waiting > 0 && (
             <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-medium text-amber-700">
               {waiting} need a reply
@@ -43,7 +46,8 @@ export default function VolunteerAppointmentsPage() {
           )}
         </div>
         <p className="mt-1 text-sm text-k-gray-400">
-          Students request a time with you. Accept, decline, or suggest another time.
+          Services you&apos;ve requested or been asked to confirm. Accept, decline, suggest another time, reschedule or
+          message the student.
         </p>
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       </div>
@@ -52,12 +56,20 @@ export default function VolunteerAppointmentsPage() {
         <p className="py-10 text-center text-sm text-k-gray-400">Loading…</p>
       ) : (
         <div className="flex flex-col gap-8">
+          {upcoming.length === 0 && (
+            <Link
+              href="/volunteer/browse"
+              className="inline-flex w-fit items-center gap-1.5 rounded-full bg-k-primary px-5 py-2 text-xs font-medium text-k-white no-underline transition-colors hover:bg-k-primary-light"
+            >
+              <Compass size={14} /> Find a service
+            </Link>
+          )}
           <AppointmentList
             role="client"
             appointments={upcoming}
             onChanged={load}
             onMessage={(id) => router.push(`/volunteer/messages?with=${id}`)}
-            emptyLabel="No appointment requests yet."
+            emptyLabel="Nothing booked yet. Find a service to request your first appointment."
           />
           {past.length > 0 && (
             <div>

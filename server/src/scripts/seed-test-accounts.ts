@@ -493,6 +493,27 @@ async function seedRelationships(ids: Record<Role, string>) {
       { onConflict: "student_id,volunteer_id" },
     ),
   );
+  // CLI-1: a listing for the test student, so the client's Find a Service page
+  // has a location, services and weekly times to filter on.
+  await must(
+    "student_profiles",
+    supabaseAdmin.from("student_profiles").upsert(
+      {
+        user_id: ids.student,
+        bio: "Second-year student working towards my practical hours. Happy to talk through what I'll do first.",
+        location: "Kingston",
+        willing_to_travel: false,
+        services_offered: ["Haircuts", "Colour"],
+        availability: [
+          { day: "tue", from: "13:00", to: "17:00" },
+          { day: "thu", from: "13:00", to: "17:00" },
+          { day: "sat", from: "09:00", to: "13:00" },
+        ],
+        is_listed: true,
+      },
+      { onConflict: "user_id" },
+    ),
+  );
 }
 
 async function main() {

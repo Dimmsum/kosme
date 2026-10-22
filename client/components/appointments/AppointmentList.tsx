@@ -78,6 +78,9 @@ export default function AppointmentList({
         const other = role === "student" ? a.client : a.student;
         const myId = role === "student" ? a.student_id : a.client_id;
         const iProposed = a.proposed_by === myId;
+        // Either side can open a request; the other one answers it. Rows from
+        // before client-led booking have no requested_by and were the student's.
+        const iRequested = (a.requested_by ?? a.student_id) === myId;
         const open = ["pending", "confirmed", "reschedule_requested"].includes(a.status);
         const disabled = busy === a.id;
         const canStart =
@@ -138,7 +141,7 @@ export default function AppointmentList({
                   <Play size={12} /> Start Service
                 </button>
               )}
-              {role === "client" && a.status === "pending" && (
+              {a.status === "pending" && !iRequested && (
                 <>
                   <button type="button" disabled={disabled} onClick={() => act(a.id, "accept")} className={PRIMARY}>
                     Accept
@@ -158,10 +161,13 @@ export default function AppointmentList({
                   </button>
                 </>
               )}
-              {a.status === "reschedule_requested" && iProposed && (
-                <span className="text-xs text-k-gray-400">Waiting for a reply…</span>
+              {((a.status === "reschedule_requested" && iProposed) ||
+                (a.status === "pending" && iRequested)) && (
+                <span className="text-xs text-k-gray-400">
+                  Waiting for {other?.full_name?.split(" ")[0] ?? "a reply"}…
+                </span>
               )}
-              {open && !a.service_id && (a.status !== "pending" || role === "client") && (
+              {open && !a.service_id && (a.status !== "pending" || !iRequested) && (
                 <button
                   type="button"
                   disabled={disabled}
@@ -180,14 +186,14 @@ export default function AppointmentList({
                   <MessageSquare size={12} /> Message
                 </button>
               )}
-              {open && !a.service_id && (
+              {open && !a.service_id && !(a.status === "pending" && !iRequested) && (
                 <button
                   type="button"
                   disabled={disabled}
                   onClick={() => act(a.id, "cancel")}
                   className={`${BTN} text-red-600 hover:bg-red-50`}
                 >
-                  {role === "client" && a.status === "pending" ? "Cancel" : "Cancel appointment"}
+                  {a.status === "pending" ? "Cancel request" : "Cancel appointment"}
                 </button>
               )}
               {a.service_id && a.status !== "completed" && (

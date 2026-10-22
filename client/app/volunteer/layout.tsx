@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -16,18 +16,20 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
+import { apiGet } from "@/lib/api";
 import DemoBanner from "@/components/DemoBanner";
 
+// Ordered to follow the client journey: find, book, receive, confirm, history.
 const navItems = [
   { href: "/volunteer/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/volunteer/browse", label: "Find a Service", icon: Compass },
+  { href: "/volunteer/appointments", label: "Upcoming", icon: CalendarClock },
   {
     href: "/volunteer/confirmations",
-    label: "Confirmations",
+    label: "Confirm Service",
     icon: ClipboardCheck,
   },
-  { href: "/volunteer/appointments", label: "Appointments", icon: CalendarClock },
   { href: "/volunteer/messages", label: "Messages", icon: MessageSquare },
-  { href: "/volunteer/browse", label: "Browse", icon: Compass },
   { href: "/volunteer/history", label: "History", icon: Clock },
   { href: "/volunteer/profile", label: "Profile", icon: User },
 ];
@@ -41,6 +43,7 @@ export default function VolunteerLayout({
   const router = useRouter();
   const { user, role, loading, signOut } = useAuth();
   const rolePending = !!user && role === null;
+  const [toConfirm, setToConfirm] = useState(0);
   const roleMismatch = !!user && !!role && role !== "client";
 
   useEffect(() => {
@@ -54,6 +57,15 @@ export default function VolunteerLayout({
       router.replace(ROLE_DASHBOARD[role]);
     }
   }, [user, role, roleMismatch, loading, router]);
+
+  // Count of finished services waiting on the client, shown as a badge so the
+  // request to confirm is visible from every page. Refreshed on navigation.
+  useEffect(() => {
+    if (loading || !user || role !== "client") return;
+    apiGet<{ confirmations: unknown[] }>("/api/confirmations/pending")
+      .then((res) => setToConfirm(res.confirmations?.length ?? 0))
+      .catch(() => {});
+  }, [loading, user, role, pathname]);
 
   if (loading || !user || roleMismatch) {
     return (
@@ -126,6 +138,11 @@ export default function VolunteerLayout({
               >
                 <Icon size={18} />
                 {label}
+                {href === "/volunteer/confirmations" && toConfirm > 0 && (
+                  <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                    {toConfirm}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -173,7 +190,14 @@ export default function VolunteerLayout({
                 active ? "text-k-primary" : "text-k-gray-400"
               }`}
             >
-              <Icon size={18} />
+              <span className="relative">
+                <Icon size={18} />
+                {href === "/volunteer/confirmations" && toConfirm > 0 && (
+                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-k-white">
+                    {toConfirm}
+                  </span>
+                )}
+              </span>
               <span className="text-[10px] font-medium">{label}</span>
             </Link>
           );

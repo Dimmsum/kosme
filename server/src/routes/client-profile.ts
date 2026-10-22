@@ -2,43 +2,12 @@ import { Router, Response } from "express";
 import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
 import { isUuid } from "../lib/validation";
+import { parseAvailability } from "../lib/availability";
 
 const router = Router();
 
-const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-interface Window {
-  day: (typeof DAYS)[number];
-  from: string;
-  to: string;
-}
-
 const PROFILE_FIELDS =
   "bio, location, willing_to_travel, services_willing, availability, is_listed";
-
-function parseAvailability(value: unknown): Window[] | string {
-  if (!Array.isArray(value) || value.length > 21) {
-    return "availability must be a list of at most 21 time windows";
-  }
-  const windows: Window[] = [];
-  for (const w of value) {
-    const { day, from, to } = (w ?? {}) as Record<string, unknown>;
-    if (
-      typeof day !== "string" ||
-      !(DAYS as readonly string[]).includes(day) ||
-      typeof from !== "string" ||
-      typeof to !== "string" ||
-      !TIME_RE.test(from) ||
-      !TIME_RE.test(to) ||
-      from >= to
-    ) {
-      return "Each availability window needs a day and a start time before its end time";
-    }
-    windows.push({ day: day as Window["day"], from, to });
-  }
-  return windows;
-}
 
 // GET /api/client-profile/me — the client's own profile (empty defaults if unset)
 router.get("/me", requireRole("client"), async (req: AuthRequest, res: Response) => {

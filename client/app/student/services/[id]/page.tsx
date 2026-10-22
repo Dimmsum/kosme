@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { apiGet, apiPatch, apiPost, apiPut, apiUpload } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { issueReasonLabel } from "@/lib/appointments";
 
 type ServiceStatus =
   | "in_progress"
@@ -64,6 +65,7 @@ const STAGE_OPTIONS: { value: PhotoStage; label: string; title: string }[] = [
 interface Confirmation {
   id: string;
   status: string;
+  issue_reason?: string | null;
   created_at: string;
 }
 
@@ -1331,14 +1333,25 @@ export default function ServiceDetailPage() {
               </h2>
               {confirmations.map((c) => (
                 <div key={c.id} className="flex items-center gap-2.5">
-                  <CheckCircle2
-                    size={15}
-                    className="text-emerald-500 shrink-0"
-                  />
+                  {c.status === "disputed" ? (
+                    <AlertCircle size={15} className="text-amber-500 shrink-0" />
+                  ) : (
+                    <CheckCircle2
+                      size={15}
+                      className="text-emerald-500 shrink-0"
+                    />
+                  )}
                   <div>
                     <p className="text-sm text-k-black capitalize">
-                      {c.status}
+                      {c.status === "disputed" ? "Issue reported" : c.status}
                     </p>
+                    {c.status === "disputed" && (
+                      <p className="text-xs text-k-gray-600">
+                        {issueReasonLabel(c.issue_reason) ?? "Your client reported an issue."} It&apos;s been
+                        flagged for review. Message your client to sort it out. They can still confirm the
+                        service, and then you can submit it.
+                      </p>
+                    )}
                     <p className="text-xs text-k-gray-400">
                       {new Date(c.created_at).toLocaleDateString("en-GB", {
                         day: "numeric",
