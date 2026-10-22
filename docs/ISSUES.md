@@ -787,6 +787,27 @@ Extends `server/src/routes/portfolio.ts`, `client/app/student/portfolio/page.tsx
     dashboard rings now show all categories (they were capped at four) and
     link to the page.
 
+- [x] **POR-8** — Employer portfolio: work first, skills second
+  - **Depends on:** POR-5, POR-6
+  - Employer feedback (2026-10-21, `employer-feedback.md`): lead with the
+    verified work, move the Skill Summary out of the feed, drop the
+    Educators metric, shrink the green banner.
+  - **Files:** `client/app/employer/browse/[studentId]/page.tsx`,
+    `client/components/portfolio/EmployerPortfolio.tsx` (new).
+  - **Done:** No server or schema change. The page now opens on a
+    **Portfolio** tab: one section per verified service ("Cornrows ·
+    Braiding · Verified") with up to three large photos, after photos
+    first, and a "+N" overlay for the rest. Clicking a section or photo
+    opens a detail modal with all before/after photos, the date and the
+    verifying educator and date. The POR-3 Skill Summary moved to a
+    **Skills & Verification** tab. The stats are three wider cards
+    (Verified services, Verified hours, Skill categories); the Educators
+    card is gone. The green banner is now a small "Verified Portfolio"
+    badge under the student name, and "Copy link" reads "Copy portfolio
+    link". The category filter shows on the Portfolio tab only. Not built:
+    the "Experience/Profile" tab, because there is no experience data
+    model yet; the issue only asked for it as a suggestion.
+
 ---
 
 ## Kosmè Connect (CON) — outstanding

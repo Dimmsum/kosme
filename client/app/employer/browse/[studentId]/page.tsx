@@ -13,7 +13,11 @@ import {
 } from "lucide-react";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { VerifiedHours, formatHours, untimedNote } from "@/lib/hours";
-import { PortfolioService, ServiceCard } from "@/components/portfolio/ServiceCard";
+import {
+  PortfolioSection,
+  ServiceDetailModal,
+} from "@/components/portfolio/EmployerPortfolio";
+import type { PortfolioService } from "@/components/portfolio/ServiceCard";
 
 interface StudentProfile {
   id: string;
@@ -67,6 +71,8 @@ export default function EmployerStudentPortfolioPage() {
   const [shortlistPending, setShortlistPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<"portfolio" | "skills">("portfolio");
+  const [selected, setSelected] = useState<PortfolioService | null>(null);
 
   useEffect(() => {
     Promise.allSettled([
@@ -189,6 +195,10 @@ export default function EmployerStudentPortfolioPage() {
             <p className="mt-0.5 text-sm text-k-gray-400">
               {student.institutions?.name ?? "No institution listed"}
             </p>
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+              <CheckCircle2 size={11} /> Verified Portfolio · educator-verified
+              work only
+            </span>
           </div>
         </div>
 
@@ -198,7 +208,7 @@ export default function EmployerStudentPortfolioPage() {
             className="inline-flex items-center justify-center gap-2 rounded-full border border-k-gray-200 bg-k-white px-5 py-2.5 text-sm font-medium text-k-black transition-colors hover:bg-k-gray-100"
           >
             {copied ? <Check size={14} /> : <Link2 size={14} />}
-            {copied ? "Link copied" : "Copy link"}
+            {copied ? "Link copied" : "Copy portfolio link"}
           </button>
           <button
             onClick={toggleShortlist}
@@ -223,15 +233,15 @@ export default function EmployerStudentPortfolioPage() {
       )}
 
       {/* Stats */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
-          <p className="font-serif text-2xl text-k-primary">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-6 py-5 text-center">
+          <p className="font-serif text-3xl text-k-primary">
             {portfolio.length}
           </p>
           <p className="mt-1 text-xs text-k-gray-400">Verified services</p>
         </div>
-        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
-          <p className="font-serif text-2xl text-k-black">
+        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-6 py-5 text-center">
+          <p className="font-serif text-3xl text-k-black">
             {formatHours(hours.verified_minutes)}
           </p>
           <p className="mt-1 text-xs text-k-gray-400">Verified hours</p>
@@ -241,37 +251,39 @@ export default function EmployerStudentPortfolioPage() {
             </p>
           )}
         </div>
-        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
-          <p className="font-serif text-2xl text-k-black">
+        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-6 py-5 text-center">
+          <p className="font-serif text-3xl text-k-black">
             {categories.length}
           </p>
-          <p className="mt-1 text-xs text-k-gray-400">Categories</p>
-        </div>
-        <div className="rounded-2xl border border-k-gray-200 bg-k-white px-4 py-4 text-center">
-          <p className="font-serif text-2xl text-k-black">
-            {
-              new Set(
-                portfolio
-                  .map((s) => s.verifications?.[0]?.educator?.full_name)
-                  .filter(Boolean),
-              ).size
-            }
-          </p>
-          <p className="mt-1 text-xs text-k-gray-400">Educators</p>
+          <p className="mt-1 text-xs text-k-gray-400">Skill categories</p>
         </div>
       </div>
 
-      <div className="mb-6 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-2.5">
-        <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
-        <p className="text-xs text-emerald-700">
-          Every service shown here was verified by an educator. Unverified work
-          never appears on a portfolio.
-        </p>
+      {/* View tabs */}
+      <div className="mb-6 flex items-center gap-1 border-b border-k-gray-200">
+        {(
+          [
+            ["portfolio", "Portfolio"],
+            ["skills", "Skills & Verification"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              tab === key
+                ? "border-k-primary text-k-black"
+                : "border-transparent text-k-gray-400 hover:text-k-black"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Skill summary (POR-3) */}
-      {skills.length > 0 && (
-        <div className="mb-6 rounded-3xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
+      {tab === "skills" && (skills.length > 0 ? (
+        <div className="rounded-3xl border border-k-gray-200 bg-k-white p-5 sm:p-6">
           <div className="mb-4 flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-k-primary/10">
               <Sparkles size={14} className="text-k-primary" />
@@ -315,10 +327,12 @@ export default function EmployerStudentPortfolioPage() {
             ))}
           </div>
         </div>
-      )}
+      ) : (
+        <p className="text-sm text-k-gray-400">No verified skills yet.</p>
+      ))}
 
       {/* Category filter */}
-      {categories.length > 1 && (
+      {tab === "portfolio" && categories.length > 1 && (
         <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-1">
           {["All", ...categories].map((cat) => (
             <button
@@ -336,17 +350,29 @@ export default function EmployerStudentPortfolioPage() {
         </div>
       )}
 
-      {/* Verified services */}
-      {portfolio.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-k-gray-200 bg-k-white px-6 py-16 text-center">
-          <p className="text-sm text-k-gray-400">No verified services yet.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {filtered.map((service) => (
-            <ServiceCard key={service.id} service={service} />
-          ))}
-        </div>
+      {/* Verified portfolio */}
+      {tab === "portfolio" &&
+        (portfolio.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-k-gray-200 bg-k-white px-6 py-16 text-center">
+            <p className="text-sm text-k-gray-400">No verified services yet.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-10">
+            {filtered.map((service) => (
+              <PortfolioSection
+                key={service.id}
+                service={service}
+                onOpen={() => setSelected(service)}
+              />
+            ))}
+          </div>
+        ))}
+
+      {selected && (
+        <ServiceDetailModal
+          service={selected}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   );
