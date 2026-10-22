@@ -1,14 +1,16 @@
 export type AppointmentStatus =
-  | "pending"
+  | "pending_student"
+  | "pending_client"
   | "confirmed"
   | "reschedule_requested"
   | "cancelled"
+  | "awaiting_client_confirmation"
   | "completed";
 
 export interface Appointment {
   id: string;
   student_id: string;
-  client_id: string;
+  client_id: string | null;
   category_id: string;
   service_type_id: string | null;
   service_name: string;
@@ -25,15 +27,41 @@ export interface Appointment {
   requested_by: string | null;
   student: { id: string; full_name: string | null } | null;
   client: { id: string; full_name: string | null } | null;
+  /** "Add My Client": a client the student recorded, possibly without an account yet. */
+  own_client?: boolean;
+  student_client_id?: string | null;
+  student_client?: { id: string; full_name: string | null; client_user_id: string | null } | null;
 }
 
 export const APPOINTMENT_STATUS: Record<AppointmentStatus, { label: string; className: string }> = {
-  pending: { label: "Pending", className: "bg-amber-100 text-amber-700" },
+  pending_student: { label: "Pending student response", className: "bg-amber-100 text-amber-700" },
+  pending_client: { label: "Pending client response", className: "bg-amber-100 text-amber-700" },
   confirmed: { label: "Confirmed", className: "bg-emerald-100 text-emerald-700" },
   reschedule_requested: { label: "Reschedule requested", className: "bg-orange-100 text-orange-700" },
   cancelled: { label: "Cancelled", className: "bg-red-100 text-red-600" },
-  completed: { label: "Completed", className: "bg-blue-100 text-blue-700" },
+  awaiting_client_confirmation: { label: "Awaiting client confirmation", className: "bg-blue-100 text-blue-700" },
+  completed: { label: "Service completed", className: "bg-slate-100 text-slate-700" },
 };
+
+/** Still live: needs a response, is booked, or is waiting on the client to confirm. */
+export const UPCOMING_STATUSES: AppointmentStatus[] = [
+  "pending_student",
+  "pending_client",
+  "confirmed",
+  "reschedule_requested",
+  "awaiting_client_confirmation",
+];
+export const PAST_STATUSES: AppointmentStatus[] = ["completed", "cancelled"];
+
+export const isPendingStatus = (status: AppointmentStatus) => status === "pending_student" || status === "pending_client";
+
+/** True when this person is the one a pending request or proposed time is waiting on. */
+export function needsMyReply(a: Appointment, role: "student" | "client"): boolean {
+  if (a.status === "pending_student") return role === "student";
+  if (a.status === "pending_client") return role === "client";
+  if (a.status === "reschedule_requested") return a.proposed_by !== (role === "student" ? a.student_id : a.client_id);
+  return false;
+}
 
 export type Day = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 

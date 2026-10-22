@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Briefcase,
   Users,
+  UserPlus,
   User,
   LogOut,
 } from "lucide-react";
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/student/services", label: "Services", icon: ClipboardList },
   { href: "/student/portfolio", label: "Portfolio", icon: Briefcase },
   { href: "/student/volunteers", label: "Volunteers", icon: Users },
+  { href: "/student/clients", label: "My Clients", icon: UserPlus },
   { href: "/student/profile", label: "Profile", icon: User },
 ];
 

@@ -122,6 +122,14 @@ router.post("/:serviceId/confirm", requireRole("client"), async (req: AuthReques
     return res.status(500).json({ error: confErr.message });
   }
 
+  // SFB-7: the client has confirmed the service took place, so its booking is
+  // now "Service Completed". Best-effort; the confirmation is the source of truth.
+  await supabaseAdmin
+    .from("appointments")
+    .update({ status: "completed" })
+    .eq("service_id", serviceId)
+    .eq("status", "awaiting_client_confirmation");
+
   // Priority alert for educators (ALT-4): the client has signed off, so the
   // student's submit-for-verification step is now unblocked on that front.
   await logEvent(

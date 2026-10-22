@@ -9,15 +9,16 @@ const SELECT = `
   id, student_id, client_id, category_id, service_type_id, service_name,
   starts_at, est_duration_min, location, notes, status,
   proposed_starts_at, proposed_by, confirmed_at, cancelled_by, service_id, requested_by,
-  created_at, updated_at,
+  own_client, student_client_id, created_at, updated_at,
   student:student_id ( id, full_name ),
-  client:client_id ( id, full_name )
+  client:client_id ( id, full_name ),
+  student_client:student_client_id ( id, full_name, client_user_id )
 `;
 
 interface Appointment {
   id: string;
   student_id: string;
-  client_id: string;
+  client_id: string | null;
   status: string;
   proposed_by: string | null;
   proposed_starts_at: string | null;
@@ -54,6 +55,19 @@ async function loadOwn(req: AuthRequest, res: Response): Promise<Appointment | n
   }
   return data as Appointment;
 }
+
+/**
+ * The person whose answer a pending request is waiting for: the student for
+ * pending_student (a client asked), the client for pending_client (a student
+ * asked, or the student's own client). null when it isn't pending.
+ */
+function responder(appt: Appointment): string | null {
+  if (appt.status === "pending_student") return appt.student_id;
+  if (appt.status === "pending_client") return appt.client_id;
+  return null;
+}
+
+const isPending = (status: string) => status === "pending_student" || status === "pending_client";
 
 /**
  * Apply a transition guarded on the status we read, so two taps (or two tabs)
@@ -104,6 +118,7 @@ router.post("/", requireRole("student", "client"), async (req: AuthRequest, res:
   const {
     client_id: bodyClientId,
     student_id: bodyStudentId,
+    student_client_id: bodyStudentClientId,
     category_id,
     service_type_id,
     service_name,
@@ -114,9 +129,22 @@ router.post("/", requireRole("student", "client"), async (req: AuthRequest, res:
   } = req.body as Record<string, unknown>;
 
   const asClient = req.userRole === "client";
-  const client_id = asClient ? req.userId! : bodyClientId;
+  // "Add My Client": a student books their own client (a student_clients row,
+  // who may not have an account yet) instead of picking from the volunteer pool.
+  const ownClient = !asClient && bodyStudentClientId != null;
+  let client_id: unknown = asClient ? req.userId! : bodyClientId;
   const student_id = asClient ? bodyStudentId : req.userId!;
-  if (!isUuid(asClient ? student_id : client_id)) {
+  if (ownClient) {
+    if (!isUuid(bodyStudentClientId)) return res.status(400).json({ error: "Invalid student_client_id format" });
+    const { data: sc } = await supabaseAdmin
+      .from("student_clients")
+      .select("id, client_user_id")
+      .eq("id", bodyStudentClientId)
+      .eq("student_id", req.userId!)
+      .maybeSingle();
+    if (!sc) return res.status(400).json({ error: "Unknown client" });
+    client_id = sc.client_user_id ?? null;
+  } else if (!isUuid(asClient ? student_id : client_id)) {
     return res.status(400).json({ error: asClient ? "student_id is required" : "client_id is required" });
   }
   if (typeof category_id !== "string" || !category_id) {
@@ -149,16 +177,18 @@ router.post("/", requireRole("student", "client"), async (req: AuthRequest, res:
 
   // The other party must hold the opposite role on the same side of the demo
   // boundary (and, for a student, still be an active account).
-  const otherId = (asClient ? student_id : client_id) as string;
-  const { data: other } = await supabaseAdmin
-    .from("user_profiles")
-    .select("id")
-    .eq("id", otherId)
-    .eq("role", asClient ? "student" : "client")
-    .eq("is_demo", req.isDemo ?? false)
-    .maybeSingle();
-  if (!other) {
-    return res.status(400).json({ error: asClient ? "Invalid student_id" : "Invalid client_id" });
+  const otherId = (asClient ? student_id : client_id) as string | null;
+  if (otherId) {
+    const { data: other } = await supabaseAdmin
+      .from("user_profiles")
+      .select("id, status")
+      .eq("id", otherId)
+      .eq("role", asClient ? "student" : "client")
+      .eq("is_demo", req.isDemo ?? false)
+      .maybeSingle();
+    if (!other || other.status !== "active") {
+      return res.status(400).json({ error: asClient ? "Invalid student_id" : "Invalid client_id" });
+    }
   }
 
   const { data: category } = await supabaseAdmin
@@ -184,7 +214,11 @@ router.post("/", requireRole("student", "client"), async (req: AuthRequest, res:
     .from("appointments")
     .insert({
       student_id,
-      client_id,
+      client_id: client_id ?? null,
+      student_client_id: ownClient ? bodyStudentClientId : null,
+      own_client: ownClient,
+      // Whoever receives the request is who must respond.
+      status: asClient ? "pending_student" : "pending_client",
       requested_by: req.userId!,
       category_id,
       service_type_id: service_type_id ?? null,
@@ -203,16 +237,17 @@ router.post("/", requireRole("student", "client"), async (req: AuthRequest, res:
   return res.status(201).json({ appointment: data });
 });
 
-// POST /api/appointments/:id/accept — the party who didn't open a request
-// accepts it, or either party accepts the other's proposed new time.
+// POST /api/appointments/:id/accept — the person RECEIVING a request accepts
+// it (client for a student's request or own-client booking, student for a
+// client's request), or either party accepts the other's proposed new time.
 router.post("/:id/accept", requireRole("student", "client"), async (req: AuthRequest, res: Response) => {
   const appt = await loadOwn(req, res);
   if (!appt) return;
   const now = new Date().toISOString();
 
-  if (appt.status === "pending") {
-    if (req.userId === appt.requested_by) {
-      return res.status(403).json({ error: "The other person needs to accept your request" });
+  if (isPending(appt.status)) {
+    if (req.userId !== responder(appt)) {
+      return res.status(403).json({ error: "The other person needs to respond to this request" });
     }
     return transition(req, res, appt, { status: "confirmed", confirmed_at: now });
   }
@@ -231,14 +266,14 @@ router.post("/:id/accept", requireRole("student", "client"), async (req: AuthReq
   return res.status(400).json({ error: "Nothing to accept on this appointment" });
 });
 
-// POST /api/appointments/:id/decline — the party who didn't open a request
-// declines it, or either party declines the other's proposed new time.
+// POST /api/appointments/:id/decline — the person receiving a request declines
+// it, or either party declines the other's proposed new time.
 router.post("/:id/decline", requireRole("student", "client"), async (req: AuthRequest, res: Response) => {
   const appt = await loadOwn(req, res);
   if (!appt) return;
 
-  if (appt.status === "pending") {
-    if (req.userId === appt.requested_by) {
+  if (isPending(appt.status)) {
+    if (req.userId !== responder(appt)) {
       return res.status(403).json({ error: "You opened this request; cancel it instead" });
     }
     return transition(req, res, appt, { status: "cancelled", cancelled_by: req.userId });
@@ -270,7 +305,7 @@ router.post("/:id/suggest", requireRole("student", "client"), async (req: AuthRe
   }
 
   const allowed =
-    (appt.status === "pending" && req.userId !== appt.requested_by) ||
+    (isPending(appt.status) && req.userId === responder(appt)) ||
     appt.status === "confirmed" ||
     (appt.status === "reschedule_requested" && req.userId !== appt.proposed_by);
   if (!allowed) {
@@ -291,7 +326,7 @@ router.post("/:id/suggest", requireRole("student", "client"), async (req: AuthRe
 router.post("/:id/cancel", requireRole("student", "client"), async (req: AuthRequest, res: Response) => {
   const appt = await loadOwn(req, res);
   if (!appt) return;
-  if (!["pending", "confirmed", "reschedule_requested"].includes(appt.status)) {
+  if (!["pending_student", "pending_client", "confirmed", "reschedule_requested"].includes(appt.status)) {
     return res.status(400).json({ error: "This appointment can no longer be cancelled" });
   }
   if (appt.service_id) {

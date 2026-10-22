@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { CalendarClock, MapPin, MessageSquare, Play, Timer } from "lucide-react";
 import { apiErrorMessage, apiPost } from "@/lib/api";
 import {
@@ -8,7 +9,9 @@ import {
   Appointment,
   formatDuration,
   formatWhen,
+  isPendingStatus,
   isToday,
+  needsMyReply,
   nowLocalInput,
 } from "@/lib/appointments";
 
@@ -76,12 +79,14 @@ export default function AppointmentList({
       {appointments.map((a) => {
         const status = APPOINTMENT_STATUS[a.status];
         const other = role === "student" ? a.client : a.student;
+        // A student's own client may not have an account yet; show the name they entered.
+        const otherName = other?.full_name ?? (role === "student" ? a.student_client?.full_name : null) ?? null;
         const myId = role === "student" ? a.student_id : a.client_id;
-        const iProposed = a.proposed_by === myId;
-        // Either side can open a request; the other one answers it. Rows from
-        // before client-led booking have no requested_by and were the student's.
-        const iRequested = (a.requested_by ?? a.student_id) === myId;
-        const open = ["pending", "confirmed", "reschedule_requested"].includes(a.status);
+        const iProposed = !!myId && a.proposed_by === myId;
+        // The person receiving a request is the one who answers it.
+        const pendingOnMe = isPendingStatus(a.status) && needsMyReply(a, role);
+        const pendingOnThem = isPendingStatus(a.status) && !pendingOnMe;
+        const open = ["pending_student", "pending_client", "confirmed", "reschedule_requested"].includes(a.status);
         const disabled = busy === a.id;
         const canStart =
           role === "student" &&
@@ -96,7 +101,8 @@ export default function AppointmentList({
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-k-black">{a.service_name}</p>
                 <p className="mt-0.5 text-xs text-k-gray-400">
-                  {role === "student" ? "with" : "for"} {other?.full_name ?? "Unknown"} · {a.category_id}
+                  {role === "student" ? "with" : "for"} {otherName ?? "Unknown"}
+                  {a.own_client && role === "student" && !a.client_id ? " (not signed up yet)" : ""} · {a.category_id}
                 </p>
               </div>
               <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${status.className}`}>
@@ -115,7 +121,7 @@ export default function AppointmentList({
               {a.status === "reschedule_requested" && a.proposed_starts_at && (
                 <p className="flex items-center gap-2 font-medium text-orange-700">
                   <CalendarClock size={13} className="shrink-0" />
-                  {iProposed ? "You suggested" : `${other?.full_name ?? "They"} suggested`}{" "}
+                  {iProposed ? "You suggested" : `${otherName ?? "They"} suggested`}{" "}
                   {formatWhen(a.proposed_starts_at)}
                 </p>
               )}
@@ -141,7 +147,7 @@ export default function AppointmentList({
                   <Play size={12} /> Start Service
                 </button>
               )}
-              {a.status === "pending" && !iRequested && (
+              {pendingOnMe && (
                 <>
                   <button type="button" disabled={disabled} onClick={() => act(a.id, "accept")} className={PRIMARY}>
                     Accept
@@ -161,13 +167,22 @@ export default function AppointmentList({
                   </button>
                 </>
               )}
-              {((a.status === "reschedule_requested" && iProposed) ||
-                (a.status === "pending" && iRequested)) && (
+              {((a.status === "reschedule_requested" && iProposed) || pendingOnThem) && (
                 <span className="text-xs text-k-gray-400">
-                  Waiting for {other?.full_name?.split(" ")[0] ?? "a reply"}…
+                  Waiting for {otherName?.split(" ")[0] ?? "a reply"}…
                 </span>
               )}
-              {open && !a.service_id && (a.status !== "pending" || !iRequested) && (
+              {a.status === "awaiting_client_confirmation" &&
+                (role === "client" ? (
+                  <Link href="/volunteer/confirmations" className={PRIMARY}>
+                    Confirm service
+                  </Link>
+                ) : (
+                  <span className="text-xs text-k-gray-400">
+                    Waiting for {otherName?.split(" ")[0] ?? "your client"} to confirm the service took place…
+                  </span>
+                ))}
+              {open && !a.service_id && !pendingOnThem && (
                 <button
                   type="button"
                   disabled={disabled}
@@ -186,17 +201,17 @@ export default function AppointmentList({
                   <MessageSquare size={12} /> Message
                 </button>
               )}
-              {open && !a.service_id && !(a.status === "pending" && !iRequested) && (
+              {open && !a.service_id && !pendingOnMe && (
                 <button
                   type="button"
                   disabled={disabled}
                   onClick={() => act(a.id, "cancel")}
                   className={`${BTN} text-red-600 hover:bg-red-50`}
                 >
-                  {a.status === "pending" ? "Cancel request" : "Cancel appointment"}
+                  {isPendingStatus(a.status) ? "Cancel request" : "Cancel appointment"}
                 </button>
               )}
-              {a.service_id && a.status !== "completed" && (
+              {a.service_id && a.status === "confirmed" && (
                 <span className="inline-flex items-center gap-1.5 text-xs text-k-primary">
                   <Timer size={12} /> Service started
                 </span>

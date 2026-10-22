@@ -9,7 +9,7 @@ import {
   Clock,
 } from "lucide-react";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
-import { Appointment } from "@/lib/appointments";
+import { Appointment, PAST_STATUSES, UPCOMING_STATUSES, needsMyReply } from "@/lib/appointments";
 import { useTimer } from "@/components/student/TimerProvider";
 import AppointmentList from "@/components/appointments/AppointmentList";
 import MessagesPanel from "@/components/appointments/MessagesPanel";
@@ -91,10 +91,8 @@ export default function VolunteersPage() {
     timer.started(service);
   }
 
-  const upcoming = appointments.filter((a) =>
-    ["pending", "confirmed", "reschedule_requested"].includes(a.status),
-  );
-  const past = appointments.filter((a) => ["completed", "cancelled"].includes(a.status));
+  const upcoming = appointments.filter((a) => UPCOMING_STATUSES.includes(a.status));
+  const past = appointments.filter((a) => PAST_STATUSES.includes(a.status));
 
   const [requests, setRequests] = useState<VolunteerRequest[]>([]);
   const [loading, setLoading] = useState(true);

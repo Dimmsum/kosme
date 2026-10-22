@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Users,
   ClipboardCheck,
+  CalendarClock,
   User,
   LogOut,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const navItems = [
   { href: "/educator/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/educator/students", label: "Students", icon: Users },
   { href: "/educator/verify", label: "Verify", icon: ClipboardCheck },
+  { href: "/educator/bookings", label: "Bookings", icon: CalendarClock },
   { href: "/educator/profile", label: "Profile", icon: User },
 ];
 

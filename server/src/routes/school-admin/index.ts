@@ -99,23 +99,101 @@ router.get("/submissions", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// GET /bookings?status= — appointments involving institution students.
+// GET /bookings?status= — appointments involving institution students, with
+// whether an open flag exists.
 router.get("/bookings", async (req: AuthRequest, res: Response) => {
   try {
     const ids = await institutionStudentIds(req);
     if (ids.length === 0) return res.json({ bookings: [] });
     let q = supabaseAdmin
       .from("appointments")
-      .select("id, category_id, status, starts_at, student:student_id ( id, full_name ), client:client_id ( id, full_name )")
+      .select(
+        "id, category_id, service_name, status, starts_at, own_client, student:student_id ( id, full_name ), client:client_id ( id, full_name ), student_client:student_client_id ( id, full_name )",
+      )
       .in("student_id", ids)
       .order("starts_at", { ascending: false })
       .limit(200);
     if (typeof req.query.status === "string" && req.query.status) q = q.eq("status", req.query.status);
     const { data, error } = await q;
     if (error) return fail(res, "bookings", error);
-    return res.json({ bookings: data ?? [] });
+
+    const bookingIds = (data ?? []).map((b) => b.id as string);
+    const flagged = new Set<string>();
+    if (bookingIds.length) {
+      const { data: flags } = await supabaseAdmin
+        .from("flags")
+        .select("entity_id")
+        .eq("entity_type", "appointment")
+        .eq("status", "open")
+        .in("entity_id", bookingIds);
+      for (const f of flags ?? []) flagged.add(f.entity_id as string);
+    }
+    return res.json({ bookings: (data ?? []).map((b) => ({ ...b, flagged: flagged.has(b.id as string) })) });
   } catch (err) {
     return fail(res, "bookings", err);
+  }
+});
+
+async function ownBooking(req: AuthRequest, res: Response) {
+  if (!isUuid(req.params.id)) {
+    res.status(400).json({ error: "Invalid booking id" });
+    return null;
+  }
+  const ids = await institutionStudentIds(req);
+  const { data } = await supabaseAdmin
+    .from("appointments")
+    .select("id, student_id, status, service_id, service_name")
+    .eq("id", req.params.id)
+    .maybeSingle();
+  if (!data || !ids.includes(data.student_id)) {
+    res.status(404).json({ error: "Booking not found" });
+    return null;
+  }
+  return data;
+}
+
+// POST /bookings/:id/flag — raise an issue for the Super Admin queue.
+router.post("/bookings/:id/flag", async (req: AuthRequest, res: Response) => {
+  try {
+    const reason = (req.body as { reason?: unknown }).reason;
+    if (typeof reason !== "string" || !reason.trim() || reason.length > 1000) {
+      return res.status(400).json({ error: "reason must be between 1 and 1000 characters" });
+    }
+    const appt = await ownBooking(req, res);
+    if (!appt) return;
+    const { error } = await supabaseAdmin.from("flags").insert({
+      entity_type: "appointment",
+      entity_id: appt.id,
+      reason: `School admin flagged booking "${appt.service_name}": ${reason.trim()}`,
+      created_by: req.userId!,
+    });
+    if (error) return fail(res, "flag", error);
+    return res.status(201).json({ ok: true });
+  } catch (err) {
+    return fail(res, "flag", err);
+  }
+});
+
+// POST /bookings/:id/cancel — intervene: cancel a booking that hasn't started.
+// Needs access_level = manage.
+router.post("/bookings/:id/cancel", async (req: AuthRequest, res: Response) => {
+  try {
+    const { data: me } = await supabaseAdmin.from("user_profiles").select("access_level").eq("id", req.userId!).single();
+    if (me?.access_level !== "manage") return res.status(403).json({ error: "Your access level is view-only" });
+    const appt = await ownBooking(req, res);
+    if (!appt) return;
+    if (!["pending_student", "pending_client", "confirmed", "reschedule_requested"].includes(appt.status) || appt.service_id) {
+      return res.status(400).json({ error: "This booking can no longer be cancelled" });
+    }
+    const { error } = await supabaseAdmin
+      .from("appointments")
+      .update({ status: "cancelled", cancelled_by: req.userId!, proposed_starts_at: null, proposed_by: null })
+      .eq("id", appt.id)
+      .eq("status", appt.status);
+    if (error) return fail(res, "cancel", error);
+    return res.json({ ok: true });
+  } catch (err) {
+    return fail(res, "cancel", err);
   }
 });
 

@@ -16,7 +16,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import DemoBanner from "@/components/DemoBanner";
 
 // Ordered to follow the client journey: find, book, receive, confirm, history.
@@ -57,6 +57,28 @@ export default function VolunteerLayout({
       router.replace(ROLE_DASHBOARD[role]);
     }
   }, [user, role, roleMismatch, loading, router]);
+
+  // "Add My Client" invites: the invite page stores the token before signup, so
+  // the first time the new client lands here it attaches their bookings.
+  useEffect(() => {
+    if (loading || !user || role !== "client") return;
+    let token: string | null = null;
+    try {
+      token = localStorage.getItem("kosme_invite");
+    } catch {
+      return;
+    }
+    if (!token) return;
+    apiPost("/api/student-clients/claim", { token })
+      .catch(() => {})
+      .finally(() => {
+        try {
+          localStorage.removeItem("kosme_invite");
+        } catch {
+          /* ignore */
+        }
+      });
+  }, [loading, user, role]);
 
   // Count of finished services waiting on the client, shown as a badge so the
   // request to confirm is visible from every page. Refreshed on navigation.

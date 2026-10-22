@@ -24,6 +24,7 @@ const DURATIONS = [30, 45, 60, 90, 120, 180, 240];
 export default function RequestAppointmentForm({
   clientId,
   studentId,
+  studentClientId,
   otherName,
   availability = [],
   preferredCategories,
@@ -32,6 +33,8 @@ export default function RequestAppointmentForm({
 }: {
   clientId?: string;
   studentId?: string;
+  /** "Add My Client": a client the student recorded themselves. */
+  studentClientId?: string;
   otherName?: string | null;
   /** The other person's weekly windows; used to warn about a poor fit. */
   availability?: AvailabilityWindow[];
@@ -85,6 +88,7 @@ export default function RequestAppointmentForm({
       await apiPost("/api/appointments", {
         client_id: clientId,
         student_id: studentId,
+        student_client_id: studentClientId,
         category_id: category,
         service_type_id: typeId || undefined,
         service_name: name.trim(),

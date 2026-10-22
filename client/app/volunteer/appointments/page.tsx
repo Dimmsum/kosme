@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Compass } from "lucide-react";
 import { apiGet } from "@/lib/api";
-import { Appointment } from "@/lib/appointments";
+import { Appointment, PAST_STATUSES, UPCOMING_STATUSES, needsMyReply } from "@/lib/appointments";
 import AppointmentList from "@/components/appointments/AppointmentList";
 
 export default function VolunteerAppointmentsPage() {
@@ -24,14 +24,11 @@ export default function VolunteerAppointmentsPage() {
     load();
   }, []);
 
-  // Waiting on me: a request the student opened, or a new time they suggested.
-  const needsReply = (a: Appointment) =>
-    (a.status === "pending" && (a.requested_by ?? a.student_id) !== a.client_id) ||
-    (a.status === "reschedule_requested" && a.proposed_by !== a.client_id);
-  const upcoming = appointments.filter((a) =>
-    ["pending", "confirmed", "reschedule_requested"].includes(a.status),
-  );
-  const past = appointments.filter((a) => ["completed", "cancelled"].includes(a.status));
+  // Waiting on me: a request awaiting the client, a new time they were sent, or
+  // a finished service they need to confirm.
+  const needsReply = (a: Appointment) => needsMyReply(a, "client") || a.status === "awaiting_client_confirmation";
+  const upcoming = appointments.filter((a) => UPCOMING_STATUSES.includes(a.status));
+  const past = appointments.filter((a) => PAST_STATUSES.includes(a.status));
   const waiting = upcoming.filter(needsReply).length;
 
   return (

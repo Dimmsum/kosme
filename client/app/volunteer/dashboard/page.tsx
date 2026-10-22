@@ -9,6 +9,7 @@ import {
   Appointment,
   formatDuration,
   formatWhen,
+  needsMyReply,
 } from "@/lib/appointments";
 
 interface ProfileRes {
@@ -44,7 +45,7 @@ export default function VolunteerDashboard() {
         setPending(pendingRes.confirmations ?? []);
         setUpcoming(
           (apptRes.appointments ?? []).filter((a) =>
-            ["pending", "confirmed", "reschedule_requested"].includes(a.status),
+            ["pending_student", "pending_client", "confirmed", "reschedule_requested"].includes(a.status),
           ),
         );
       })
@@ -55,9 +56,7 @@ export default function VolunteerDashboard() {
   }, []);
 
   // Waiting on me: the student asked for a time, or suggested a new one.
-  const needsReply = (a: Appointment) =>
-    (a.status === "pending" && (a.requested_by ?? a.student_id) !== a.client_id) ||
-    (a.status === "reschedule_requested" && a.proposed_by !== a.client_id);
+  const needsReply = (a: Appointment) => needsMyReply(a, "client");
   const waiting = upcoming.filter(needsReply).length;
 
   return (

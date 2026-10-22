@@ -37,8 +37,8 @@ Source: `superadmin-feedback.md`. Phases delivered in order; each is a tracer sl
     assignment, Delete → impact → type-name flow). School Admin app:
     `server/src/routes/school-admin/index.ts` (institution-scoped, read-only) and
     `client/app/school-admin/*`.
-  - **Not yet:** `access_level = manage` has no write actions; school admins have
-    view-only bookings/submissions (flag/intervene lands with SFB-7).
+  - **Not yet:** school admins are view-only for people and submissions; `access_level = manage`
+    currently only unlocks cancelling bookings (SFB-7).
 - [x] **SFB-2** — Programme fields, cohort capacity, institution subscription vs usage
   - **Depends on:** migration `0032_programme_capacity.sql` applied live (numbered 0032, not 0033 as first planned)
   - **Done:** programmes gain qualification type, level, duration, awarding body,
@@ -110,7 +110,26 @@ Source: `superadmin-feedback.md`. Phases delivered in order; each is a tracer sl
     `GET /api/admin/users` gained `programme_id` / `cohort_id` filters.
   - **Not enforced:** verification status does not gate portfolio access. "Activity"
     is derived from shortlists, not sign-in time.
-- [ ] **SFB-7** — Revised booking statuses, "Add My Client", educator/school admin booking visibility (`0036`)
+- [x] **SFB-7** — Revised booking statuses, "Add My Client", educator/school admin booking visibility
+  - **Depends on:** migration `0036_booking_workflow.sql` applied live (remaps existing bookings: `pending` → `pending_student` / `pending_client` by who requested it; old `completed` → `awaiting_client_confirmation` unless the client had already confirmed)
+  - **Done:** appointment statuses are now `pending_student`, `pending_client`,
+    `confirmed`, `reschedule_requested`, `cancelled`, `awaiting_client_confirmation`,
+    `completed` ("Service completed"). The person receiving a request is the one who
+    accepts it (`routes/appointments.ts`). Stopping the timer moves the booking to
+    awaiting client confirmation (`routes/services.ts`); the client's confirmation
+    completes it (`routes/confirmations.ts`). "Add My Client": `student_clients` +
+    `routes/student-clients.ts`, `/student/clients` page, shareable invite link
+    (`/invite?t=`), claimed on the client's first visit (`volunteer/layout.tsx`);
+    the booking sits at `pending_client` and the client confirms it. Educators see
+    their cohorts' bookings and can flag (`routes/educator-bookings.ts`,
+    `/educator/bookings`); School Admins see their institution's bookings, flag, and
+    with `access_level = manage` cancel (`routes/school-admin/index.ts`). Flags land
+    in the Super Admin Flagged Issues queue as entity `appointment`.
+  - **Kept as-is (VER-5):** after the client confirms, the student still submits the
+    service to the educator themselves (photos + reflection checklist); it does not
+    move to educator verification automatically.
+  - **Not built:** invite emails/SMS (the student copies the link); a client can only
+    claim one student's invite per link; no in-app notification of new requests.
 
 ---
 

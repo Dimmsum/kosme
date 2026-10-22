@@ -503,10 +503,12 @@ router.post(
       return res.status(500).json({ error: "Failed to stop service" });
     }
 
-    // CON-6: a booking whose service has been timed to the end is done.
+    // CON-6 / SFB-7: the student has finished the service, so the booking now
+    // waits for the client to confirm it took place (confirmations.ts moves it
+    // on to completed).
     await supabaseAdmin
       .from("appointments")
-      .update({ status: "completed" })
+      .update({ status: "awaiting_client_confirmation" })
       .eq("service_id", service.id)
       .eq("status", "confirmed");
 
