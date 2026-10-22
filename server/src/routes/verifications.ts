@@ -58,6 +58,10 @@ router.get(
         institution_name: p.institutions?.name ?? null,
         verified_count: verified.length,
         total_count: services.length,
+        // Only awaiting_educator needs an educator decision; awaiting_client
+        // is still with the student/client and is monitoring-only.
+        awaiting_educator_count: services.filter((s) => s.status === "awaiting_educator").length,
+        awaiting_client_count: services.filter((s) => s.status === "awaiting_client").length,
       };
     });
 
@@ -92,7 +96,7 @@ router.get(
       .from("services")
       .select(
         `
-      id, name, category_id, notes, status, created_at,
+      id, name, category_id, notes, status, created_at, ended_at,
       client:client_id ( id, full_name ),
       verifications ( id, status, created_at, notes ),
       service_photos ( id, type, url )
@@ -139,6 +143,39 @@ router.get(
     }
 
     return res.json({ pending: data });
+  },
+);
+
+// GET /api/verifications/awaiting-client — monitoring-only list of services
+// that are still with the client (or confirmed but not yet submitted by the
+// student). These are deliberately NOT in /pending: nothing here needs an
+// educator decision until the service reaches awaiting_educator.
+router.get(
+  "/awaiting-client",
+  requireRole("educator"),
+  async (req: AuthRequest, res: Response) => {
+    let query = supabaseAdmin
+      .from("services")
+      .select(
+        `
+      id, name, category_id, status, created_at, ended_at, actual_duration_min,
+      student:student_id ( id, full_name ),
+      client:client_id ( id, full_name ),
+      confirmations ( status, created_at, updated_at )
+    `,
+      )
+      .eq("status", "awaiting_client")
+      .eq("is_demo", req.isDemo ?? false)
+      .order("created_at", { ascending: false });
+    if (req.educatorScope) query = query.in("student_id", req.educatorScope);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("DB error:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+
+    return res.json({ awaiting: data ?? [] });
   },
 );
 

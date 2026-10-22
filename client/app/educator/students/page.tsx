@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Search,
   ChevronRight,
@@ -10,6 +11,8 @@ import {
   BookOpen,
   BadgeCheck,
   Clock3,
+  ClipboardCheck,
+  Briefcase,
 } from "lucide-react";
 import { apiGet } from "@/lib/api";
 
@@ -19,6 +22,46 @@ interface Student {
   institution_name: string | null;
   verified_count: number;
   total_count: number;
+  awaiting_educator_count: number;
+  awaiting_client_count: number;
+}
+
+interface ConfirmationRow {
+  status: "pending" | "confirmed" | "disputed";
+  created_at: string;
+  updated_at: string | null;
+}
+
+// confirmations.service_id is UNIQUE, so PostgREST may embed one object or an array.
+type ConfirmationEmbed = ConfirmationRow | ConfirmationRow[] | null;
+
+function confirmationOf(value: ConfirmationEmbed): ConfirmationRow | null {
+  return (Array.isArray(value) ? value[0] : value) ?? null;
+}
+
+interface QueueItem {
+  id: string;
+  name: string;
+  category_id: string;
+  created_at: string;
+  ended_at: string | null;
+  actual_duration_min: number | null;
+  adjusted_duration_min: number | null;
+  student: { id: string; full_name: string | null } | null;
+  client: { id: string; full_name: string | null } | null;
+  confirmations: ConfirmationEmbed;
+  service_photos: Array<{ id: string }>;
+}
+
+interface AwaitingClientItem {
+  id: string;
+  name: string;
+  category_id: string;
+  created_at: string;
+  ended_at: string | null;
+  student: { id: string; full_name: string | null } | null;
+  client: { id: string; full_name: string | null } | null;
+  confirmations: ConfirmationEmbed;
 }
 
 interface StudentDetailService {
@@ -63,12 +106,38 @@ function formatDate(date: string): string {
   });
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  in_progress: "In progress",
+  awaiting_client: "Awaiting client",
+  awaiting_educator: "Ready for verification",
+  corrections_requested: "Corrections requested",
+  verified: "Verified",
+  rejected: "Rejected",
+};
+
+function statusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? status.replace(/_/g, " ");
+}
+
+function formatMinutes(min: number | null): string {
+  if (min === null) return "Not timed";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h === 0 ? `${m}m` : `${h}h ${m}m`;
+}
+
 function statusTone(status: string): string {
   const normalized = status.toLowerCase();
+  if (normalized.includes("awaiting_client") || normalized.includes("in_progress")) {
+    return "bg-k-gray-100 text-k-gray-600";
+  }
+  if (normalized.includes("corrections")) {
+    return "bg-orange-100 text-orange-700";
+  }
   if (normalized.includes("verified") || normalized.includes("approved")) {
     return "bg-emerald-100 text-emerald-700";
   }
-  if (normalized.includes("pending")) {
+  if (normalized.includes("pending") || normalized.includes("awaiting")) {
     return "bg-amber-100 text-amber-700";
   }
   if (normalized.includes("rejected")) {
@@ -119,14 +188,26 @@ export default function StudentsPage() {
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(
     null,
   );
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [awaitingClient, setAwaitingClient] = useState<AwaitingClientItem[]>([]);
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [studentDetails, setStudentDetails] = useState<
     Record<string, StudentDetailService[]>
   >({});
 
   useEffect(() => {
-    apiGet<{ students: Student[] }>("/api/verifications/students")
-      .then((res) => setStudents(res.students ?? []))
+    Promise.all([
+      apiGet<{ students: Student[] }>("/api/verifications/students"),
+      apiGet<{ pending: QueueItem[] }>("/api/verifications/pending"),
+      apiGet<{ awaiting: AwaitingClientItem[] }>(
+        "/api/verifications/awaiting-client",
+      ),
+    ])
+      .then(([studentsRes, pendingRes, awaitingRes]) => {
+        setStudents(studentsRes.students ?? []);
+        setQueue(pendingRes.pending ?? []);
+        setAwaitingClient(awaitingRes.awaiting ?? []);
+      })
       .catch((err: unknown) => {
         const message =
           err instanceof Error ? err.message : "Failed to load students.";
@@ -143,7 +224,7 @@ export default function StudentsPage() {
         (s.institution_name ?? "").toLowerCase().includes(search.toLowerCase());
 
       if (!matchesSearch) return false;
-      if (filterMode === "attention") return s.verified_count < s.total_count;
+      if (filterMode === "attention") return s.awaiting_educator_count > 0;
       if (filterMode === "complete") {
         return s.total_count > 0 && s.verified_count >= s.total_count;
       }
@@ -158,7 +239,12 @@ export default function StudentsPage() {
       (acc, s) => acc + s.verified_count,
       0,
     );
-    const pendingCount = Math.max(totalServices - totalVerified, 0);
+    // Only services ready for an educator decision count as pending reviews;
+    // awaiting-client work is still with the student/client.
+    const pendingCount = students.reduce(
+      (acc, s) => acc + s.awaiting_educator_count,
+      0,
+    );
     const completionRate =
       totalServices === 0
         ? 0
@@ -284,6 +370,161 @@ export default function StudentsPage() {
           <p className="text-xs text-k-gray-400">Pending Reviews</p>
         </div>
       </section>
+
+      {/* Verification queue — only services at "Ready for Educator Verification".
+          Everything listed here needs an educator decision. */}
+      <section className="mt-5 overflow-hidden rounded-3xl border border-k-gray-200 bg-k-white">
+        <div className="flex items-center justify-between gap-3 border-b border-k-gray-200 px-4 py-4 sm:px-5">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+              <ClipboardCheck size={15} />
+            </div>
+            <div>
+              <h2 className="font-serif text-lg text-k-black">
+                Ready for Educator Verification
+              </h2>
+              <p className="text-xs text-k-gray-400">
+                Client-confirmed work waiting on your decision.
+              </p>
+            </div>
+          </div>
+          <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-medium text-amber-700">
+            {queue.length}
+          </span>
+        </div>
+
+        {loading ? (
+          <p className="px-5 py-10 text-center text-sm text-k-gray-400">
+            Loading verification queue...
+          </p>
+        ) : queue.length === 0 ? (
+          <p className="px-5 py-10 text-center text-sm text-k-gray-400">
+            Nothing is waiting for verification.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[880px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-k-gray-200 text-[10px] font-semibold uppercase tracking-[0.1em] text-k-gray-400">
+                  <th className="px-5 py-3">Student</th>
+                  <th className="px-3 py-3">Service</th>
+                  <th className="px-3 py-3">Date Completed</th>
+                  <th className="px-3 py-3">Client Confirmed</th>
+                  <th className="px-3 py-3">Evidence</th>
+                  <th className="px-3 py-3">Logged Time</th>
+                  <th className="px-3 py-3">Verification Status</th>
+                  <th className="px-5 py-3 text-right">Review</th>
+                </tr>
+              </thead>
+              <tbody>
+                {queue.map((item) => {
+                  const confirmation = confirmationOf(item.confirmations);
+                  const confirmedOn =
+                    confirmation?.status === "confirmed"
+                      ? formatDate(confirmation.updated_at ?? confirmation.created_at)
+                      : null;
+                  const minutes =
+                    item.adjusted_duration_min ?? item.actual_duration_min;
+                  return (
+                    <tr
+                      key={item.id}
+                      className="border-b border-k-gray-200 last:border-0"
+                    >
+                      <td className="px-5 py-3.5 font-medium text-k-black">
+                        {item.student?.full_name ?? "Unknown student"}
+                      </td>
+                      <td className="px-3 py-3.5">
+                        <p className="text-k-black">{item.name}</p>
+                        <p className="text-xs text-k-gray-400">
+                          {item.category_id}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3.5 text-k-gray-600">
+                        {formatDate(item.ended_at ?? item.created_at)}
+                      </td>
+                      <td className="px-3 py-3.5 text-k-gray-600">
+                        {!item.client
+                          ? "No client"
+                          : confirmedOn
+                            ? `Yes · ${confirmedOn}`
+                            : "—"}
+                      </td>
+                      <td className="px-3 py-3.5 text-k-gray-600">
+                        {item.service_photos.length} photo
+                        {item.service_photos.length === 1 ? "" : "s"}
+                      </td>
+                      <td className="px-3 py-3.5 text-k-gray-600">
+                        {formatMinutes(minutes)}
+                      </td>
+                      <td className="px-3 py-3.5">
+                        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
+                          Ready for review
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <Link
+                          href={`/educator/verify?service=${item.id}`}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-k-primary px-4 py-1.5 text-xs font-medium text-k-white no-underline transition-colors hover:bg-k-primary-light"
+                        >
+                          Review <ChevronRight size={12} />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Monitoring only: still with the client, so deliberately outside the queue. */}
+      {awaitingClient.length > 0 && (
+        <section className="mt-4 rounded-3xl border border-k-gray-200 bg-k-white p-4 sm:p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-serif text-lg text-k-black">
+                Pending Client Confirmation
+              </h2>
+              <p className="text-xs text-k-gray-400">
+                For visibility only. These move into the queue once the client
+                confirms and the student submits.
+              </p>
+            </div>
+            <span className="rounded-full bg-k-gray-100 px-3 py-0.5 text-xs font-medium text-k-gray-600">
+              {awaitingClient.length}
+            </span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {awaitingClient.map((item) => {
+              const confirmed =
+                confirmationOf(item.confirmations)?.status === "confirmed";
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-3 rounded-2xl bg-k-gray-100 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-k-black">
+                      {item.name}
+                    </p>
+                    <p className="truncate text-xs text-k-gray-400">
+                      {item.student?.full_name ?? "Student"} &middot;{" "}
+                      {item.client?.full_name ?? "Client"} &middot;{" "}
+                      {formatDate(item.ended_at ?? item.created_at)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-k-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-k-gray-600">
+                    {confirmed ? "Awaiting student submission" : "Awaiting client"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <h2 className="mt-8 font-serif text-xl text-k-black">Student Activity</h2>
 
       <section className="mt-5 rounded-3xl border border-k-gray-200 bg-k-white p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -419,6 +660,22 @@ export default function StudentsPage() {
 
                 {isExpanded && (
                   <div className="border-t border-k-gray-200 bg-k-gray-100/40 px-4 py-4 sm:px-5">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs text-k-gray-600">
+                        {student.verified_count}/{student.total_count} verified
+                        {student.awaiting_educator_count > 0 &&
+                          ` · ${student.awaiting_educator_count} ready for review`}
+                        {student.awaiting_client_count > 0 &&
+                          ` · ${student.awaiting_client_count} awaiting client`}
+                      </p>
+                      <Link
+                        href={`/educator/students/${student.id}/portfolio`}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-k-primary px-4 py-1.5 text-xs font-medium text-k-white no-underline transition-colors hover:bg-k-primary-light"
+                      >
+                        <Briefcase size={12} />
+                        View Portfolio
+                      </Link>
+                    </div>
                     {detailLoadingId === student.id ? (
                       <p className="text-xs text-k-gray-400">
                         Loading student details...
@@ -447,7 +704,7 @@ export default function StudentsPage() {
                               <span
                                 className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${statusTone(service.status)}`}
                               >
-                                {service.status}
+                                {statusLabel(service.status)}
                               </span>
                             </div>
 

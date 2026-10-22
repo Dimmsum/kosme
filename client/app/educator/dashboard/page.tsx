@@ -264,9 +264,10 @@ export default function EducatorDashboard() {
             </div>
           ) : (
             recentActivity.map((item) => (
-              <div
+              <Link
                 key={item.id}
-                className="flex items-center justify-between rounded-2xl bg-k-gray-100 px-4 py-3.5"
+                href={`/educator/verify?service=${item.id}`}
+                className="flex items-center justify-between rounded-2xl bg-k-gray-100 px-4 py-3.5 no-underline transition-colors hover:bg-k-gray-200"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-k-black truncate">
@@ -281,7 +282,10 @@ export default function EducatorDashboard() {
                 >
                   {item.status}
                 </span>
-              </div>
+                <span className="ml-2 inline-flex shrink-0 items-center gap-1 text-xs font-medium text-k-primary">
+                  Review <ArrowRight size={12} />
+                </span>
+              </Link>
             ))
           )}
         </div>

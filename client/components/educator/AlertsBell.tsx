@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Bell } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 
@@ -86,7 +87,17 @@ export default function AlertsBell() {
                 <div key={a.id} className="flex items-start gap-2 rounded-xl px-2 py-2 hover:bg-k-gray-100">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-k-black">{a.message}</p>
+                    {a.service && a.event_type === "ready_for_verification" ? (
+                      <Link
+                        href={`/educator/verify?service=${a.service.id}`}
+                        onClick={() => setOpen(false)}
+                        className="text-sm text-k-black no-underline hover:text-k-primary"
+                      >
+                        {a.message}
+                      </Link>
+                    ) : (
+                      <p className="text-sm text-k-black">{a.message}</p>
+                    )}
                     <p className="mt-0.5 text-xs text-k-gray-400">
                       {a.student?.full_name ?? "Student"} &middot;{" "}
                       {new Date(a.created_at).toLocaleString("en-GB", {

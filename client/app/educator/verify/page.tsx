@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Filter,
   CheckCircle2,
@@ -300,6 +302,17 @@ function renderPhotos(photos: VerificationItem["photos"]) {
 }
 
 export default function VerifyPage() {
+  // useSearchParams needs a Suspense boundary for the static build.
+  return (
+    <Suspense fallback={null}>
+      <VerifyQueue />
+    </Suspense>
+  );
+}
+
+function VerifyQueue() {
+  // ?service=<id> comes from a Review/View link: show just that submission.
+  const focusedServiceId = useSearchParams().get("service");
   const [activeFilter, setActiveFilter] = useState<VerifyStatus>("All");
   const [items, setItems] = useState<VerificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -386,6 +399,7 @@ export default function VerifyPage() {
   );
 
   const filtered = items.filter((item) => {
+    if (focusedServiceId) return item.serviceId === focusedServiceId;
     if (activeFilter === "All") return true;
     return item.status === activeFilter;
   });
@@ -583,8 +597,22 @@ export default function VerifyPage() {
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       </div>
 
+      {focusedServiceId && (
+        <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-k-primary/20 bg-k-primary/5 px-4 py-2.5">
+          <p className="text-xs text-k-gray-600">
+            Showing the submission you opened.
+          </p>
+          <Link
+            href="/educator/verify"
+            className="shrink-0 text-xs font-medium text-k-primary no-underline hover:underline"
+          >
+            Show all
+          </Link>
+        </div>
+      )}
+
       {/* Filters */}
-      <div className="mb-6 flex items-center gap-2 overflow-x-auto">
+      <div className={`mb-6 flex items-center gap-2 overflow-x-auto ${focusedServiceId ? "hidden" : ""}`}>
         <Filter size={14} className="shrink-0 text-k-gray-400" />
         {filters.map((f) => (
           <button
@@ -612,7 +640,9 @@ export default function VerifyPage() {
         ) : filtered.length === 0 ? (
           <div className="rounded-3xl border border-k-gray-200 bg-k-white px-6 py-16 text-center">
             <p className="text-sm text-k-gray-400">
-              No items match this filter.
+              {focusedServiceId
+                ? "This submission isn't in your queue. It may already have been reviewed, or it isn't ready for verification yet."
+                : "No items match this filter."}
             </p>
           </div>
         ) : (

@@ -1164,6 +1164,35 @@ Replaces the stub at `client/app/admin/reports/page.tsx`.
     unscoped, because every employer can already see verified portfolios.
     No schema or client changes.
 
+- [x] **EDU-2** — Educator Verification Studio only shows decision-ready work
+  - **Depends on:** **EDU-1**, **VER-5**, **POR-5**
+  - **Files:** `server/src/routes/verifications.ts`,
+    `client/app/educator/students/page.tsx`,
+    `client/app/educator/students/[studentId]/portfolio/page.tsx` (new),
+    `client/app/educator/verify/page.tsx`,
+    `client/app/educator/dashboard/page.tsx`,
+    `client/components/educator/AlertsBell.tsx`,
+    `client/components/portfolio/ServiceCard.tsx` (new, extracted from
+    `client/app/employer/browse/[studentId]/page.tsx`).
+  - **Done:** From `educator-feedback.md`. `/educator/students` (the Student
+    Verification Studio) now opens with a "Ready for Educator Verification"
+    table (`GET /pending`, `awaiting_educator` only) with columns Student |
+    Service | Date Completed | Client Confirmed | Evidence | Logged Time |
+    Verification Status | Review. Awaiting-client work sits outside it, in a
+    separate monitoring-only "Pending Client Confirmation" list
+    (new `GET /api/verifications/awaiting-client`) and in the "Student
+    Activity" roster, which now uses readable status labels. `GET /students`
+    returns `awaiting_educator_count` / `awaiting_client_count`; the
+    "Pending Reviews" tile and "Needs Attention" filter use the former
+    instead of `total - verified`. Each expanded student has a **View
+    Portfolio** button to `/educator/students/:id/portfolio`, reusing
+    `GET /api/portfolio/:studentId` (still unscoped, per EDU-1). Review
+    links, the dashboard's Pending Reviews rows and "ready for
+    verification" bell alerts were not clickable; they now open
+    `/educator/verify?service=<id>`, which shows just that submission.
+    No schema changes. The student items in `student-feedback.md` were
+    already covered by VER-15/16/17, POR-7 and CON-3 to CON-6.
+
 ---
 
 ## Ops / Deployment (OPS)
