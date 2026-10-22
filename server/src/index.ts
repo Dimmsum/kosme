@@ -7,6 +7,7 @@ import clientSignupRouter from "./routes/client-signup";
 import authRouter from "./routes/auth";
 import demoRouter from "./routes/demo";
 import profileRouter from "./routes/profile";
+import employerProfileRouter from "./routes/employer-profile";
 import servicesRouter from "./routes/services";
 import confirmationsRouter from "./routes/confirmations";
 import verificationsRouter from "./routes/verifications";
@@ -19,6 +20,7 @@ import appointmentsRouter from "./routes/appointments";
 import messagesRouter from "./routes/messages";
 import dashboardRouter from "./routes/dashboard";
 import volunteerRequestsRouter from "./routes/volunteer-requests";
+import schoolAdminRouter from "./routes/school-admin";
 import adminRouter from "./routes/admin";
 import kaiRouter from "./routes/kai";
 import eventsRouter from "./routes/events";
@@ -128,6 +130,7 @@ app.use("/api/demo", demoLimiter, demoRouter);
 
 // Protected routes — all require a valid Clerk JWT
 app.use("/api/profile", requireAuth, profileRouter);
+app.use("/api/employer-profile", requireAuth, employerProfileRouter);
 // Middleware only: mounting servicesRouter here would strip the path, so
 // POST /:id/photos would reach the create-service handler as POST /.
 app.use("/api/services/:id/photos", uploadLimiter);
@@ -144,6 +147,7 @@ app.use("/api/appointments", requireAuth, appointmentsRouter);
 app.use("/api/messages", requireAuth, messagesRouter);
 app.use("/api/volunteer-requests", requireAuth, volunteerRequestsRouter);
 app.use("/api/admin", requireAuth, requireRole("super_admin"), adminRouter);
+app.use("/api/school-admin", requireAuth, requireRole("school_admin"), schoolAdminRouter);
 app.use("/api/kai", requireAuth, kaiRouter);
 app.use("/api/events", requireAuth, eventsRouter);
 

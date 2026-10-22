@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowRight, Plus, Camera, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiGet } from "@/lib/api";
-import { supabase } from "@/lib/supabase";
 import { VerifiedHours, formatHours, untimedNote } from "@/lib/hours";
 
 type ServiceStatus =
@@ -33,6 +32,8 @@ interface DashboardStats {
   by_category: Record<string, number>;
   hours: VerifiedHours;
   requirements: Requirement[];
+  category_targets: CategoryTarget[];
+  programme_hours: (VerifiedHours & { required_hours: number }) | null;
 }
 
 // POR-6: progress toward a service type's required practical hours/count, as
@@ -98,20 +99,15 @@ export default function StudentDashboard() {
   useEffect(() => {
     async function load() {
       try {
-        const [profileRes, dashboardRes, servicesRes, categoriesRes] = await Promise.all([
+        const [profileRes, dashboardRes, servicesRes] = await Promise.all([
           apiGet<{ profile: Profile }>("/api/profile"),
           apiGet<{ stats: DashboardStats }>("/api/dashboard"),
           apiGet<{ services: Service[] }>("/api/services"),
-          supabase
-            .from("service_categories")
-            .select("id, max_required")
-            .order("id")
-            .then(({ data }) => data ?? []),
         ]);
         setProfile(profileRes.profile);
         setStats(dashboardRes.stats);
         setRecentServices(servicesRes.services.slice(0, 4));
-        setCategoryTargets(categoriesRes);
+        setCategoryTargets(dashboardRes.stats.category_targets ?? []);
       } catch {
         // silently keep defaults
       } finally {
@@ -187,6 +183,12 @@ export default function StudentDashboard() {
             {hoursNote && <p className="mt-0.5 text-xs text-k-gray-400">{hoursNote}</p>}
           </div>
         </div>
+
+        {stats?.programme_hours && (
+          <p className="mt-4 text-xs text-k-gray-400">
+            Programme practical hours: {formatHours(stats.programme_hours.verified_minutes)}/{stats.programme_hours.required_hours} hrs
+          </p>
+        )}
 
         {requirements.length > 0 && (
           <div className="mt-6 flex flex-col gap-4 border-t border-k-gray-200 pt-5">

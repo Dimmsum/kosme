@@ -6,6 +6,8 @@ export interface AuthRequest extends Request {
   userId?: string;
   userRole?: string;
   isDemo?: boolean;
+  // Institution of the caller (used to scope school_admin routes).
+  institutionId?: string | null;
   // Set by attachEducatorScope (lib/educator-scope.ts) on educator routes:
   // null = unrestricted, otherwise the student ids the educator may access.
   educatorScope?: string[] | null;
@@ -34,7 +36,7 @@ export async function requireAuth(
   // Look up the DB profile by clerk_id to get the UUID primary key and role
   const { data: profile, error } = await supabaseAdmin
     .from("user_profiles")
-    .select("id, role, is_demo")
+    .select("id, role, is_demo, status, institution_id")
     .eq("clerk_id", clerkId)
     .single();
 
@@ -45,9 +47,14 @@ export async function requireAuth(
     return res.status(403).json({ error: "No role assigned to this account" });
   }
 
+  if (profile.status && profile.status !== "active") {
+    return res.status(403).json({ error: `Account is ${profile.status}. Contact an administrator.` });
+  }
+
   req.userId = profile.id;       // UUID — all existing routes stay unchanged
   req.userRole = profile.role;
   req.isDemo = profile.is_demo ?? false;
+  req.institutionId = profile.institution_id ?? null;
   next();
 }
 

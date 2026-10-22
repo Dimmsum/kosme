@@ -226,6 +226,7 @@ function AlertForm({ edit, onClose, onSaved }: { edit: Alert | null; onClose: ()
               <option value="">Everyone</option>
               <option value="student">Students</option>
               <option value="educator">Educators</option>
+              <option value="school_admin">School admins</option>
               <option value="client">Clients</option>
               <option value="employer">Employers</option>
             </Select>

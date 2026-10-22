@@ -20,6 +20,100 @@ doubt, this file wins.
 
 ---
 
+## Stakeholder feedback round (SFB) — 2026-10-21
+
+Source: `superadmin-feedback.md`. Phases delivered in order; each is a tracer slice.
+
+- [x] **SFB-1** — School Admin role, role-specific Manage User, enforced suspend, layered delete
+  - **Depends on:** migration `0031_school_admin_role.sql` applied live
+  - **Done:** `school_admin` role (seed: `npm run seed:school-admin`, needs
+    `SCHOOL_ADMIN_INSTITUTION_ID`; test account in `seed:test`). `requireAuth`
+    now blocks non-`active` accounts and exposes `req.institutionId`.
+    `server/src/routes/admin/users.ts`: role-specific fields (`student_id`,
+    `staff_id`, `access_level`, administered programmes), `GET /:id/{students,records,programmes,impact}`,
+    `DELETE /:id` (name-confirmed; anonymises the profile, deletes the Clerk user,
+    retains services/verifications/appointments). Client:
+    `components/admin/UserDrawer.tsx` (per-role sections, multi-cohort educator
+    assignment, Delete → impact → type-name flow). School Admin app:
+    `server/src/routes/school-admin/index.ts` (institution-scoped, read-only) and
+    `client/app/school-admin/*`.
+  - **Not yet:** `access_level = manage` has no write actions; school admins have
+    view-only bookings/submissions (flag/intervene lands with SFB-7).
+- [x] **SFB-2** — Programme fields, cohort capacity, institution subscription vs usage
+  - **Depends on:** migration `0032_programme_capacity.sql` applied live (numbered 0032, not 0033 as first planned)
+  - **Done:** programmes gain qualification type, level, duration, awarding body,
+    start/end dates, status and `capacity`; cohorts gain `capacity`; new
+    `institution_subscriptions` (max programmes/students, status, period). Limits
+    are enforced in `server/src/lib/capacity.ts`: adding a programme
+    (`routes/admin/programmes.ts`) and placing a student (`routes/admin/users.ts`,
+    only when placement changes) return 409 when over cohort, programme or
+    institution limits or when the subscription is expired/cancelled. NULL = unlimited.
+    `GET/PUT /api/admin/institutions/:id/subscription` return allocation + usage.
+    UI: extended programme form, cohort capacity, student counts on rows and a
+    "Subscription & usage" panel in `client/app/admin/institutions/page.tsx`.
+  - **Not yet:** school-admin visibility of their own allocation; billing.
+- [x] **SFB-3** — Programme requirements, reusable templates, effective-by-cohort dating
+  - **Depends on:** migration `0033_programme_requirements.sql` applied live (it backfills every existing programme with today's catalogue values, dated 1900-01-01, so nothing changes for current students)
+  - **Done:** required count/hours moved off the master service into dated
+    `programme_requirements` sets (scope programme / category / service). A student
+    is held to the latest set whose `effective_from` is on/before their cohort's
+    start date (`server/src/lib/requirements.ts`), so future curriculum changes
+    never alter existing cohorts. `routes/progress.ts` and `routes/dashboard.ts`
+    now resolve through it (the dashboard no longer reads Supabase directly;
+    it returns `category_targets`, `category_hours`, `programme_hours`). Admin:
+    `routes/admin/programme-requirements.ts`, `routes/admin/programme-templates.ts`
+    (create / edit / apply to selected programmes or all using the template;
+    apply copies, so any programme can then vary). UI: Requirements button per
+    programme in `/admin/institutions`, new `/admin/programme-templates`, shared
+    `components/admin/RequirementsEditor.tsx`. Required fields removed from the
+    Service Catalogue forms; recommended duration stays on the service.
+  - **Legacy fallback:** students with no programme (incl. demo accounts) and
+    programmes with no set still use `service_categories.max_required` /
+    `service_types.required_practical_*`, which are no longer editable in the UI.
+- [x] **SFB-4** — Service catalogue: groups, category colour/description, rename Label → Category Name
+  - **Depends on:** migration `0034_service_groups.sql` applied live
+  - **Done:** `service_groups` (seeded Hair, Skin, Nails, Makeup, Barbering, Spa / Body)
+    plus `service_categories.group_id / colour / description / sort_order`; the eight
+    existing categories land in Hair with distinct default colours. Server:
+    `routes/admin/service-catalog.ts` (`/groups` CRUD, category extras, category
+    `id` now optional and generated from the name). UI: `/admin/service-catalog`
+    shows collapsible sections (Expand/Collapse all, "New Section", rename), a
+    colour swatch/picker, description, and "Category name" instead of "Label".
+    The student progress cards show the category colour.
+  - **Category ID (for the stakeholder):** it is the internal key that services,
+    appointments and client profiles store as text, so it can never change. Admins
+    no longer enter it; the edit form shows it read-only with that explanation.
+- [x] **SFB-5** — Move educator assignments into Institutions & Cohorts
+  - **Done:** no migration. In `/admin/institutions`, selecting a cohort opens a
+    panel (`CohortPeoplePanel`) to assign/remove educators and list the cohort's
+    students, giving Institution → Programme → Cohort → Educators → Students.
+    Cohort rows show the assigned educators, or an amber "No educator assigned".
+    `GET /api/admin/cohorts/:id/students` added. The old Educator Assignments
+    nav item is gone and `/admin/educators` now redirects to Institutions. An
+    educator with no institution adopts the school of their first assignment
+    (`routes/admin/educator-assignments.ts`); educators already placed elsewhere
+    are left alone and flagged "(other institution)" in the picker. Assigning from
+    the educator side (Manage User) still works. EDU-1 scoping is unchanged.
+- [x] **SFB-6** — Employer profile fields + submissions filters by institution/programme/cohort/student
+  - **Depends on:** migration `0035_employer_profiles.sql` applied live
+  - **Done:** `employer_profiles` (business name, contact person, location,
+    business type, verification status). Employers fill theirs in on
+    `/employer/profile` (`components/employer/BusinessDetailsCard.tsx`,
+    `routes/employer-profile.ts`); Super Admin edits them and sets verification in
+    `/admin/employers` (`routes/admin/employers.ts`), which now has search +
+    access/verification/type filters, activity (shortlist count, last
+    shortlisted), Suspend/Reactivate access and Manage account (the shared
+    UserDrawer, incl. layered delete). `/admin/submissions` filters by
+    Institution → Programme → Cohort → Student, category, status and date range
+    (`routes/admin/submissions.ts`; capped at 500 rows, flagged when truncated);
+    stale status list fixed (adds `in_progress`, `corrections_requested`).
+    `GET /api/admin/users` gained `programme_id` / `cohort_id` filters.
+  - **Not enforced:** verification status does not gate portfolio access. "Activity"
+    is derived from shortlists, not sign-in time.
+- [ ] **SFB-7** — Revised booking statuses, "Add My Client", educator/school admin booking visibility (`0036`)
+
+---
+
 ## Done — Foundation (Super Admin + Admin Control Centre)
 
 Shipped 2026-08-05–2026-08-07. Kept here as a checklist for completeness, not as

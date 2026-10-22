@@ -2,45 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
-import { apiGet, apiPatch } from "@/lib/api";
+import { apiGet } from "@/lib/api";
+import UserDrawer, { type UserRow, type Institution, type Programme, type Cohort } from "@/components/admin/UserDrawer";
 import AdminHeader from "@/components/admin/AdminHeader";
-import Modal from "@/components/admin/Modal";
-import { Field, Select, FormActions } from "@/components/admin/FormControls";
 import { LoadingCard, EmptyCard, ErrorBanner } from "@/components/admin/DataStates";
 
-type Role = "student" | "educator" | "client" | "employer";
+type Role = "student" | "educator" | "school_admin" | "client" | "employer";
 
-interface UserRow {
-  id: string;
-  full_name: string | null;
-  phone: string | null;
-  role: string;
-  status: "active" | "suspended";
-  is_demo: boolean;
-  institution_id: string | null;
-  programme_id: string | null;
-  cohort_id: string | null;
-  created_at: string;
-}
-interface Institution {
-  id: string;
-  name: string;
-}
-interface Programme {
-  id: string;
-  institution_id: string;
-  name: string;
-}
-interface Cohort {
-  id: string;
-  programme_id: string;
-  name: string;
-}
-
-const ROLES: Role[] = ["student", "educator", "client", "employer"];
+const ROLES: Role[] = ["student", "educator", "school_admin", "client", "employer"];
 const roleBadge: Record<string, string> = {
   student: "bg-blue-100 text-blue-700",
   educator: "bg-purple-100 text-purple-700",
+  school_admin: "bg-sky-100 text-sky-700",
   client: "bg-emerald-100 text-emerald-700",
   employer: "bg-amber-100 text-amber-700",
   super_admin: "bg-k-primary/10 text-k-primary",
@@ -134,7 +107,7 @@ export default function AdminUsersPage() {
           <option value="">All roles</option>
           {ROLES.map((r) => (
             <option key={r} value={r}>
-              {r[0].toUpperCase() + r.slice(1)}
+              {r === "school_admin" ? "School Admin" : r[0].toUpperCase() + r.slice(1)}
             </option>
           ))}
         </select>
@@ -146,6 +119,8 @@ export default function AdminUsersPage() {
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="suspended">Suspended</option>
+          <option value="deactivated">Deactivated</option>
+          <option value="deleted">Deleted</option>
         </select>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-k-gray-600">
           <input type="checkbox" checked={includeDemo} onChange={(e) => setIncludeDemo(e.target.checked)} />
@@ -189,7 +164,7 @@ export default function AdminUsersPage() {
                     <td className="px-5 py-3">
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          u.status === "suspended" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
+                          u.status !== "active" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
                         }`}
                       >
                         {u.status}
@@ -199,12 +174,14 @@ export default function AdminUsersPage() {
                       {new Date(u.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                     </td>
                     <td className="px-5 py-3 text-right">
+                      {u.status !== "deleted" && (
                       <button
                         onClick={() => setEditing(u)}
                         className="inline-flex items-center gap-1.5 rounded-full border border-k-gray-200 px-3 py-1.5 text-xs font-medium text-k-gray-600 transition-colors hover:bg-k-gray-100"
                       >
                         <SlidersHorizontal size={13} /> Manage
                       </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -231,113 +208,3 @@ export default function AdminUsersPage() {
   );
 }
 
-function UserDrawer({
-  user,
-  institutions,
-  programmes,
-  cohorts,
-  onClose,
-  onSaved,
-}: {
-  user: UserRow;
-  institutions: Institution[];
-  programmes: Programme[];
-  cohorts: Cohort[];
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [institutionId, setInstitutionId] = useState(user.institution_id ?? "");
-  const [programmeId, setProgrammeId] = useState(user.programme_id ?? "");
-  const [cohortId, setCohortId] = useState(user.cohort_id ?? "");
-  const [status, setStatus] = useState<UserRow["status"]>(user.status);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-
-  const progOptions = programmes.filter((p) => !institutionId || p.institution_id === institutionId);
-  const cohOptions = cohorts.filter((c) => !programmeId || c.programme_id === programmeId);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setErr("");
-    try {
-      await apiPatch(`/api/admin/users/${user.id}`, {
-        institution_id: institutionId || null,
-        programme_id: programmeId || null,
-        cohort_id: cohortId || null,
-        status,
-      });
-      onSaved();
-    } catch (e) {
-      setErr(errMsg(e, "Failed to update user."));
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal open title={user.full_name ?? "Manage user"} onClose={onClose}>
-      <form onSubmit={submit}>
-        {err && <ErrorBanner message={err} />}
-        <p className="mb-4 text-xs text-k-gray-400">
-          Role <span className="font-medium text-k-gray-600">{user.role}</span> · {user.phone ?? "no phone"}
-        </p>
-
-        <Field label="Institution">
-          <Select
-            value={institutionId}
-            onChange={(e) => {
-              setInstitutionId(e.target.value);
-              setProgrammeId("");
-              setCohortId("");
-            }}
-          >
-            <option value="">— none —</option>
-            {institutions.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <Field label="Programme">
-          <Select
-            value={programmeId}
-            onChange={(e) => {
-              setProgrammeId(e.target.value);
-              setCohortId("");
-            }}
-            disabled={!institutionId}
-          >
-            <option value="">— none —</option>
-            {progOptions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <Field label="Cohort">
-          <Select value={cohortId} onChange={(e) => setCohortId(e.target.value)} disabled={!programmeId}>
-            <option value="">— none —</option>
-            {cohOptions.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <Field label="Account status">
-          <Select value={status} onChange={(e) => setStatus(e.target.value as UserRow["status"])}>
-            <option value="active">Active</option>
-            <option value="suspended">Suspended</option>
-          </Select>
-        </Field>
-
-        <FormActions onCancel={onClose} busy={busy} submitLabel="Save changes" />
-      </form>
-    </Modal>
-  );
-}

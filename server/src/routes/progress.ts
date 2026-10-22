@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest, requireRole } from "../middleware/auth";
+import { resolveRequirementsForStudent } from "../lib/requirements";
 
 const router = Router();
 
@@ -43,14 +44,15 @@ function rank(status: string): number {
 // other services (untyped or repeat attempts) fill, furthest-along first.
 router.get("/", requireRole("student"), async (req: AuthRequest, res: Response) => {
   try {
-    const [categoriesRes, typesRes, servicesRes] = await Promise.all([
-      supabaseAdmin.from("service_categories").select("id, label, max_required").order("label"),
+    const [categoriesRes, typesRes, servicesRes, resolved] = await Promise.all([
+      supabaseAdmin.from("service_categories").select("id, label, colour").order("sort_order").order("label"),
       supabaseAdmin.from("service_types").select("id, category_id, name").order("name"),
       supabaseAdmin
         .from("services")
         .select("id, category_id, service_type_id, status, created_at")
         .eq("student_id", req.userId!)
         .order("created_at", { ascending: false }),
+      resolveRequirementsForStudent(req.userId!),
     ]);
 
     if (categoriesRes.error || typesRes.error || servicesRes.error) {
@@ -61,7 +63,12 @@ router.get("/", requireRole("student"), async (req: AuthRequest, res: Response) 
     const services = (servicesRes.data ?? []) as ServiceRow[];
     const types = typesRes.data ?? [];
 
-    const categories = (categoriesRes.data ?? []).map((cat) => {
+    // Category targets come from the student's programme requirements (SFB-3);
+    // categories the programme doesn't require are left out entirely.
+    const requiredCategories = (categoriesRes.data ?? []).filter((c) => (resolved.categoryCounts[c.id as string] ?? 0) > 0);
+
+    const categories = requiredCategories.map((rawCat) => {
+      const cat = { ...rawCat, max_required: resolved.categoryCounts[rawCat.id as string] };
       const catTypes = types.filter((t) => t.category_id === cat.id);
       const catServices = services.filter((s) => s.category_id === cat.id);
       const used = new Set<string>();
@@ -104,6 +111,7 @@ router.get("/", requireRole("student"), async (req: AuthRequest, res: Response) 
       return {
         id: cat.id as string,
         label: cat.label as string,
+        colour: (cat.colour ?? null) as string | null,
         max_required: cat.max_required as number,
         // Same cap the dashboard rings use: extras beyond the target don't count.
         completed: Math.min(verifiedInCategory, cat.max_required),

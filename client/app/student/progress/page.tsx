@@ -35,6 +35,7 @@ interface CategoryProgress {
   id: string;
   label: string;
   max_required: number;
+  colour?: string | null;
   completed: number;
   rows: PracticalRow[];
 }
@@ -175,7 +176,10 @@ export default function ProgressPage() {
                     open ? "border-k-primary/40" : "border-k-gray-200"
                   }`}
                 >
-                  <p className="truncate text-sm font-medium text-k-black">{cat.label}</p>
+                  <p className="flex items-center gap-1.5 truncate text-sm font-medium text-k-black">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: cat.colour ?? "#9b9690" }} />
+                    {cat.label}
+                  </p>
                   <p className="mt-1 font-serif text-xl text-k-black">
                     {cat.completed}/{cat.max_required}
                   </p>

@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../../lib/supabase";
 import { AuthRequest } from "../../middleware/auth";
 import { isUuid } from "../../lib/validation";
 import { logAudit } from "../../lib/audit";
+import { getSubscription, usageForInstitution } from "../../lib/capacity";
 
 // Mounted at /api/admin/institutions (super_admin only — guard is on the parent mount).
 const router = Router();
@@ -49,6 +50,72 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
   }
 
   return res.json({ institution: data });
+});
+
+const SUB_STATUSES = ["trial", "active", "expired", "cancelled"];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// GET /:id/subscription — allocation (what the plan permits) plus current usage.
+router.get("/:id/subscription", async (req: AuthRequest, res: Response) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid institution id" });
+  try {
+    const [subscription, usage] = await Promise.all([getSubscription(req.params.id), usageForInstitution(req.params.id)]);
+    return res.json({ subscription, usage });
+  } catch (err) {
+    console.error("admin institutions GET /:id/subscription error:", err);
+    return res.status(500).json({ error: "Failed to load subscription" });
+  }
+});
+
+// PUT /:id/subscription — create or replace the allocation. Null limits = unlimited.
+router.put("/:id/subscription", async (req: AuthRequest, res: Response) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: "Invalid institution id" });
+  const { plan_name, max_programmes, max_students, status, period_start, period_end, notes } = req.body;
+
+  for (const [field, value] of [["max_programmes", max_programmes], ["max_students", max_students]] as const) {
+    if (value != null && (!Number.isInteger(value) || value < 0)) {
+      return res.status(400).json({ error: `${field} must be a non-negative integer or null` });
+    }
+  }
+  if (status !== undefined && !SUB_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `status must be one of: ${SUB_STATUSES.join(", ")}` });
+  }
+  for (const [field, value] of [["period_start", period_start], ["period_end", period_end]] as const) {
+    if (value != null && (typeof value !== "string" || !DATE_RE.test(value))) {
+      return res.status(400).json({ error: `${field} must be a YYYY-MM-DD date or null` });
+    }
+  }
+  if (period_start && period_end && period_start > period_end) {
+    return res.status(400).json({ error: "period_start must be on or before period_end" });
+  }
+  for (const [field, value] of [["plan_name", plan_name], ["notes", notes]] as const) {
+    if (value != null && (typeof value !== "string" || value.length > 1000)) {
+      return res.status(400).json({ error: `${field} must be a string up to 1000 characters` });
+    }
+  }
+
+  const { data: inst } = await supabaseAdmin.from("institutions").select("id").eq("id", req.params.id).single();
+  if (!inst) return res.status(404).json({ error: "Institution not found" });
+
+  const row = {
+    institution_id: req.params.id,
+    plan_name: plan_name || null,
+    max_programmes: max_programmes ?? null,
+    max_students: max_students ?? null,
+    status: status ?? "active",
+    period_start: period_start || null,
+    period_end: period_end || null,
+    notes: notes || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabaseAdmin.from("institution_subscriptions").upsert(row, { onConflict: "institution_id" });
+  if (error) {
+    console.error("admin institutions PUT /:id/subscription error:", error);
+    return res.status(500).json({ error: "Failed to save subscription" });
+  }
+  await logAudit(req.userId, "update", "institution_subscription", req.params.id, row);
+  const usage = await usageForInstitution(req.params.id);
+  return res.json({ subscription: row, usage });
 });
 
 // POST / — create an institution.

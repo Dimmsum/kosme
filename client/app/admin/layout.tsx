@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   UserCheck,
   Building2,
-  GraduationCap,
   Users,
   Briefcase,
   ClipboardList,
@@ -20,6 +19,7 @@ import {
   Settings,
   Sparkles,
   Scissors,
+  ListChecks,
   LogOut,
 } from "lucide-react";
 import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
@@ -29,7 +29,7 @@ const navItems = [
   { href: "/admin/users", label: "User Verification", icon: UserCheck },
   { href: "/admin/institutions", label: "Institutions & Cohorts", icon: Building2 },
   { href: "/admin/service-catalog", label: "Service Catalog", icon: Scissors },
-  { href: "/admin/educators", label: "Educator Assignments", icon: GraduationCap },
+  { href: "/admin/programme-templates", label: "Programme Templates", icon: ListChecks },
   { href: "/admin/clients", label: "Volunteer Clients", icon: Users },
   { href: "/admin/employers", label: "Employers", icon: Briefcase },
   { href: "/admin/submissions", label: "Practical Submissions", icon: ClipboardList },

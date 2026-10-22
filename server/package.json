@@ -8,6 +8,7 @@
     "start": "node dist/index.js",
     "seed:demo": "tsx src/scripts/seed-demo-accounts.ts",
     "seed:super-admin": "tsx src/scripts/seed-super-admin.ts",
+    "seed:school-admin": "tsx src/scripts/seed-school-admin.ts",
     "seed:test": "tsx src/scripts/seed-test-accounts.ts"
   },
   "dependencies": {

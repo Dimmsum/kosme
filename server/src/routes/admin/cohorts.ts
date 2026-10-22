@@ -3,11 +3,12 @@ import { supabaseAdmin } from "../../lib/supabase";
 import { AuthRequest } from "../../middleware/auth";
 import { isUuid } from "../../lib/validation";
 import { logAudit } from "../../lib/audit";
+import { studentCountsBy } from "../../lib/capacity";
 
 // Mounted at /api/admin/cohorts (super_admin only).
 const router = Router();
 
-const SELECT = "id, programme_id, name, start_date, end_date, created_at";
+const SELECT = "id, programme_id, name, start_date, end_date, capacity, created_at";
 
 // YYYY-MM-DD
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -34,8 +35,20 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to list cohorts" });
   }
 
-  return res.json({ cohorts: data ?? [] });
+  try {
+    const counts = await studentCountsBy("cohort_id", (data ?? []).map((c) => c.id as string));
+    return res.json({ cohorts: (data ?? []).map((c) => ({ ...c, student_count: counts[c.id as string] ?? 0 })) });
+  } catch (err) {
+    console.error("admin cohorts GET / counts error:", err);
+    return res.status(500).json({ error: "Failed to list cohorts" });
+  }
 });
+
+function parseCapacity(v: unknown): { value: number | null } | { error: string } {
+  if (v === null) return { value: null };
+  if (!Number.isInteger(v) || (v as number) < 0) return { error: "capacity must be a non-negative integer or null" };
+  return { value: v as number };
+}
 
 // GET /:id — single cohort.
 router.get("/:id", async (req: AuthRequest, res: Response) => {
@@ -51,9 +64,29 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
   return res.json({ cohort: data });
 });
 
+// GET /:id/students — students placed in the cohort (step Cohort → Students).
+router.get("/:id/students", async (req: AuthRequest, res: Response) => {
+  if (!isUuid(req.params.id)) {
+    return res.status(400).json({ error: "Invalid cohort id" });
+  }
+  const { data, error } = await supabaseAdmin
+    .from("user_profiles")
+    .select("id, full_name, student_id, status")
+    .eq("role", "student")
+    .eq("is_demo", false)
+    .neq("status", "deleted")
+    .eq("cohort_id", req.params.id)
+    .order("full_name");
+  if (error) {
+    console.error("admin cohorts GET /:id/students error:", error);
+    return res.status(500).json({ error: "Failed to list cohort students" });
+  }
+  return res.json({ students: data ?? [] });
+});
+
 // POST / — create a cohort under a programme.
 router.post("/", async (req: AuthRequest, res: Response) => {
-  const { programme_id, name, start_date, end_date } = req.body;
+  const { programme_id, name, start_date, end_date, capacity } = req.body;
 
   if (!isUuid(programme_id)) {
     return res.status(400).json({ error: "programme_id must be a valid UUID" });
@@ -71,6 +104,13 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ error: "start_date must be on or before end_date" });
   }
 
+  let capacityValue: number | null = null;
+  if (capacity !== undefined) {
+    const c = parseCapacity(capacity);
+    if ("error" in c) return res.status(400).json({ error: c.error });
+    capacityValue = c.value;
+  }
+
   const { data: prog } = await supabaseAdmin.from("programmes").select("id").eq("id", programme_id).single();
   if (!prog) {
     return res.status(400).json({ error: "programme_id does not reference an existing programme" });
@@ -83,6 +123,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       name: name.trim(),
       start_date: start_date ?? null,
       end_date: end_date ?? null,
+      capacity: capacityValue,
     })
     .select(SELECT)
     .single();
@@ -102,13 +143,19 @@ router.patch("/:id", async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ error: "Invalid cohort id" });
   }
 
-  const { name, start_date, end_date } = req.body;
+  const { name, start_date, end_date, capacity } = req.body;
 
-  if (name === undefined && start_date === undefined && end_date === undefined) {
+  if (name === undefined && start_date === undefined && end_date === undefined && capacity === undefined) {
     return res.status(400).json({ error: "Provide at least one field to update" });
   }
 
-  const updates: Record<string, string | null> = {};
+  const updates: Record<string, string | number | null> = {};
+
+  if (capacity !== undefined) {
+    const c = parseCapacity(capacity);
+    if ("error" in c) return res.status(400).json({ error: c.error });
+    updates.capacity = c.value;
+  }
 
   if (name !== undefined) {
     if (typeof name !== "string" || name.trim().length === 0 || name.length > 255) {

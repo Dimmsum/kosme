@@ -79,10 +79,11 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
   return res.json();
 }
 
-export async function apiDelete(path: string): Promise<void> {
+export async function apiDelete(path: string, body?: unknown): Promise<void> {
   const res = await fetch(`${BASE}${path}`, {
     method: "DELETE",
     headers: await authHeaders(),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   handleExpiry(res);
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);

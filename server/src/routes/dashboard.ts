@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../lib/supabase";
 import { AuthRequest } from "../middleware/auth";
 import { summariseVerifiedHours } from "../lib/verified-hours";
 import { educatorStudentScope } from "../lib/educator-scope";
+import { resolveRequirementsForStudent } from "../lib/requirements";
 
 const router = Router();
 
@@ -30,28 +31,46 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         byCategory[s.category_id] = (byCategory[s.category_id] ?? 0) + 1;
       }
 
-      // POR-6: progress toward the per-type practical requirements set in the
-      // admin Service Catalog. Types with no requirement (both 0, the seeded
-      // default) are left out.
-      const { data: requiredTypes } = await supabaseAdmin
-        .from("service_types")
-        .select("id, category_id, name, required_practical_hours, required_practical_count")
-        .or("required_practical_hours.gt.0,required_practical_count.gt.0")
-        .order("category_id")
-        .order("name");
+      // POR-6 / SFB-3: progress toward the requirements in force for this
+      // student's programme and cohort (programme_requirements, dated sets),
+      // falling back to the legacy catalogue values when unplaced. Only
+      // services with a requirement are sent.
+      const resolved = await resolveRequirementsForStudent(userId);
+
+      const serviceIds = Object.keys(resolved.services);
+      const { data: requiredTypes } = serviceIds.length
+        ? await supabaseAdmin.from("service_types").select("id, category_id, name").in("id", serviceIds).order("category_id").order("name")
+        : { data: [] as { id: string; category_id: string; name: string }[] };
 
       const requirements = (requiredTypes ?? []).map((t) => {
         const done = verified.filter((s) => s.service_type_id === t.id);
+        const req = resolved.services[t.id];
         return {
           service_type_id: t.id,
           name: t.name,
           category_id: t.category_id,
-          required_hours: t.required_practical_hours,
-          required_count: t.required_practical_count,
+          required_hours: req.hours,
+          required_count: req.count,
           verified_count: done.length,
           ...summariseVerifiedHours(done),
         };
       });
+
+      const category_targets = Object.entries(resolved.categoryCounts)
+        .filter(([, n]) => n > 0)
+        .map(([id, max_required]) => ({ id, max_required }))
+        .sort((a, b) => a.id.localeCompare(b.id));
+
+      const category_hours = Object.entries(resolved.categoryHours).map(([category_id, required_hours]) => ({
+        category_id,
+        required_hours,
+        ...summariseVerifiedHours(verified.filter((s) => s.category_id === category_id)),
+      }));
+
+      const programme_hours =
+        resolved.programme_hours != null
+          ? { required_hours: resolved.programme_hours, ...summariseVerifiedHours(verified) }
+          : null;
 
       return res.json({
         role,
@@ -63,6 +82,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           by_category: byCategory,
           hours: summariseVerifiedHours(verified),
           requirements,
+          category_targets,
+          category_hours,
+          programme_hours,
         },
       });
     }

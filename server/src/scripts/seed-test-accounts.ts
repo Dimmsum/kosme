@@ -30,7 +30,7 @@ const TEST_INSTITUTION_ID = "00000000-0000-0000-0000-0000000075e1";
 const TEST_PROGRAMME_ID = "00000000-0000-0000-0000-0000000075e2";
 const TEST_COHORT_ID = "00000000-0000-0000-0000-0000000075e3";
 
-type Role = "student" | "educator" | "client" | "employer" | "super_admin";
+type Role = "student" | "educator" | "client" | "employer" | "super_admin" | "school_admin";
 
 const TEST_ACCOUNTS: {
   role: Role;
@@ -43,6 +43,7 @@ const TEST_ACCOUNTS: {
   { role: "client", email: "test-client+clerk_test@kosme.app", firstName: "Carla", lastName: "Client" },
   { role: "employer", email: "test-employer+clerk_test@kosme.app", firstName: "Emma", lastName: "Employer" },
   { role: "super_admin", email: "test-admin+clerk_test@kosme.app", firstName: "Adam", lastName: "Admin" },
+  { role: "school_admin", email: "test-school-admin+clerk_test@kosme.app", firstName: "Sasha", lastName: "SchoolAdmin" },
 ];
 
 type ClientSource =
@@ -199,7 +200,7 @@ async function seedAccount(entry: (typeof TEST_ACCOUNTS)[number]): Promise<strin
     console.log(`Reusing existing Clerk user for ${role}: ${clerkUser.id}`);
   }
 
-  const inSchool = role === "student" || role === "educator";
+  const inSchool = role === "student" || role === "educator" || role === "school_admin";
   const { data: profile, error } = await supabaseAdmin
     .from("user_profiles")
     .upsert(

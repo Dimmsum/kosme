@@ -1,0 +1,177 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Users,
+  ClipboardList,
+  CalendarDays,
+  LogOut,
+} from "lucide-react";
+import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
+
+const navItems = [
+  { href: "/school-admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/school-admin/people", label: "People", icon: Users },
+  { href: "/school-admin/submissions", label: "Submissions", icon: ClipboardList },
+  { href: "/school-admin/bookings", label: "Bookings", icon: CalendarDays },
+];
+
+export default function SchoolAdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, role, loading, signOut } = useAuth();
+  const rolePending = !!user && role === null;
+  const roleMismatch = !!user && !!role && role !== "school_admin";
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login");
+      return;
+    }
+
+    if (!loading && roleMismatch) {
+      router.replace(ROLE_DASHBOARD[role]);
+    }
+  }, [user, role, roleMismatch, loading, router]);
+
+  if (loading || !user || roleMismatch) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-k-white">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-k-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (rolePending) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-k-white px-6 text-center">
+        <p className="text-sm text-k-gray-600">
+          Your account is set up but your role could not be confirmed.
+        </p>
+        <a
+          href="/login"
+          className="rounded-full bg-k-primary px-6 py-2.5 text-sm font-medium text-k-white hover:bg-k-primary-light"
+        >
+          Sign in again
+        </a>
+      </div>
+    );
+  }
+
+  const initials =
+    user.full_name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() ?? "SA";
+
+  const displayName =
+    user.full_name ??
+    user.email ??
+    "School Admin";
+
+  return (
+    <div className="flex min-h-screen bg-k-gray-100">
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex md:w-[240px] md:flex-col md:fixed md:inset-y-0 bg-k-white border-r border-k-gray-200">
+        <div className="flex h-16 items-center justify-between px-6 border-b border-k-gray-200">
+          <Link href="/" className="block">
+            <Image
+              src="/Logo Text Only.png"
+              alt="Kosmè"
+              width={120}
+              height={32}
+              className="h-7 w-auto"
+              priority
+            />
+          </Link>
+        </div>
+
+        <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
+          {navItems.map(({ href, label, icon: Icon }) => {
+            const active =
+              pathname === href ||
+              (href !== "/school-admin/dashboard" && pathname.startsWith(href));
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium no-underline transition-colors duration-150 ${
+                  active
+                    ? "bg-k-primary/10 text-k-primary"
+                    : "text-k-gray-600 hover:bg-k-gray-100 hover:text-k-black"
+                }`}
+              >
+                <Icon size={18} />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-k-gray-200 px-4 py-4">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-k-primary/10 flex items-center justify-center">
+              <span className="text-sm font-semibold text-k-primary">
+                {initials}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-k-black leading-tight">
+                {displayName}
+              </p>
+              <p className="text-xs text-k-gray-400">School Admin</p>
+            </div>
+            <button
+              onClick={signOut}
+              aria-label="Sign out"
+              className="shrink-0 text-k-gray-400 transition-colors duration-150 hover:text-k-primary"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 md:ml-[240px] pb-24 md:pb-0">
+        <div className="flex h-14 items-center justify-end border-b border-k-gray-200 bg-k-white px-4 md:hidden">
+        </div>
+        {children}
+      </main>
+
+      {/* Mobile bottom nav */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-k-gray-200 bg-k-white px-1 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 md:hidden">
+        <div className="flex items-center gap-1 overflow-x-auto px-1">
+        {navItems.map(({ href, label, icon: Icon }) => {
+          const active =
+            pathname === href ||
+            (href !== "/school-admin/dashboard" && pathname.startsWith(href));
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`flex min-w-[74px] flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 no-underline transition-colors duration-150 ${
+                active ? "text-k-primary" : "text-k-gray-400"
+              }`}
+            >
+              <Icon size={18} />
+              <span className="text-[10px] font-medium">{label}</span>
+            </Link>
+          );
+        })}
+        </div>
+      </nav>
+    </div>
+  );
+}

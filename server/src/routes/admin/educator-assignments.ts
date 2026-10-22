@@ -53,17 +53,26 @@ router.post("/", async (req: AuthRequest, res: Response) => {
   // The educator_id must resolve to a profile whose role is 'educator'.
   const { data: educator } = await supabaseAdmin
     .from("user_profiles")
-    .select("id, role")
+    .select("id, role, institution_id")
     .eq("id", educator_id)
     .single();
   if (!educator || educator.role !== "educator") {
     return res.status(400).json({ error: "educator_id must reference a user with the 'educator' role" });
   }
 
-  const { data: cohort } = await supabaseAdmin.from("cohorts").select("id").eq("id", cohort_id).single();
+  const { data: cohort } = await supabaseAdmin
+    .from("cohorts")
+    .select("id, programme:programme_id ( institution_id )")
+    .eq("id", cohort_id)
+    .single();
   if (!cohort) {
     return res.status(400).json({ error: "cohort_id does not reference an existing cohort" });
   }
+  // An educator with no institution yet adopts the school they are first assigned
+  // to, so School Admin people lists and Manage User show them in context.
+  // Educators already placed elsewhere are left alone (they may teach at several).
+  const cohortInstitution = (cohort as unknown as { programme: { institution_id: string } | null }).programme?.institution_id;
+  const adoptInstitution = !educator.institution_id && !!cohortInstitution;
 
   const { data, error } = await supabaseAdmin
     .from("educator_assignments")
@@ -77,6 +86,10 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     }
     console.error("admin educator-assignments POST / error:", error);
     return res.status(500).json({ error: "Failed to create educator assignment" });
+  }
+
+  if (adoptInstitution) {
+    await supabaseAdmin.from("user_profiles").update({ institution_id: cohortInstitution }).eq("id", educator_id);
   }
 
   await logAudit(req.userId, "create", "educator_assignment", data.id, { educator_id, cohort_id });

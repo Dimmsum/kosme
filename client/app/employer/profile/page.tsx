@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { apiGet, apiPatch } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import BusinessDetailsCard from "@/components/employer/BusinessDetailsCard";
 
 interface ProfileRes {
   profile: {
@@ -128,6 +129,8 @@ export default function EmployerProfilePage() {
             </div>
           </div>
         </div>
+
+        <BusinessDetailsCard />
 
         {/* Personal information */}
         <div className="mb-6 rounded-3xl border border-k-gray-200 bg-k-white p-6">

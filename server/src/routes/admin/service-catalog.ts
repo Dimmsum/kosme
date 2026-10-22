@@ -9,7 +9,54 @@ import { logAudit } from "../../lib/audit";
 // (added in 0015 with recommended durations + required hours/count).
 const router = Router();
 
-const CATEGORY_SELECT = "id, label, max_required, created_at";
+const CATEGORY_SELECT = "id, label, max_required, group_id, colour, description, sort_order, created_at";
+const GROUP_SELECT = "id, name, sort_order, created_at";
+const COLOUR_RE = /^#[0-9a-fA-F]{6}$/;
+
+// Validates the optional SFB-4 category fields present in `body` (group_id,
+// colour, description, sort_order). Returns DB-ready updates or an error.
+async function parseCategoryExtras(body: Record<string, unknown>): Promise<{ updates: Record<string, string | number | null> } | { error: string }> {
+  const updates: Record<string, string | number | null> = {};
+  const { group_id, colour, description, sort_order } = body;
+  if (group_id !== undefined) {
+    if (group_id !== null) {
+      if (typeof group_id !== "string") return { error: "group_id must be a string or null" };
+      const { data } = await supabaseAdmin.from("service_groups").select("id").eq("id", group_id).single();
+      if (!data) return { error: "group_id does not reference an existing group" };
+    }
+    updates.group_id = group_id as string | null;
+  }
+  if (colour !== undefined) {
+    if (colour !== null && (typeof colour !== "string" || !COLOUR_RE.test(colour))) {
+      return { error: "colour must be a #RRGGBB hex value or null" };
+    }
+    updates.colour = colour as string | null;
+  }
+  if (description !== undefined) {
+    if (description !== null && (typeof description !== "string" || description.length > 1000)) {
+      return { error: "description must be a string up to 1000 characters" };
+    }
+    updates.description = typeof description === "string" && description.trim() === "" ? null : (description as string | null);
+  }
+  if (sort_order !== undefined) {
+    if (!Number.isInteger(sort_order)) return { error: "sort_order must be an integer" };
+    updates.sort_order = sort_order as number;
+  }
+  return { updates };
+}
+
+// Category ids are internal keys (services, appointments and client profiles
+// store them as text), so they are generated from the display name rather than
+// typed by admins, and never change afterwards.
+async function generateCategoryId(label: string): Promise<string> {
+  const base = label.trim().replace(/\s+/g, " ").slice(0, 60);
+  for (let n = 1; n <= 50; n++) {
+    const candidate = n === 1 ? base : `${base} ${n}`;
+    const { data } = await supabaseAdmin.from("service_categories").select("id").eq("id", candidate).maybeSingle();
+    if (!data) return candidate;
+  }
+  return `${base} ${Date.now()}`.slice(0, 64);
+}
 const TYPE_SELECT =
   "id, category_id, name, recommended_duration_min, recommended_duration_max, required_practical_hours, required_practical_count, created_at";
 
@@ -24,7 +71,7 @@ function checkOptionalNonNegInt(value: unknown, field: string): string | null {
 
 // GET /categories — list all service categories.
 router.get("/categories", async (_req: AuthRequest, res: Response) => {
-  const { data, error } = await supabaseAdmin.from("service_categories").select(CATEGORY_SELECT).order("id");
+  const { data, error } = await supabaseAdmin.from("service_categories").select(CATEGORY_SELECT).order("sort_order").order("label");
   if (error) {
     console.error("admin service-catalog GET /categories error:", error);
     return res.status(500).json({ error: "Failed to list service categories" });
@@ -32,11 +79,13 @@ router.get("/categories", async (_req: AuthRequest, res: Response) => {
   return res.json({ categories: data ?? [] });
 });
 
-// POST /categories — create a category (text PK is caller-supplied, like roles).
+// POST /categories — create a category. `id` is optional: when omitted it is
+// generated from `label` (the admin-facing Category Name).
 router.post("/categories", async (req: AuthRequest, res: Response) => {
-  const { id, label, max_required } = req.body;
+  const { label, max_required } = req.body;
+  let { id } = req.body;
 
-  if (typeof id !== "string" || id.trim().length === 0 || id.length > 64) {
+  if (id !== undefined && (typeof id !== "string" || id.trim().length === 0 || id.length > 64)) {
     return res.status(400).json({ error: "id must be a string between 1 and 64 characters" });
   }
   if (typeof label !== "string" || label.trim().length === 0 || label.length > 255) {
@@ -44,10 +93,13 @@ router.post("/categories", async (req: AuthRequest, res: Response) => {
   }
   const maxErr = checkOptionalNonNegInt(max_required, "max_required");
   if (maxErr) return res.status(400).json({ error: maxErr });
+  const extras = await parseCategoryExtras(req.body);
+  if ("error" in extras) return res.status(400).json({ error: extras.error });
+  if (id === undefined) id = await generateCategoryId(label);
 
   const { data, error } = await supabaseAdmin
     .from("service_categories")
-    .insert({ id: id.trim(), label: label.trim(), ...(max_required !== undefined ? { max_required } : {}) })
+    .insert({ id: id.trim(), label: label.trim(), ...(max_required !== undefined ? { max_required } : {}), ...extras.updates })
     .select(CATEGORY_SELECT)
     .single();
 
@@ -67,11 +119,14 @@ router.post("/categories", async (req: AuthRequest, res: Response) => {
 router.patch("/categories/:id", async (req: AuthRequest, res: Response) => {
   const { label, max_required } = req.body;
 
-  if (label === undefined && max_required === undefined) {
+  const extras = await parseCategoryExtras(req.body);
+  if ("error" in extras) return res.status(400).json({ error: extras.error });
+
+  if (label === undefined && max_required === undefined && Object.keys(extras.updates).length === 0) {
     return res.status(400).json({ error: "Provide at least one field to update" });
   }
 
-  const updates: Record<string, string | number> = {};
+  const updates: Record<string, string | number | null> = { ...extras.updates };
   if (label !== undefined) {
     if (typeof label !== "string" || label.trim().length === 0 || label.length > 255) {
       return res.status(400).json({ error: "label must be between 1 and 255 characters" });
@@ -98,6 +153,80 @@ router.patch("/categories/:id", async (req: AuthRequest, res: Response) => {
 
   await logAudit(req.userId, "update", "service_category", data.id, updates);
   return res.json({ category: data });
+});
+
+// ── Service groups (collapsible sections: Hair, Skin, Nails, …) ─────────────
+
+// GET /groups — all groups in display order.
+router.get("/groups", async (_req: AuthRequest, res: Response) => {
+  const { data, error } = await supabaseAdmin.from("service_groups").select(GROUP_SELECT).order("sort_order").order("name");
+  if (error) {
+    console.error("admin service-catalog GET /groups error:", error);
+    return res.status(500).json({ error: "Failed to list service groups" });
+  }
+  return res.json({ groups: data ?? [] });
+});
+
+function slugify(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+}
+
+// POST /groups — create a group; id is generated from the name.
+router.post("/groups", async (req: AuthRequest, res: Response) => {
+  const { name, sort_order } = req.body;
+  if (typeof name !== "string" || name.trim().length === 0 || name.length > 255) {
+    return res.status(400).json({ error: "name must be between 1 and 255 characters" });
+  }
+  if (sort_order !== undefined && !Number.isInteger(sort_order)) {
+    return res.status(400).json({ error: "sort_order must be an integer" });
+  }
+  const base = slugify(name) || "group";
+  let id = base;
+  for (let n = 2; n <= 50; n++) {
+    const { data } = await supabaseAdmin.from("service_groups").select("id").eq("id", id).maybeSingle();
+    if (!data) break;
+    id = `${base}-${n}`;
+  }
+  const { data, error } = await supabaseAdmin
+    .from("service_groups")
+    .insert({ id, name: name.trim(), ...(sort_order !== undefined ? { sort_order } : {}) })
+    .select(GROUP_SELECT)
+    .single();
+  if (error) {
+    console.error("admin service-catalog POST /groups error:", error);
+    return res.status(500).json({ error: "Failed to create service group" });
+  }
+  await logAudit(req.userId, "create", "service_group", data.id, { name: data.name });
+  return res.status(201).json({ group: data });
+});
+
+// PATCH /groups/:id — rename / reorder.
+router.patch("/groups/:id", async (req: AuthRequest, res: Response) => {
+  const { name, sort_order } = req.body;
+  const updates: Record<string, string | number> = {};
+  if (name !== undefined) {
+    if (typeof name !== "string" || name.trim().length === 0 || name.length > 255) {
+      return res.status(400).json({ error: "name must be between 1 and 255 characters" });
+    }
+    updates.name = name.trim();
+  }
+  if (sort_order !== undefined) {
+    if (!Number.isInteger(sort_order)) return res.status(400).json({ error: "sort_order must be an integer" });
+    updates.sort_order = sort_order;
+  }
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: "Provide at least one field to update" });
+  const { data, error } = await supabaseAdmin.from("service_groups").update(updates).eq("id", req.params.id).select(GROUP_SELECT).single();
+  if (error || !data) return res.status(error ? 500 : 404).json({ error: error ? "Failed to update service group" : "Service group not found" });
+  await logAudit(req.userId, "update", "service_group", data.id, updates);
+  return res.json({ group: data });
+});
+
+// DELETE /groups/:id — categories in it become ungrouped (FK SET NULL); none are deleted.
+router.delete("/groups/:id", async (req: AuthRequest, res: Response) => {
+  const { error } = await supabaseAdmin.from("service_groups").delete().eq("id", req.params.id);
+  if (error) return res.status(500).json({ error: "Failed to delete service group" });
+  await logAudit(req.userId, "delete", "service_group", req.params.id, null);
+  return res.json({ ok: true });
 });
 
 // ── Service types ───────────────────────────────────────────────────────────

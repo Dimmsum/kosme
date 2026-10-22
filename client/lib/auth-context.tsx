@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useUser, useClerk, useAuth as useClerkAuth } from "@clerk/nextjs";
 
-export type UserRole = "student" | "educator" | "client" | "employer" | "super_admin";
+export type UserRole = "student" | "educator" | "client" | "employer" | "super_admin" | "school_admin";
 
 export const ROLE_DASHBOARD: Record<UserRole, string> = {
   student: "/student/dashboard",
@@ -11,6 +11,7 @@ export const ROLE_DASHBOARD: Record<UserRole, string> = {
   client: "/volunteer/dashboard",
   employer: "/employer/dashboard",
   super_admin: "/admin/dashboard",
+  school_admin: "/school-admin/dashboard",
 };
 
 interface AuthState {
@@ -33,7 +34,7 @@ export function normalizeRole(raw: string | null | undefined): UserRole | null {
   if (!raw) return null;
   const r = raw.toLowerCase();
   if (r === "volunteer") return "client"; // backward compat
-  if (r === "student" || r === "educator" || r === "client" || r === "employer" || r === "super_admin") {
+  if (r === "student" || r === "educator" || r === "client" || r === "employer" || r === "super_admin" || r === "school_admin") {
     return r as UserRole;
   }
   return null;
