@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -37,6 +37,7 @@ export default function LoginPage() {
   const [codeSentTo, setCodeSentTo] = useState("");
   const [deviceCode, setDeviceCode] = useState("");
   const [codeResent, setCodeResent] = useState(false);
+  const verifyingRef = useRef(false);
 
   // Forgot password flow state
   const [forgotStep, setForgotStep] = useState<ForgotStep>("idle");
@@ -122,28 +123,47 @@ export default function LoginPage() {
 
   const handleDeviceCode = async (e: FormEvent) => {
     e.preventDefault();
-    if (!deviceCode || !isLoaded) return;
+    // Guard against a double submit (Enter + click): the second attempt hits an
+    // already-verified sign-in and Clerk rejects it, showing a "wrong code"
+    // error even though the first attempt signed the user in.
+    if (!deviceCode || !isLoaded || verifyingRef.current) return;
+    verifyingRef.current = true;
     setLoading(true);
     setError("");
 
+    let result: Awaited<ReturnType<typeof signIn.attemptSecondFactor>>;
     try {
-      const result = await signIn.attemptSecondFactor({
+      result = await signIn.attemptSecondFactor({
         strategy: "email_code",
         code: deviceCode,
       } as unknown as AttemptSecondFactor);
-
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        setRedirecting(true);
-        // AuthProvider resolves the role and the useEffect above redirects
-      } else {
-        setError("Sign-in could not be completed. Please try again.");
-        setLoading(false);
-      }
     } catch (err: unknown) {
+      console.error("attemptSecondFactor failed", err);
       const clerkErr = err as { errors?: Array<{ message: string }> };
       setError(clerkErr?.errors?.[0]?.message ?? "That code didn't work. Please try again.");
       setLoading(false);
+      verifyingRef.current = false;
+      return;
+    }
+
+    if (result.status !== "complete") {
+      setError("Sign-in could not be completed. Please try again.");
+      setLoading(false);
+      verifyingRef.current = false;
+      return;
+    }
+
+    // The code was accepted. Anything that fails from here is not a code
+    // problem, so it must not be reported as one.
+    try {
+      await setActive({ session: result.createdSessionId });
+      setRedirecting(true);
+      // AuthProvider resolves the role and the useEffect above redirects
+    } catch (err: unknown) {
+      console.error("setActive failed after a successful code", err);
+      setError("Your code was accepted, but we couldn't start your session. Please refresh and log in again.");
+      setLoading(false);
+      verifyingRef.current = false;
     }
   };
 

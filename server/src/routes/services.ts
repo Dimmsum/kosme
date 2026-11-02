@@ -1,4 +1,4 @@
-import { Router, Response } from "express";
+import { Router, Response, NextFunction } from "express";
 import multer from "multer";
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "../lib/supabase";
@@ -21,21 +21,190 @@ async function findActiveService(studentId: string, exceptId?: string) {
   return data;
 }
 
+const PHOTO_BUCKET = "service-photos";
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+const MAX_PHOTOS_PER_UPLOAD = 20;
+// Cap on all photos in one request, so a full batch of large files can't hold
+// 200 MB in memory. Kept in sync with client/lib/photos.ts.
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+// Room for multipart boundaries and the `data`/`stages` fields when checking
+// Content-Length against MAX_UPLOAD_BYTES.
+const MULTIPART_OVERHEAD_BYTES = 1024 * 1024;
+const PHOTO_TYPES_MESSAGE = "Use JPG, PNG, WebP or HEIC photos.";
+const UPLOAD_TOO_LARGE_MESSAGE =
+  "Your photos add up to more than 50 MB. Remove some and upload them separately.";
+
+// Extensions and mimetypes a browser may report for an allowed photo. Some
+// browsers (Chrome with iPhone HEIC photos) send `application/octet-stream`,
+// so the extension also counts. This is only the early filter; the file's
+// bytes are checked once it's received (sniffPhotoType).
+const PHOTO_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "heic", "heif"];
+const PHOTO_MIME_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+];
+
+function claimsPhotoType(file: Express.Multer.File): boolean {
+  const ext = file.originalname.split(".").pop()?.toLowerCase() ?? "";
+  return PHOTO_MIME_TYPES.includes(file.mimetype) || PHOTO_EXTENSIONS.includes(ext);
+}
+
+// ISO-BMFF `ftyp` major brands for HEIC (HEVC-coded) and generic HEIF images.
+// AVIF shares the container but uses its own brand, so it's rejected.
+const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs"];
+const HEIF_BRANDS = ["mif1", "msf1"];
+
+// What a file actually is, read from its first bytes. The stored content type
+// and extension come from here, never from the name or the browser's claim,
+// so a renamed non-image can't land in the public bucket.
+function sniffPhotoType(buf: Buffer): { contentType: string; ext: string } | null {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return { contentType: "image/jpeg", ext: "jpg" };
+  }
+  if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return { contentType: "image/png", ext: "png" };
+  }
+  if (buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") {
+    return { contentType: "image/webp", ext: "webp" };
+  }
+  if (buf.toString("ascii", 4, 8) === "ftyp") {
+    const brand = buf.toString("ascii", 8, 12);
+    if (HEIC_BRANDS.includes(brand)) return { contentType: "image/heic", ext: "heic" };
+    if (HEIF_BRANDS.includes(brand)) return { contentType: "image/heif", ext: "heif" };
+  }
+  return null;
+}
+
+// Thrown from the multer fileFilter so an unsupported file fails the whole
+// upload with a readable 400. Silently dropping it (cb(null, false)) left the
+// `stages` array one longer than the files, which 400'd with a message the
+// student couldn't act on.
+class PhotoFileError extends Error {}
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: MAX_PHOTO_BYTES, files: MAX_PHOTOS_PER_UPLOAD },
   fileFilter: (_req, file, cb) => {
-    const allowed = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/webp",
-      "image/heic",
-      "image/heif",
-    ];
-    cb(null, allowed.includes(file.mimetype));
+    if (claimsPhotoType(file)) return cb(null, true);
+    cb(
+      new PhotoFileError(
+        `"${file.originalname}" isn't a supported photo type. ${PHOTO_TYPES_MESSAGE}`,
+      ),
+    );
   },
 });
+
+// Runs a multer parser, then enforces the total size and checks every file's
+// bytes. Errors become a 400/413 with a message the form can show as-is.
+// Non-multipart requests pass straight through.
+function parsePhotos(fields: multer.Field[]) {
+  const parse = upload.fields(fields);
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.is("multipart/form-data")) return next();
+    // Refuse an oversized body before buffering any of it.
+    if (Number(req.headers["content-length"]) > MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES) {
+      return res.status(413).json({ error: UPLOAD_TOO_LARGE_MESSAGE });
+    }
+    parse(req, res, (err: unknown) => {
+      if (err instanceof PhotoFileError) {
+        return res.status(400).json({ error: err.message });
+      }
+      if (err instanceof multer.MulterError) {
+        const message =
+          err.code === "LIMIT_FILE_SIZE"
+            ? "One of your photos is larger than 10 MB. Remove it or use a smaller photo."
+            : err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE"
+              ? `You can upload up to ${MAX_PHOTOS_PER_UPLOAD} photos at a time.`
+              : "Your photos couldn't be read. Please try again.";
+        return res.status(400).json({ error: message });
+      }
+      if (err) return next(err);
+
+      // Content-Length can be absent (chunked uploads), so total the files too.
+      const files = Object.values((req.files ?? {}) as Record<string, Express.Multer.File[]>).flat();
+      if (files.reduce((sum, f) => sum + f.size, 0) > MAX_UPLOAD_BYTES) {
+        return res.status(413).json({ error: UPLOAD_TOO_LARGE_MESSAGE });
+      }
+      const notPhoto = files.find((f) => !sniffPhotoType(f.buffer));
+      if (notPhoto) {
+        return res.status(400).json({
+          error: `"${notPhoto.originalname}" isn't a valid photo. ${PHOTO_TYPES_MESSAGE}`,
+        });
+      }
+      next();
+    });
+  };
+}
+
+// Make sure the bucket exists and is public (idempotent).
+async function ensurePhotoBucket() {
+  const { error: bucketCreateError } = await supabaseAdmin.storage.createBucket(PHOTO_BUCKET, {
+    public: true,
+    fileSizeLimit: MAX_PHOTO_BYTES,
+    allowedMimeTypes: PHOTO_MIME_TYPES,
+  });
+  // If bucket already existed, force it public in case it was created private
+  if (bucketCreateError) {
+    await supabaseAdmin.storage.updateBucket(PHOTO_BUCKET, { public: true });
+  }
+}
+
+interface PhotoUpload {
+  file: Express.Multer.File;
+  type: "before" | "after";
+  stage: PhotoStage | null;
+}
+
+interface StoredPhoto {
+  url: string;
+  type: "before" | "after";
+  stage: PhotoStage | null;
+}
+
+// Uploads every photo to storage under the service's folder. All-or-nothing:
+// if one upload fails, the ones already stored are removed before throwing,
+// so a failed request never leaves orphaned files behind.
+async function storePhotos(userId: string, serviceId: string, uploads: PhotoUpload[]) {
+  const paths: string[] = [];
+  const photos: StoredPhoto[] = [];
+  for (const { file, type, stage } of uploads) {
+    // parsePhotos has already rejected anything this doesn't recognise.
+    const { contentType, ext } = sniffPhotoType(file.buffer)!;
+    // Unique per upload: a service can take several upload batches (log form,
+    // then the detail page), and an index-only name would overwrite earlier
+    // photos under the same storage path.
+    const path = `${userId}/${serviceId}/${type}-${randomUUID()}.${ext}`;
+    const { error } = await supabaseAdmin.storage.from(PHOTO_BUCKET).upload(path, file.buffer, {
+      contentType,
+      upsert: true,
+    });
+    if (error) {
+      console.error("photo upload error:", error);
+      await removeStoredPhotos(paths);
+      throw new Error(`Failed to upload "${file.originalname}"`);
+    }
+    paths.push(path);
+    const {
+      data: { publicUrl },
+    } = supabaseAdmin.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+    photos.push({ url: publicUrl, type, stage });
+  }
+  return { paths, photos };
+}
+
+async function removeStoredPhotos(paths: string[]) {
+  if (paths.length === 0) return;
+  const { error } = await supabaseAdmin.storage.from(PHOTO_BUCKET).remove(paths);
+  if (error) console.error("photo cleanup error:", error);
+}
+
+function photoRows(serviceId: string, photos: StoredPhoto[]) {
+  return photos.map(({ url, type, stage }) => ({ service_id: serviceId, url, type, stage }));
+}
 
 const router = Router();
 
@@ -170,11 +339,24 @@ router.get(
   },
 );
 
-// POST /api/services — student logs a new service
+// POST /api/services — student logs a new service. Plain JSON, or multipart
+// when the log form attaches photos: the service fields as JSON in `data`,
+// plus `photos` and `stages` shaped as in POST /:id/photos. Photos are
+// validated and stored before the service row exists, so a failed upload
+// creates nothing and the student can fix the photos and resubmit.
 router.post(
   "/",
   requireRole("student"),
+  parsePhotos([{ name: "photos", maxCount: MAX_PHOTOS_PER_UPLOAD }]),
   async (req: AuthRequest, res: Response) => {
+    let body = req.body;
+    if (req.is("multipart/form-data")) {
+      try {
+        body = JSON.parse(req.body?.data ?? "");
+      } catch {
+        return res.status(400).json({ error: "Invalid service data" });
+      }
+    }
     const {
       name,
       category_id,
@@ -185,7 +367,18 @@ router.post(
       start_now,
       photo_consent,
       appointment_id,
-    } = req.body;
+    } = body ?? {};
+
+    const photoFiles =
+      ((req.files ?? {}) as Record<string, Express.Multer.File[]>)["photos"] ?? [];
+    let photoStages: (PhotoStage | null)[];
+    try {
+      photoStages = parsePhotoStages(req.body?.stages, photoFiles.length);
+    } catch (err) {
+      return res.status(400).json({
+        error: err instanceof Error ? err.message : "Invalid stages value",
+      });
+    }
 
     if (!name || !category_id) {
       return res.status(400).json({ error: "name and category_id are required" });
@@ -284,9 +477,29 @@ router.post(
         ? "awaiting_client"
         : "awaiting_educator";
 
+    // The id is minted here so photos can be stored under the service's
+    // folder before the row is inserted.
+    const serviceId = randomUUID();
+    let stored: Awaited<ReturnType<typeof storePhotos>> = { paths: [], photos: [] };
+    if (photoFiles.length > 0) {
+      await ensurePhotoBucket();
+      try {
+        stored = await storePhotos(
+          req.userId!,
+          serviceId,
+          photoFiles.map((file, i) => ({ file, type: "after" as const, stage: photoStages[i] })),
+        );
+      } catch (err) {
+        return res.status(500).json({
+          error: `${err instanceof Error ? err.message : "Failed to upload your photos"}, so the service wasn't created. Try again, or remove that photo.`,
+        });
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from("services")
       .insert({
+        id: serviceId,
         student_id: req.userId!,
         name: name.trim(),
         category_id,
@@ -303,6 +516,7 @@ router.post(
       .single();
 
     if (error) {
+      await removeStoredPhotos(stored.paths);
       // Lost a race with another tab: the unique index caught the second timer.
       if (error.code === "23505" && timing) {
         const active = await findActiveService(req.userId!);
@@ -313,6 +527,22 @@ router.post(
       }
       console.error("services POST error:", error);
       return res.status(500).json({ error: "Failed to create service" });
+    }
+
+    // Nothing else references the new row yet, so if the photo records can't
+    // be saved the service is deleted rather than left without its evidence.
+    if (stored.photos.length > 0) {
+      const { error: photoError } = await supabaseAdmin
+        .from("service_photos")
+        .insert(photoRows(data.id, stored.photos));
+      if (photoError) {
+        console.error("service_photos insert error:", photoError);
+        await supabaseAdmin.from("services").delete().eq("id", data.id);
+        await removeStoredPhotos(stored.paths);
+        return res.status(500).json({
+          error: "Your photos couldn't be saved, so the service wasn't created. Please try again.",
+        });
+      }
     }
 
     if (appointment_id != null) {
@@ -551,10 +781,10 @@ router.post(
 router.post(
   "/:id/photos",
   requireRole("student"),
-  upload.fields([
+  parsePhotos([
     { name: "before", maxCount: 10 },
     { name: "after", maxCount: 10 },
-    { name: "photos", maxCount: 20 },
+    { name: "photos", maxCount: MAX_PHOTOS_PER_UPLOAD },
   ]),
   async (req: AuthRequest, res: Response) => {
     if (!isUuid(req.params.id)) {
@@ -573,34 +803,12 @@ router.post(
     }
     // Evidence is locked once verified, so unreviewed photos can't reach the
     // employer portfolio. Uploads stay open while awaiting_educator: the
-    // no-client instant log lands there before the log form uploads its
-    // photos, and it's the only point where no-client services can add
-    // evidence at all.
+    // no-client instant log lands there, and the detail page is where it
+    // collects any further evidence.
     if (service.status === "verified") {
       return res
         .status(400)
         .json({ error: "This service is verified and can no longer be edited" });
-    }
-
-    // Ensure bucket exists and is public (idempotent)
-    const { error: bucketCreateError } =
-      await supabaseAdmin.storage.createBucket("service-photos", {
-        public: true,
-        fileSizeLimit: 10 * 1024 * 1024,
-        allowedMimeTypes: [
-          "image/jpeg",
-          "image/jpg",
-          "image/png",
-          "image/webp",
-          "image/heic",
-          "image/heif",
-        ],
-      });
-    // If bucket already existed, force it public in case it was created private
-    if (bucketCreateError) {
-      await supabaseAdmin.storage.updateBucket("service-photos", {
-        public: true,
-      });
     }
 
     const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
@@ -613,7 +821,7 @@ router.post(
       afterFiles.length === 0 &&
       genericFiles.length === 0
     ) {
-      return res.status(400).json({ error: "No files uploaded" });
+      return res.status(400).json({ error: "Choose at least one photo to upload." });
     }
 
     // `stages` is an optional JSON array of "before"|"during"|"after" (or
@@ -629,11 +837,7 @@ router.post(
       });
     }
 
-    const toUpload: {
-      file: Express.Multer.File;
-      type: "before" | "after";
-      stage: PhotoStage | null;
-    }[] = [
+    const toUpload: PhotoUpload[] = [
       // The `before`/`after` fields are a legacy upload path with no client
       // currently using them; default their stage from the field name itself
       // so any existing integration still gets a sensible tag for free.
@@ -655,51 +859,27 @@ router.post(
       })),
     ];
 
-    const savedPhotos: { url: string; type: string; stage: PhotoStage | null }[] = [];
-
-    for (const { file, type, stage } of toUpload) {
-      const ext = file.originalname.split(".").pop()?.toLowerCase() || "jpg";
-      // Unique per upload: a service can take several upload batches (log form,
-      // then the detail page), and an index-only name would overwrite earlier
-      // photos under the same storage path.
-      const path = `${req.userId}/${req.params.id}/${type}-${randomUUID()}.${ext}`;
-
-      const { error: uploadError } = await supabaseAdmin.storage
-        .from("service-photos")
-        .upload(path, file.buffer, {
-          contentType: file.mimetype,
-          upsert: true,
-        });
-
-      if (uploadError) {
-        console.error("photo upload error:", uploadError);
-        return res.status(500).json({ error: "Failed to upload photo" });
-      }
-
-      const {
-        data: { publicUrl },
-      } = supabaseAdmin.storage.from("service-photos").getPublicUrl(path);
-
-      savedPhotos.push({ url: publicUrl, type, stage });
+    await ensurePhotoBucket();
+    let stored: Awaited<ReturnType<typeof storePhotos>>;
+    try {
+      stored = await storePhotos(req.userId!, req.params.id, toUpload);
+    } catch (err) {
+      return res.status(500).json({
+        error: `${err instanceof Error ? err.message : "Failed to upload your photos"}. Please try again.`,
+      });
     }
 
     const { error: dbError } = await supabaseAdmin
       .from("service_photos")
-      .insert(
-        savedPhotos.map(({ url, type, stage }) => ({
-          service_id: req.params.id,
-          url,
-          type,
-          stage,
-        })),
-      );
+      .insert(photoRows(req.params.id, stored.photos));
 
     if (dbError) {
       console.error("service_photos insert error:", dbError);
-      return res.status(500).json({ error: "Failed to save photo records" });
+      await removeStoredPhotos(stored.paths);
+      return res.status(500).json({ error: "Your photos couldn't be saved. Please try again." });
     }
 
-    return res.status(201).json({ photos: savedPhotos });
+    return res.status(201).json({ photos: stored.photos });
   },
 );
 

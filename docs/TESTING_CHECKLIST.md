@@ -51,31 +51,31 @@ RESULT:
 ### 2.2 Photo upload (bug: "Could not upload your photos")
 
 - [x] Open a service, select 1 photo → appears under "Ready to upload"
-- [ ] Click "Upload 1 photo" → succeeds, photo appears in the evidence gallery
-- [ ] Select and upload 3+ photos with before/during/after stage tags → all upload, stages shown correctly
-- [ ] Upload a wrong file type (e.g. `.pdf`) → friendly error, no crash
+- [x] Click "Upload 1 photo" → succeeds, photo appears in the evidence gallery
+- [FAIL] Select and upload 3+ photos with before/during/after stage tags → all upload, stages shown correctly
+- [] Upload a wrong file type (e.g. `.pdf`) → friendly error, no crash
 - [ ] Upload an oversized image → friendly error or accepted, no crash
-- [ ] After the service is verified, uploads are locked (no upload control)
+- [x] After the service is verified, uploads are locked (no upload control)
 
 ### 2.3 Timer — Start / Stop service
 
-- [ ] Click Start Service → **immediately** button becomes "Stop Service"
-- [ ] Toast/status message: "Timer started — <service name> is now being recorded"
-- [ ] Live running time shown on the page (e.g. "Service in progress — 00:14:37"), updates every second
-- [ ] Navigate to Dashboard, Progress, Portfolio, Profile → a persistent timer bar stays visible on every student page
-- [ ] The bar names the service being timed
-- [ ] The bar has a working Stop Service action
+- [x] Click Start Service → **immediately** button becomes "Stop Service"
+- [x] Toast/status message: "Timer started — <service name> is now being recorded"
+- [x] Live running time shown on the page (e.g. "Service in progress — 00:14:37"), updates every second
+- [FAIL] Navigate to Dashboard, Progress, Portfolio, Profile → a persistent timer bar stays visible on every student page
+- [x] The bar names the service being timed
+- [x] The bar has a working Stop Service action
 - [ ] Try to start a second service while one is running → blocked or warned
-- [ ] Refresh the browser mid-timer → timer restores with the correct elapsed time (from server start time)
-- [ ] Log out, log back in → timer still running with correct elapsed time
-- [ ] Stop the timer → bar disappears, duration saved, duration tag (shorter/typical/longer) shown on the service
+- [x] Refresh the browser mid-timer → timer restores with the correct elapsed time (from server start time)
+- [x] Log out, log back in → timer still running with correct elapsed time
+- [x] Stop the timer → bar disappears, duration saved, duration tag (shorter/typical/longer) shown on the service
 - [ ] Checkpoint reminders appear during a long active service (if configured)
 
 ### 2.4 My Progress — full required practical list (`/student/progress`)
 
-- [ ] Overall total shown (e.g. 4/63) and category cards (Blow-dry 1/8, Braiding 1/5…)
-- [ ] Category cards show their configured category colour
-- [ ] Clicking a category card (e.g. Braiding) opens/expands that category's full requirement list
+- [x] Overall total shown (e.g. 4/63) and category cards (Blow-dry 1/8, Braiding 1/5…)
+- [x] Category cards show their configured category colour
+- [FAIL] Clicking a category card (e.g. Braiding) opens/expands that category's full requirement list
 - [ ] Each required service listed with its status (Completed / Outstanding / Awaiting client / Awaiting verification)
 - [ ] An "all required practicals" view exists showing all 63 across every category
 - [ ] Filter tabs: All | Outstanding | In Progress | Awaiting Verification | Completed
@@ -393,4 +393,10 @@ FIXES TO BE MADE:
 - there is a category "?"
 - start service and log without timer button, the icons are disproportionate on smaller screens. need to inspect general design responsiveness.
 
-- API 400: {"error":"name and category_id are required"} when trying to upload a photo and start a service.
+- API 400: error when trying to upload multiple photos at once for a photo. API 400: {"error":"stages must be an array of 2 value(s) matching the photos field"}. A service gave a 201 but the photo failed. service was created and saved when it should not have. needs better error handling.
+
+- Login still occurs if verification token is expired or wrong
+
+- Volunteer page needs to be refined.
+
+- Need skeleton screens.

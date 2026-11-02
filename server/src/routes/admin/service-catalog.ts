@@ -13,6 +13,13 @@ const CATEGORY_SELECT = "id, label, max_required, group_id, colour, description,
 const GROUP_SELECT = "id, name, sort_order, created_at";
 const COLOUR_RE = /^#[0-9a-fA-F]{6}$/;
 
+// A category name must contain at least one letter or digit (any script).
+// Rejects names like "?" — what a mis-encoded label arrives as.
+const LABEL_ERROR = "label must be 1–255 characters and contain at least one letter or number";
+function isValidLabel(label: unknown): label is string {
+  return typeof label === "string" && label.length <= 255 && /[\p{L}\p{N}]/u.test(label);
+}
+
 // Validates the optional SFB-4 category fields present in `body` (group_id,
 // colour, description, sort_order). Returns DB-ready updates or an error.
 async function parseCategoryExtras(body: Record<string, unknown>): Promise<{ updates: Record<string, string | number | null> } | { error: string }> {
@@ -88,8 +95,8 @@ router.post("/categories", async (req: AuthRequest, res: Response) => {
   if (id !== undefined && (typeof id !== "string" || id.trim().length === 0 || id.length > 64)) {
     return res.status(400).json({ error: "id must be a string between 1 and 64 characters" });
   }
-  if (typeof label !== "string" || label.trim().length === 0 || label.length > 255) {
-    return res.status(400).json({ error: "label must be between 1 and 255 characters" });
+  if (!isValidLabel(label)) {
+    return res.status(400).json({ error: LABEL_ERROR });
   }
   const maxErr = checkOptionalNonNegInt(max_required, "max_required");
   if (maxErr) return res.status(400).json({ error: maxErr });
@@ -128,8 +135,8 @@ router.patch("/categories/:id", async (req: AuthRequest, res: Response) => {
 
   const updates: Record<string, string | number | null> = { ...extras.updates };
   if (label !== undefined) {
-    if (typeof label !== "string" || label.trim().length === 0 || label.length > 255) {
-      return res.status(400).json({ error: "label must be between 1 and 255 characters" });
+    if (!isValidLabel(label)) {
+      return res.status(400).json({ error: LABEL_ERROR });
     }
     updates.label = label.trim();
   }

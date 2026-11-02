@@ -136,6 +136,10 @@ app.use("/api/employer-profile", requireAuth, employerProfileRouter);
 // Middleware only: mounting servicesRouter here would strip the path, so
 // POST /:id/photos would reach the create-service handler as POST /.
 app.use("/api/services/:id/photos", uploadLimiter);
+// Logging a service with photos uploads them in the create request itself.
+app.post("/api/services", (req, res, next) =>
+  req.is("multipart/form-data") ? uploadLimiter(req, res, next) : next(),
+);
 app.use("/api/services", requireAuth, servicesRouter);
 app.use("/api/confirmations", requireAuth, confirmationsRouter);
 app.use("/api/verifications", requireAuth, verificationsRouter);

@@ -22,7 +22,8 @@ import {
   ImagePlus,
   X,
 } from "lucide-react";
-import { apiGet, apiPatch, apiPost, apiPut, apiUpload } from "@/lib/api";
+import { apiErrorMessage, apiGet, apiPatch, apiPost, apiPut, apiUpload } from "@/lib/api";
+import { PHOTO_ACCEPT, PHOTO_LIMITS_HINT, photoFileError, photoSetError } from "@/lib/photos";
 import { supabase } from "@/lib/supabase";
 import { issueReasonLabel } from "@/lib/appointments";
 
@@ -219,6 +220,7 @@ export default function ServiceDetailPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const photoIdCounter = useRef(0);
+  const pendingPhotoError = photoSetError(pendingPhotos);
   const evidenceRef = useRef<HTMLDivElement>(null);
   const reflectionRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState(false);
@@ -376,7 +378,7 @@ export default function ServiceDetailPage() {
   }
 
   async function uploadPendingPhotos() {
-    if (!service || pendingPhotos.length === 0) return;
+    if (!service || pendingPhotos.length === 0 || pendingPhotoError) return;
     setUploadingPhotos(true);
     setUploadError(null);
     try {
@@ -393,11 +395,11 @@ export default function ServiceDetailPage() {
       pendingPhotos.forEach((p) => URL.revokeObjectURL(p.preview));
       setPendingPhotos([]);
     } catch (err) {
-      const detail = err instanceof Error ? err.message : "";
       setUploadError(
-        detail
-          ? `Could not upload your photos (${detail}). Please try again.`
-          : "Could not upload your photos. Please try again.",
+        apiErrorMessage(
+          err,
+          "We couldn't upload your photos. Check your connection and try again.",
+        ),
       );
     } finally {
       setUploadingPhotos(false);
@@ -1149,12 +1151,22 @@ export default function ServiceDetailPage() {
                 <div className="flex flex-wrap items-start gap-2.5">
                   {pendingPhotos.map((photo) => (
                     <div key={photo.id} className="flex flex-col items-center gap-1">
-                      <div className="group/photo relative h-24 w-24 overflow-hidden rounded-xl border border-k-primary/20">
+                      <div
+                        title={photoFileError(photo.file) ?? undefined}
+                        className={`group/photo relative h-24 w-24 overflow-hidden rounded-xl border ${
+                          photoFileError(photo.file) ? "border-2 border-red-500" : "border-k-primary/20"
+                        }`}
+                      >
                         <img
                           src={photo.preview}
                           alt="Photo to upload"
                           className="h-full w-full object-cover"
                         />
+                        {photoFileError(photo.file) && (
+                          <span className="absolute inset-x-0 bottom-0 bg-red-500 px-1 py-0.5 text-center text-[10px] font-medium text-white">
+                            Can&apos;t upload
+                          </span>
+                        )}
                         <button
                           type="button"
                           onClick={() => removePendingPhoto(photo.id)}
@@ -1201,7 +1213,7 @@ export default function ServiceDetailPage() {
                 <input
                   ref={photoInputRef}
                   type="file"
-                  accept="image/*"
+                  accept={PHOTO_ACCEPT}
                   multiple
                   className="hidden"
                   onChange={(e) => {
@@ -1210,13 +1222,14 @@ export default function ServiceDetailPage() {
                     e.target.value = "";
                   }}
                 />
+                <p className="mt-2 text-[11px] text-k-gray-400">{PHOTO_LIMITS_HINT}</p>
                 {(pendingPhotos.length > 0 || uploadError) && (
                   <div className="mt-3 flex items-center gap-3">
                     {pendingPhotos.length > 0 && (
                       <button
                         type="button"
                         onClick={uploadPendingPhotos}
-                        disabled={uploadingPhotos}
+                        disabled={uploadingPhotos || !!pendingPhotoError}
                         className="rounded-full bg-k-primary px-4 py-1.5 text-xs font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         {uploadingPhotos
@@ -1224,8 +1237,10 @@ export default function ServiceDetailPage() {
                           : `Upload ${pendingPhotos.length} photo${pendingPhotos.length > 1 ? "s" : ""}`}
                       </button>
                     )}
-                    {uploadError && (
-                      <span className="text-xs text-red-600">{uploadError}</span>
+                    {(pendingPhotoError ?? uploadError) && (
+                      <span role="alert" className="text-xs text-red-600">
+                        {pendingPhotoError ?? uploadError}
+                      </span>
                     )}
                   </div>
                 )}

@@ -108,20 +108,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setDbFullName(data.full_name);
           setIsDemo(data.is_demo ?? false);
         } else {
-          // Profile not found — fall back to Clerk publicMetadata if available
-          const pubRole = user?.publicMetadata?.role as string | undefined;
-          if (pubRole) setDbRole(normalizeRole(pubRole));
+          // The API rejected the session (bad token, wrong Clerk instance, no
+          // profile, suspended account). Leave the role null so every role
+          // layout shows its "role could not be confirmed" screen instead of
+          // opening a dashboard whose every request will fail. Never fall back
+          // to Clerk publicMetadata here — it is not an authorization source.
+          console.warn(`/api/auth/me returned ${res.status}; role not confirmed.`);
         }
-      } catch {
-        // Network failure — fall back to Clerk publicMetadata
-        const pubRole = user?.publicMetadata?.role as string | undefined;
-        if (pubRole) setDbRole(normalizeRole(pubRole));
+      } catch (err) {
+        // API unreachable — same as above: no confirmed role, no dashboard.
+        console.warn("/api/auth/me failed; role not confirmed.", err);
       } finally {
         setProfileFetched(true);
         setProfileLoading(false);
       }
     })();
-  }, [isSignedIn, profileFetched, profileLoading, getToken, user]);
+  }, [isSignedIn, profileFetched, profileLoading, getToken]);
 
   // Reset profile state when user signs out
   useEffect(() => {

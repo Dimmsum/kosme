@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import {
   Plus,
@@ -24,7 +24,8 @@ import {
   Square,
   Timer,
 } from "lucide-react";
-import { apiGet, apiPost, apiUpload } from "@/lib/api";
+import { apiErrorMessage, apiGet, apiPost, apiUpload } from "@/lib/api";
+import { PHOTO_ACCEPT, PHOTO_LIMITS_HINT, photoFileError, photoSetError } from "@/lib/photos";
 import { supabase } from "@/lib/supabase";
 import { formatElapsed } from "@/lib/timer";
 import { useTimer } from "@/components/student/TimerProvider";
@@ -140,7 +141,6 @@ function formatRange(min: number | null, max: number | null) {
 
 function ServicesPageInner() {
   /* list state */
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -255,6 +255,8 @@ function ServicesPageInner() {
       if (target) URL.revokeObjectURL(target.preview);
       return p.filter((ph) => ph.id !== id);
     });
+    // A submit error is usually about the photos; clear it once they change.
+    setFormError(null);
   };
 
   const setPhotoStage = (id: string, stage: PhotoStage) => {
@@ -278,6 +280,7 @@ function ServicesPageInner() {
   // Types belonging to the chosen category, and the selected type's range.
   const typesForCategory = serviceTypes.filter((t) => t.category_id === category);
   const selectedType = serviceTypes.find((t) => t.id === serviceTypeId) ?? null;
+  const photoError = photoSetError(photos);
   const recommendedRange = selectedType
     ? formatRange(selectedType.recommended_duration_min, selectedType.recommended_duration_max)
     : null;
@@ -299,19 +302,15 @@ function ServicesPageInner() {
       );
       return;
     }
+    if (photoError) {
+      setFormError(photoError);
+      return;
+    }
     setFormError(null);
     setSubmitting(true);
 
     try {
-      setUploadProgress(timed ? "Starting service…" : "Creating service…");
-      const { service } = await apiPost<{
-        service: {
-          id: string;
-          name: string;
-          started_at: string | null;
-          service_type_id: string | null;
-        };
-      }>("/api/services", {
+      const fields = {
         name: serviceName.trim(),
         category_id: category,
         service_type_id: serviceTypeId || undefined,
@@ -320,26 +319,32 @@ function ServicesPageInner() {
         photo_consent: photoConsent,
         notes: notes.trim() || undefined,
         start_now: timed,
-      });
-
-      // Confirm immediately: the bar and "Timer started" toast appear before
-      // any photo upload finishes.
-      if (timed) timer.started(service);
-
+      };
+      type Created = {
+        service: {
+          id: string;
+          name: string;
+          started_at: string | null;
+          service_type_id: string | null;
+        };
+      };
+      // Photos go in the create request itself: the server stores them before
+      // creating the service, so a failed upload creates nothing and the form
+      // keeps its state for the student to fix the photos and try again.
+      let service: Created["service"];
       if (photos.length > 0) {
         setUploadProgress(`Uploading ${photos.length} photo${photos.length > 1 ? "s" : ""}…`);
         const formData = new FormData();
+        formData.append("data", JSON.stringify(fields));
         photos.forEach((p) => formData.append("photos", p.file));
         formData.append("stages", JSON.stringify(photos.map((p) => p.stage)));
-        try {
-          await apiUpload(`/api/services/${service.id}/photos`, formData);
-        } catch {
-          // The service already exists, so retrying this form would create a
-          // duplicate. Send the student to the entry to add evidence there.
-          router.push(`/student/services/${service.id}`);
-          return;
-        }
+        ({ service } = await apiUpload<Created>("/api/services", formData));
+      } else {
+        setUploadProgress(timed ? "Starting service…" : "Creating service…");
+        ({ service } = await apiPost<Created>("/api/services", fields));
       }
+
+      if (timed) timer.started(service);
 
       await loadServices();
       if (timed) {
@@ -350,16 +355,14 @@ function ServicesPageInner() {
         setSubmitted(true);
       }
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "";
-      // apiPost throws `API <status>: <json body>`; show just the server's message.
-      let message = "Failed to submit service.";
-      try {
-        const body = JSON.parse(raw.replace(/^API \d+: /, ""));
-        if (typeof body.error === "string") message = body.error;
-      } catch {
-        if (raw) message = raw;
-      }
-      setFormError(message);
+      setFormError(
+        apiErrorMessage(
+          err,
+          photos.length > 0
+            ? "We couldn't upload your photos, so the service wasn't created. Check your connection and try again."
+            : "We couldn't create the service. Check your connection and try again.",
+        ),
+      );
       if (timed) timer.refresh();
     } finally {
       setSubmitting(false);
@@ -674,8 +677,18 @@ function ServicesPageInner() {
                             whileDrag={{ scale: 1.08, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", zIndex: 10 }}
                             className="flex cursor-grab flex-col items-center gap-1 active:cursor-grabbing"
                           >
-                            <div className="group/photo relative h-24 w-24 overflow-hidden rounded-xl border border-k-primary/20">
+                            <div
+                              title={photoFileError(photo.file) ?? undefined}
+                              className={`group/photo relative h-24 w-24 overflow-hidden rounded-xl border ${
+                                photoFileError(photo.file) ? "border-2 border-red-500" : "border-k-primary/20"
+                              }`}
+                            >
                               <img src={photo.preview} alt="Service photo" className="h-full w-full object-cover pointer-events-none" />
+                              {photoFileError(photo.file) && (
+                                <span className="absolute inset-x-0 top-0 bg-red-500 px-1 py-0.5 text-center text-[10px] font-medium text-white">
+                                  Can&apos;t upload
+                                </span>
+                              )}
                               <div className="absolute inset-0 bg-black/0 group-hover/photo:bg-black/20 transition-colors" />
                               <div className="absolute left-1/2 bottom-1 -translate-x-1/2 opacity-0 group-hover/photo:opacity-100 transition-opacity">
                                 <GripVertical size={14} className="text-white drop-shadow-md" />
@@ -719,18 +732,27 @@ function ServicesPageInner() {
                           <span className="text-[10px] font-medium">Add</span>
                         </button>
                       </Reorder.Group>
-                      {photos.length > 1 && (
+                      {photoError ? (
+                        <p role="alert" className="mt-2 text-xs text-red-600">
+                          {photoError}
+                        </p>
+                      ) : (
                         <p className="mt-2 text-[11px] text-k-gray-400">
-                          Drag to reorder
+                          {PHOTO_LIMITS_HINT}
+                          {photos.length > 1 && " · Drag to reorder"}
                         </p>
                       )}
                       <input
                         ref={photoInputRef}
                         type="file"
-                        accept="image/*"
+                        accept={PHOTO_ACCEPT}
                         multiple
                         className="hidden"
-                        onChange={(e) => handleFileSelect(e.target.files)}
+                        onChange={(e) => {
+                          handleFileSelect(e.target.files);
+                          // Reset so re-picking a removed file still fires onChange.
+                          e.target.value = "";
+                        }}
                       />
                       {/* Photo consent — gates whether photos appear in the portfolio (POR-2) */}
                       <label className="mt-3 flex cursor-pointer gap-3">
