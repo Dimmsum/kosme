@@ -399,6 +399,7 @@ export default function AdminClientsPage() {
             </Field>
             <Field
               label="Student"
+              required
               hint={
                 students.length === 0
                   ? "There are no active, non-demo student accounts to match with."

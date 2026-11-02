@@ -237,7 +237,7 @@ export default function UserDrawer({
         ) : (
           <>
             <p className="mb-3 text-sm font-medium text-red-700">Step 3 of 3 — final confirmation</p>
-            <Field label={`Type "${user.full_name ?? ""}" to confirm`}>
+            <Field label={`Type "${user.full_name ?? ""}" to confirm`} required>
               <TextInput value={confirmName} onChange={(e) => setConfirmName(e.target.value)} />
             </Field>
             <div className="flex justify-end gap-3">

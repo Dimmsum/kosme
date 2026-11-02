@@ -101,7 +101,8 @@ Flat cards at rest have **no shadow** — only borders. Add shadow on hover/elev
 
 Before writing new markup, check these existing shared components/patterns and reuse them rather than re-implementing:
 
-- `components/admin/FormControls.tsx` — `Field`, `TextInput`, `TextArea`, `Select`, `FormActions` for any admin form/modal.
+- `components/admin/FormControls.tsx` — `Field`, `TextInput`, `TextArea`, `Select`, `FormActions` for any admin form/modal. Pass `required` to `Field` for a required field.
+- `components/RequiredMark.tsx` — the `*` (in `k-accent`, plus screen-reader text) placed right after the label of every required form field, so people see what they must fill in before submitting. Any field whose absence blocks submit (client check or server 400) gets it; optional fields keep the existing `(optional)` label suffix where they have one.
 - `components/admin/Modal.tsx` — centered dialog, closes on backdrop click / Escape.
 - `components/admin/DataStates.tsx` — `LoadingCard`, `EmptyCard`, `ErrorBanner` for list/table loading, empty, and error states.
 - `components/admin/AdminHeader.tsx` — page title/subtitle/action row for every admin module page.

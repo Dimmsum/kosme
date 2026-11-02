@@ -25,6 +25,7 @@ import {
   Timer,
 } from "lucide-react";
 import { apiErrorMessage, apiGet, apiPost, apiUpload } from "@/lib/api";
+import RequiredMark from "@/components/RequiredMark";
 import { PHOTO_ACCEPT, PHOTO_LIMITS_HINT, photoFileError, photoSetError } from "@/lib/photos";
 import { supabase } from "@/lib/supabase";
 import { formatElapsed } from "@/lib/timer";
@@ -561,7 +562,7 @@ function ServicesPageInner() {
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                       <div>
                         <label className="mb-2 block text-xs font-medium uppercase tracking-[0.08em] text-k-gray-600">
-                          Service Name
+                          Service Name<RequiredMark />
                         </label>
                         <input
                           type="text"
@@ -573,7 +574,7 @@ function ServicesPageInner() {
                       </div>
                       <div>
                         <label className="mb-2 block text-xs font-medium uppercase tracking-[0.08em] text-k-gray-600">
-                          Category
+                          Category<RequiredMark />
                         </label>
                         <div className="relative">
                           <select
@@ -642,7 +643,7 @@ function ServicesPageInner() {
                     {/* Client source */}
                     <div>
                       <label className="mb-2 block text-xs font-medium uppercase tracking-[0.08em] text-k-gray-600">
-                        Client Source
+                        Client Source<RequiredMark />
                       </label>
                       <div className="relative">
                         <select

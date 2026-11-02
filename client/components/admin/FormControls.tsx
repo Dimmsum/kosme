@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import RequiredMark from "@/components/RequiredMark";
 
 // Minimal labelled form controls shared across admin create/edit forms, so every
 // modal form looks the same without repeating Tailwind classes.
@@ -6,10 +7,23 @@ import { type ReactNode } from "react";
 const inputClass =
   "w-full rounded-xl border border-k-gray-200 bg-k-white px-4 py-2.5 text-sm text-k-black outline-none transition-colors focus:border-k-primary";
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Field({
+  label,
+  hint,
+  required = false,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
   return (
     <label className="mb-4 block">
-      <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-k-gray-400">{label}</span>
+      <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-k-gray-400">
+        {label}
+        {required && <RequiredMark />}
+      </span>
       {children}
       {hint && <span className="mt-1 block text-xs font-light text-k-gray-400">{hint}</span>}
     </label>

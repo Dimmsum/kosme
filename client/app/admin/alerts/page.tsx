@@ -207,7 +207,7 @@ function AlertForm({ edit, onClose, onSaved }: { edit: Alert | null; onClose: ()
     <Modal open title={edit ? "Edit Alert" : "New Alert"} onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Title">
+        <Field label="Title" required>
           <TextInput value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={255} />
         </Field>
         <Field label="Body">

@@ -506,7 +506,7 @@ function InstitutionForm({
     <Modal open title={edit ? "Edit Institution" : "New Institution"} onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Name">
+        <Field label="Name" required>
           <TextInput value={name} onChange={(e) => setName(e.target.value)} required maxLength={255} />
         </Field>
         <Field label="Contact email">
@@ -576,7 +576,7 @@ function ProgrammeForm({
     <Modal open title={edit ? "Edit Programme" : "New Programme"} onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Programme name">
+        <Field label="Programme name" required>
           <TextInput value={name} onChange={(e) => setName(e.target.value)} required maxLength={255} />
         </Field>
         <Field label="Description">
@@ -668,7 +668,7 @@ function CohortForm({
     <Modal open title={edit ? "Edit Cohort" : "New Cohort"} onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Name">
+        <Field label="Name" required>
           <TextInput value={name} onChange={(e) => setName(e.target.value)} required maxLength={255} />
         </Field>
         <Field label="Start date">

@@ -15,6 +15,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Reveal from "@/components/Reveal";
 import SectionTag from "@/components/SectionTag";
+import RequiredMark from "@/components/RequiredMark";
 const HERO_VIDEO_SRC =
   "https://drive.google.com/file/d/1vsniiouFSDnnwahN0fet3lqFEiV3GwBJ/preview";
 
@@ -509,7 +510,7 @@ export default function ClientsPage() {
               {/* Full name */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-k-black">
-                  Full name <span className="text-k-primary">*</span>
+                  Full name<RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -526,7 +527,7 @@ export default function ClientsPage() {
               {/* Gender */}
               <div>
                 <label className="mb-3 block text-sm font-medium text-k-black">
-                  Gender <span className="text-k-primary">*</span>
+                  Gender<RequiredMark />
                 </label>
                 <div className="flex gap-4">
                   {["male", "female"].map((g) => (
@@ -554,7 +555,7 @@ export default function ClientsPage() {
               {/* WhatsApp */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-k-black">
-                  WhatsApp number <span className="text-k-primary">*</span>
+                  WhatsApp number<RequiredMark />
                 </label>
                 <input
                   type="tel"
@@ -571,7 +572,7 @@ export default function ClientsPage() {
               {/* Email */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-k-black">
-                  Email address <span className="text-k-primary">*</span>
+                  Email address<RequiredMark />
                 </label>
                 <input
                   type="email"
@@ -586,7 +587,7 @@ export default function ClientsPage() {
               {/* Password */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-k-black">
-                  Password <span className="text-k-primary">*</span>
+                  Password<RequiredMark />
                 </label>
                 <div className="relative">
                   <input
@@ -616,7 +617,7 @@ export default function ClientsPage() {
               {/* Confirm password */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-k-black">
-                  Confirm password <span className="text-k-primary">*</span>
+                  Confirm password<RequiredMark />
                 </label>
                 <div className="relative">
                   <input
@@ -644,7 +645,7 @@ export default function ClientsPage() {
               {/* Parish */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-k-black">
-                  Parish <span className="text-k-primary">*</span>
+                  Parish<RequiredMark />
                 </label>
                 <select
                   required
@@ -666,7 +667,7 @@ export default function ClientsPage() {
               {/* Service preference */}
               <div>
                 <label className="mb-3 block text-sm font-medium text-k-black">
-                  Service preference <span className="text-k-primary">*</span>
+                  Service preference<RequiredMark />
                   <span className="ml-1 font-normal text-k-gray-400">
                     (select all that apply)
                   </span>
@@ -708,7 +709,7 @@ export default function ClientsPage() {
               {/* Availability */}
               <div>
                 <label className="mb-3 block text-sm font-medium text-k-black">
-                  Availability <span className="text-k-primary">*</span>
+                  Availability<RequiredMark />
                   <span className="ml-1 font-normal text-k-gray-400">
                     (select all that apply)
                   </span>
@@ -744,7 +745,7 @@ export default function ClientsPage() {
               {/* Preferred time */}
               <div>
                 <label className="mb-3 block text-sm font-medium text-k-black">
-                  Preferred time <span className="text-k-primary">*</span>
+                  Preferred time<RequiredMark />
                   <span className="ml-1 font-normal text-k-gray-400">
                     (select all that apply)
                   </span>
@@ -783,8 +784,8 @@ export default function ClientsPage() {
               {/* Willing to travel */}
               <div>
                 <label className="mb-3 block text-sm font-medium text-k-black">
-                  Willing to travel to a session location?{" "}
-                  <span className="text-k-primary">*</span>
+                  Willing to travel to a session location?
+                  <RequiredMark />
                 </label>
                 <div className="flex gap-4">
                   {[
@@ -826,8 +827,8 @@ export default function ClientsPage() {
                   />
                   <span className="text-sm font-light leading-relaxed text-k-gray-600">
                     I consent to service photos and/or video being taken during
-                    my session for student portfolio purposes.{" "}
-                    <span className="text-k-primary">*</span>
+                    my session for student portfolio purposes.
+                    <RequiredMark />
                   </span>
                 </label>
 
@@ -846,8 +847,8 @@ export default function ClientsPage() {
                   />
                   <span className="text-sm font-light leading-relaxed text-k-gray-600">
                     I acknowledge that services may be performed by students or
-                    trainees under qualified supervision.{" "}
-                    <span className="text-k-primary">*</span>
+                    trainees under qualified supervision.
+                    <RequiredMark />
                   </span>
                 </label>
               </div>

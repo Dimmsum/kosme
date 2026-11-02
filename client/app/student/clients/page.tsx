@@ -92,7 +92,7 @@ export default function MyClientsPage() {
       {notice && <p className="mb-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{notice}</p>}
 
       <form onSubmit={add} className="mb-8 grid max-w-2xl grid-cols-1 gap-3 rounded-2xl border border-k-gray-200 bg-k-white p-5 sm:grid-cols-3">
-        <input className={field} placeholder="Client name" value={name} onChange={(e) => setName(e.target.value)} maxLength={255} required />
+        <input className={field} placeholder="Client name *" value={name} onChange={(e) => setName(e.target.value)} maxLength={255} required />
         <input className={field} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input className={field} placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} />
         <p className="text-xs text-k-gray-400 sm:col-span-3">Email or phone is needed so they can be reached.</p>

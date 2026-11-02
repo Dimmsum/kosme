@@ -26,6 +26,7 @@ import { apiErrorMessage, apiGet, apiPatch, apiPost, apiPut, apiUpload } from "@
 import { PHOTO_ACCEPT, PHOTO_LIMITS_HINT, photoFileError, photoSetError } from "@/lib/photos";
 import { supabase } from "@/lib/supabase";
 import { issueReasonLabel } from "@/lib/appointments";
+import RequiredMark from "@/components/RequiredMark";
 
 type ServiceStatus =
   | "in_progress"
@@ -576,7 +577,7 @@ export default function ServiceDetailPage() {
             {editing ? (
               <div className="flex flex-col gap-3">
                 <label className="flex flex-col gap-1 text-xs font-medium text-k-gray-600">
-                  Service name
+                  <span>Service name<RequiredMark /></span>
                   <input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
@@ -585,7 +586,7 @@ export default function ServiceDetailPage() {
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs font-medium text-k-gray-600">
-                  Category
+                  <span>Category<RequiredMark /></span>
                   <select
                     value={editCategory}
                     onChange={(e) => {
@@ -762,6 +763,7 @@ export default function ServiceDetailPage() {
             <div className="mb-1 flex items-center justify-between gap-3">
               <h2 className="font-serif text-base font-medium text-k-black">
                 Reflection
+                {service.status !== "verified" && <RequiredMark />}
               </h2>
               {service.status !== "verified" && (
                 <button
@@ -1089,6 +1091,7 @@ export default function ServiceDetailPage() {
           >
             <h2 className="mb-1 font-serif text-base font-medium text-k-black">
               Photos
+              {canUploadPhotos && <RequiredMark />}
             </h2>
             {canUploadPhotos && (
               <p className="mb-4 text-xs text-k-gray-400">

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowRight, CheckCircle2, Flag } from "lucide-react";
 import { apiErrorMessage, apiGet, apiPost } from "@/lib/api";
 import { ISSUE_REASONS, issueReasonLabel } from "@/lib/appointments";
+import RequiredMark from "@/components/RequiredMark";
 
 interface PendingService {
   id: string;
@@ -158,7 +159,9 @@ export default function ConfirmationsPage() {
 
               {reportingId === item.id ? (
                 <div className="rounded-2xl border border-k-gray-200 p-4">
-                  <p className="text-sm font-medium text-k-black">What went wrong?</p>
+                  <p className="text-sm font-medium text-k-black">
+                    What went wrong?<RequiredMark />
+                  </p>
                   <p className="mt-0.5 text-xs text-k-gray-400">
                     This flags the service for review. It won&apos;t cancel the student&apos;s work.
                   </p>

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { apiGet, apiPatch } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import RequiredMark from "@/components/RequiredMark";
 
 interface ProfileRes {
   profile: {
@@ -155,6 +156,7 @@ export default function EducatorProfilePage() {
               <div className="flex-1">
                 <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
                   Full Name
+                  {editing && <RequiredMark />}
                 </p>
                 {editing ? (
                   <input

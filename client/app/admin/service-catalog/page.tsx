@@ -343,7 +343,7 @@ function CategoryForm({
     <Modal open title={edit ? "Edit Category" : "New Category"} onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Category name" hint="The heading students, clients and admins see.">
+        <Field label="Category name" required hint="The heading students, clients and admins see.">
           <TextInput value={label} onChange={(e) => setLabel(e.target.value)} required maxLength={255} />
         </Field>
         <Field label="Description" hint="Optional. Shown under the category heading in the catalogue.">
@@ -422,7 +422,7 @@ function GroupForm({ edit, onClose, onSaved }: { edit: Group | null; onClose: ()
     <Modal open title={edit ? "Rename Section" : "New Section"} onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Section name" hint="e.g. Hair, Skin, Nails">
+        <Field label="Section name" required hint="e.g. Hair, Skin, Nails">
           <TextInput value={name} onChange={(e) => setName(e.target.value)} required maxLength={255} />
         </Field>
         <FormActions onCancel={onClose} busy={busy} disabled={!name.trim()} />
@@ -474,7 +474,7 @@ function TypeForm({
     <Modal open title={edit ? "Edit Service Type" : "New Service Type"} onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Name">
+        <Field label="Name" required>
           <TextInput value={name} onChange={(e) => setName(e.target.value)} required maxLength={255} />
         </Field>
         <div className="grid grid-cols-2 gap-3">

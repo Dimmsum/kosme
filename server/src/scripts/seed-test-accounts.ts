@@ -23,8 +23,8 @@ import { supabaseAdmin } from "../lib/supabase";
 //
 // Idempotent: re-running resets each account's password to the env value
 // and deletes and re-creates the test student's services (plus their
-// confirmations, verifications, events, consent records and flags), so the
-// data always returns to the same known state.
+// confirmations, verifications, events, consent records and flags) and
+// appointments, so the data always returns to the same known state.
 
 const TEST_INSTITUTION_ID = "00000000-0000-0000-0000-0000000075e1";
 const TEST_PROGRAMME_ID = "00000000-0000-0000-0000-0000000075e2";
@@ -44,6 +44,169 @@ const TEST_ACCOUNTS: {
   { role: "employer", email: "test-employer+clerk_test@kosme.app", firstName: "Emma", lastName: "Employer" },
   { role: "super_admin", email: "test-admin+clerk_test@kosme.app", firstName: "Adam", lastName: "Admin" },
   { role: "school_admin", email: "test-school-admin+clerk_test@kosme.app", firstName: "Sasha", lastName: "SchoolAdmin" },
+];
+
+type VolunteerKey = "carla" | "priya" | "jordan" | "maya" | "leon";
+
+interface ClientProfile {
+  bio: string;
+  location: string;
+  willingToTravel: boolean;
+  // service_categories ids
+  services: string[];
+  availability: { day: string; from: string; to: string }[];
+}
+
+// The test client's Find a Volunteer listing.
+const TEST_CLIENT_PROFILE: ClientProfile = {
+  bio: "Regular volunteer. Happy to sit for cuts, styling and braids.",
+  location: "Kingston",
+  willingToTravel: false,
+  services: ["Haircuts", "Styling", "Braiding"],
+  availability: [
+    { day: "tue", from: "13:00", to: "17:00" },
+    { day: "sat", from: "09:00", to: "15:00" },
+  ],
+};
+
+// More volunteer clients for the test student to find, book and message. They
+// are client accounts that log in with TEST_PASSWORD_CLIENT.
+const TEST_VOLUNTEERS: {
+  key: Exclude<VolunteerKey, "carla">;
+  email: string;
+  firstName: string;
+  lastName: string;
+  profile: ClientProfile;
+  request?: { status: "pending" | "accepted" | "declined"; message: string };
+}[] = [
+  {
+    key: "priya", email: "test-volunteer-priya+clerk_test@kosme.app", firstName: "Priya", lastName: "Volunteer",
+    profile: {
+      bio: "Looking to go lighter. Open to colour and toning, and happy to travel.",
+      location: "Croydon",
+      willingToTravel: true,
+      services: ["Colour", "Blow-dry"],
+      availability: [
+        { day: "mon", from: "10:00", to: "16:00" },
+        { day: "wed", from: "10:00", to: "16:00" },
+      ],
+    },
+  },
+  {
+    key: "jordan", email: "test-volunteer-jordan+clerk_test@kosme.app", firstName: "Jordan", lastName: "Volunteer",
+    profile: {
+      bio: "Natural hair, shoulder length. I can sit for long braiding sessions.",
+      location: "Kingston",
+      willingToTravel: false,
+      services: ["Braiding", "Hair Extensions"],
+      availability: [
+        { day: "thu", from: "09:00", to: "17:00" },
+        { day: "sat", from: "09:00", to: "17:00" },
+      ],
+    },
+    request: { status: "accepted", message: "Free most Saturdays if you need a braiding model." },
+  },
+  {
+    key: "maya", email: "test-volunteer-maya+clerk_test@kosme.app", firstName: "Maya", lastName: "Volunteer",
+    profile: {
+      bio: "Dry scalp, would love a treatment. Also fine with a trim.",
+      location: "Wimbledon",
+      willingToTravel: true,
+      services: ["Scalp Treatments", "Perming", "Haircuts"],
+      availability: [
+        { day: "tue", from: "12:00", to: "18:00" },
+        { day: "fri", from: "12:00", to: "18:00" },
+      ],
+    },
+    request: { status: "pending", message: "Interested in a scalp treatment. Weekday afternoons work best." },
+  },
+  {
+    key: "leon", email: "test-volunteer-leon+clerk_test@kosme.app", firstName: "Leon", lastName: "Volunteer",
+    profile: {
+      bio: "Short hair, needs a cut every few weeks.",
+      location: "Richmond",
+      willingToTravel: false,
+      services: ["Haircuts", "Blow-dry"],
+      availability: [
+        { day: "mon", from: "16:00", to: "19:00" },
+        { day: "thu", from: "16:00", to: "19:00" },
+      ],
+    },
+    request: { status: "pending", message: "Happy to be a model for short cuts after work." },
+  },
+];
+
+type AppointmentStatus =
+  | "pending_student"
+  | "pending_client"
+  | "confirmed"
+  | "reschedule_requested"
+  | "cancelled"
+  | "awaiting_client_confirmation"
+  | "completed";
+
+// The test student's bookings, one or more in every status. Upcoming ones are
+// placed `daysFromNow` days ahead at `hour`. Past ones name the TEST_SERVICES
+// entry (`service`, by type) the booking became and take its start time.
+const TEST_APPOINTMENTS: {
+  with: VolunteerKey;
+  category: string;
+  type: string;
+  status: AppointmentStatus;
+  requestedBy: "student" | "client";
+  location: string;
+  notes?: string;
+  daysFromNow?: number;
+  hour?: number;
+  proposal?: { daysFromNow: number; hour: number; by: "student" | "client" };
+  cancelledBy?: "student" | "client";
+  service?: string;
+}[] = [
+  {
+    with: "leon", category: "Haircuts", type: "Dry Cut (Short)", status: "confirmed", requestedBy: "student",
+    daysFromNow: 1, hour: 16, location: "Kosmè Test Academy, Salon Floor 2",
+    notes: "Short back and sides, a little longer on top.",
+  },
+  {
+    with: "jordan", category: "Braiding", type: "Box Braids", status: "confirmed", requestedBy: "client",
+    daysFromNow: 2, hour: 10, location: "Kosmè Test Academy, Salon Floor 1",
+    notes: "Medium box braids, mid-back length. I'll bring the hair.",
+  },
+  {
+    with: "carla", category: "Styling", type: "Special Occasion Updo", status: "pending_client", requestedBy: "student",
+    daysFromNow: 3, hour: 14, location: "Kosmè Test Academy, Salon Floor 2",
+    notes: "Practising updos for my styling assessment. Would this time work?",
+  },
+  {
+    with: "maya", category: "Scalp Treatments", type: "Deep Conditioning Treatment", status: "reschedule_requested",
+    requestedBy: "student", daysFromNow: 4, hour: 13, location: "Kosmè Test Academy, Treatment Room",
+    proposal: { daysFromNow: 6, hour: 15, by: "client" },
+  },
+  {
+    with: "priya", category: "Colour", type: "Toner / Gloss", status: "pending_student", requestedBy: "client",
+    daysFromNow: 5, hour: 11, location: "Kosmè Test Academy, Colour Bar",
+    notes: "My blonde has gone brassy. Could you tone it?",
+  },
+  {
+    with: "priya", category: "Colour", type: "Root Touch-up", status: "cancelled", requestedBy: "student",
+    daysFromNow: 7, hour: 10, location: "Kosmè Test Academy, Colour Bar", cancelledBy: "client",
+  },
+  {
+    with: "carla", category: "Haircuts", type: "Fringe Trim", status: "awaiting_client_confirmation",
+    requestedBy: "student", location: "Kosmè Test Academy, Salon Floor 2", service: "Fringe Trim",
+  },
+  {
+    with: "carla", category: "Styling", type: "Curls / Waves", status: "completed", requestedBy: "client",
+    location: "Kosmè Test Academy, Salon Floor 2", service: "Curls / Waves",
+  },
+  {
+    with: "carla", category: "Braiding", type: "Cornrows", status: "completed", requestedBy: "student",
+    location: "Kosmè Test Academy, Salon Floor 1", service: "Cornrows",
+  },
+  {
+    with: "carla", category: "Haircuts", type: "Cut & Blow-dry", status: "completed", requestedBy: "student",
+    location: "Kosmè Test Academy, Salon Floor 2", service: "Cut & Blow-dry",
+  },
 ];
 
 type ClientSource =
@@ -335,12 +498,14 @@ function addMinutes(date: Date, minutes: number): Date {
   return new Date(date.getTime() + minutes * 60_000);
 }
 
+// Returns each seeded service's id and start time, keyed by service type name.
 async function seedServices(ids: Record<Role, string>) {
   const studentId = ids.student;
   const educatorId = ids.educator;
   const clientId = ids.client;
   const now = new Date();
   let photoCount = 0;
+  const seeded: Record<string, { id: string; startedAt: Date }> = {};
 
   // Idempotent: the photo upload route creates the bucket the same way.
   await supabaseAdmin.storage.createBucket(PHOTO_BUCKET, { public: true });
@@ -390,6 +555,7 @@ async function seedServices(ids: Record<Role, string>) {
         .single(),
     );
     const serviceId = service!.id as string;
+    seeded[svc.type] = { id: serviceId, startedAt };
 
     await must(
       "insert consent_record",
@@ -467,6 +633,108 @@ async function seedServices(ids: Record<Role, string>) {
     }
   }
   console.log(`Seeded ${TEST_SERVICES.length} services and ${photoCount} photos for the test student.`);
+  return seeded;
+}
+
+function clientProfileRow(userId: string, profile: ClientProfile) {
+  return {
+    user_id: userId,
+    bio: profile.bio,
+    location: profile.location,
+    willing_to_travel: profile.willingToTravel,
+    services_willing: profile.services,
+    availability: profile.availability,
+    is_listed: true,
+  };
+}
+
+// Creates the extra volunteer accounts and gives every client (the test client
+// included) a listed profile, so the student's Find a Volunteer page is full.
+async function seedVolunteers(ids: Record<Role, string>): Promise<Record<VolunteerKey, string>> {
+  const volunteerIds = { carla: ids.client } as Record<VolunteerKey, string>;
+  const profiles = [clientProfileRow(ids.client, TEST_CLIENT_PROFILE)];
+
+  for (const v of TEST_VOLUNTEERS) {
+    const id = await seedAccount({ role: "client", email: v.email, firstName: v.firstName, lastName: v.lastName });
+    volunteerIds[v.key] = id;
+    profiles.push(clientProfileRow(id, v.profile));
+    if (v.request) {
+      await must(
+        "volunteer_requests",
+        supabaseAdmin.from("volunteer_requests").upsert(
+          { student_id: ids.student, volunteer_id: id, status: v.request.status, message: v.request.message },
+          { onConflict: "student_id,volunteer_id" },
+        ),
+      );
+    }
+  }
+
+  await must("client_profiles", supabaseAdmin.from("client_profiles").upsert(profiles, { onConflict: "user_id" }));
+  console.log(`Seeded ${profiles.length} volunteer client profiles.`);
+  return volunteerIds;
+}
+
+async function resetStudentAppointments(studentId: string) {
+  await must("delete appointments", supabaseAdmin.from("appointments").delete().eq("student_id", studentId));
+}
+
+function atHour(daysFromNow: number, hour: number): Date {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  date.setHours(hour, 0, 0, 0);
+  return date;
+}
+
+async function seedAppointments(
+  studentId: string,
+  volunteerIds: Record<VolunteerKey, string>,
+  services: Record<string, { id: string; startedAt: Date }>,
+) {
+  const types = await must(
+    "load service_types",
+    supabaseAdmin.from("service_types").select("id, category_id, name, recommended_duration_max"),
+  );
+
+  const rows = TEST_APPOINTMENTS.map((appt) => {
+    const type = (types ?? []).find((t) => t.category_id === appt.category && t.name === appt.type);
+    if (!type) {
+      throw new Error(`Service type "${appt.category} / ${appt.type}" not found — has migration 0018 been applied?`);
+    }
+    const clientId = volunteerIds[appt.with];
+    const party = (who: "student" | "client") => (who === "student" ? studentId : clientId);
+
+    const service = appt.service ? services[appt.service] : undefined;
+    if (appt.service && !service) throw new Error(`Appointment links unknown service "${appt.service}"`);
+    const startsAt = service ? service.startedAt : atHour(appt.daysFromNow!, appt.hour!);
+    // Requested three days before it starts (or a day ago if that's sooner).
+    const createdAt = new Date(Math.min(startsAt.getTime() - 3 * 24 * 60 * 60_000, Date.now() - 24 * 60 * 60_000));
+    const wasConfirmed = ["confirmed", "reschedule_requested", "awaiting_client_confirmation", "completed"].includes(
+      appt.status,
+    );
+
+    return {
+      student_id: studentId,
+      client_id: clientId,
+      category_id: appt.category,
+      service_type_id: type.id,
+      service_name: appt.type,
+      starts_at: startsAt.toISOString(),
+      est_duration_min: Math.min(type.recommended_duration_max ?? 60, 480),
+      location: appt.location,
+      notes: appt.notes ?? null,
+      status: appt.status,
+      requested_by: party(appt.requestedBy),
+      proposed_starts_at: appt.proposal ? atHour(appt.proposal.daysFromNow, appt.proposal.hour).toISOString() : null,
+      proposed_by: appt.proposal ? party(appt.proposal.by) : null,
+      confirmed_at: wasConfirmed ? addMinutes(createdAt, 120).toISOString() : null,
+      cancelled_by: appt.cancelledBy ? party(appt.cancelledBy) : null,
+      service_id: service?.id ?? null,
+      created_at: createdAt.toISOString(),
+    };
+  });
+
+  await must("insert appointments", supabaseAdmin.from("appointments").insert(rows));
+  console.log(`Seeded ${rows.length} appointments for the test student.`);
 }
 
 async function seedRelationships(ids: Record<Role, string>) {
@@ -537,11 +805,17 @@ async function main() {
   }
 
   await seedRelationships(ids);
+  const volunteerIds = await seedVolunteers(ids);
+  await resetStudentAppointments(ids.student);
   await resetStudentServices(ids.student);
-  await seedServices(ids);
+  const services = await seedServices(ids);
+  await seedAppointments(ids.student, volunteerIds, services);
 
   console.log("\nTest accounts ready (log in at /login; verification code is always 424242):");
-  console.table(TEST_ACCOUNTS.map(({ role, email }) => ({ role, email, password: `$TEST_PASSWORD_${role.toUpperCase()}` })));
+  console.table([
+    ...TEST_ACCOUNTS.map(({ role, email }) => ({ role, email, password: `$TEST_PASSWORD_${role.toUpperCase()}` })),
+    ...TEST_VOLUNTEERS.map(({ email }) => ({ role: "client", email, password: "$TEST_PASSWORD_CLIENT" })),
+  ]);
 }
 
 main()

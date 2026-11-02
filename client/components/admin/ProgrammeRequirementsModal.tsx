@@ -143,7 +143,7 @@ export default function ProgrammeRequirementsModal({
                 <option value="new">+ New set (future curriculum change)</option>
               </Select>
             </Field>
-            <Field label="Effective from" hint="Cohorts starting on/after this date use this set.">
+            <Field label="Effective from" required hint="Cohorts starting on/after this date use this set.">
               <TextInput type="date" value={effectiveFrom} disabled={selected !== "new"} onChange={(e) => setEffectiveFrom(e.target.value)} />
             </Field>
           </div>

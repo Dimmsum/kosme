@@ -196,13 +196,13 @@ function NewFlagForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
     <Modal open title="Raise a Flag" onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Entity type" hint="e.g. service, user, institution">
+        <Field label="Entity type" hint="e.g. service, user, institution" required>
           <TextInput value={entityType} onChange={(e) => setEntityType(e.target.value)} required />
         </Field>
-        <Field label="Entity ID" hint="The id of the flagged record.">
+        <Field label="Entity ID" hint="The id of the flagged record." required>
           <TextInput value={entityId} onChange={(e) => setEntityId(e.target.value)} required />
         </Field>
-        <Field label="Reason">
+        <Field label="Reason" required>
           <TextArea value={reason} onChange={(e) => setReason(e.target.value)} required />
         </Field>
         <FormActions onCancel={onClose} busy={busy} submitLabel="Raise flag" disabled={!entityType.trim() || !entityId.trim() || !reason.trim()} />

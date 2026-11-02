@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -11,10 +11,12 @@ import {
   Briefcase,
   Users,
   UserPlus,
+  MessageSquare,
   User,
   LogOut,
 } from "lucide-react";
 import { ROLE_DASHBOARD, useAuth } from "@/lib/auth-context";
+import { apiGet } from "@/lib/api";
 import DemoBanner from "@/components/DemoBanner";
 import { TimerProvider } from "@/components/student/TimerProvider";
 import ActiveTimerBar from "@/components/student/ActiveTimerBar";
@@ -25,6 +27,7 @@ const navItems = [
   { href: "/student/portfolio", label: "Portfolio", icon: Briefcase },
   { href: "/student/volunteers", label: "Volunteers", icon: Users },
   { href: "/student/clients", label: "My Clients", icon: UserPlus },
+  { href: "/student/messages", label: "Messages", icon: MessageSquare },
   { href: "/student/profile", label: "Profile", icon: User },
 ];
 
@@ -37,6 +40,7 @@ export default function StudentLayout({
   const router = useRouter();
   const { user, role, loading, signOut } = useAuth();
   const rolePending = !!user && role === null;
+  const [unread, setUnread] = useState(0);
   const roleMismatch = !!user && !!role && role !== "student";
 
   useEffect(() => {
@@ -49,6 +53,21 @@ export default function StudentLayout({
       router.replace(ROLE_DASHBOARD[role]);
     }
   }, [user, role, roleMismatch, loading, router]);
+
+  // Unread messages, shown as a badge so new messages are visible from every
+  // page. Refreshed on navigation and polled while the tab is visible.
+  useEffect(() => {
+    if (loading || !user || role !== "student") return;
+    const load = () =>
+      apiGet<{ unread: number }>("/api/messages/unread-count")
+        .then((res) => setUnread(res.unread ?? 0))
+        .catch(() => {});
+    load();
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [loading, user, role, pathname]);
 
   if (loading || !user || roleMismatch) {
     return (
@@ -122,6 +141,11 @@ export default function StudentLayout({
               >
                 <Icon size={18} />
                 {label}
+                {href === "/student/messages" && unread > 0 && (
+                  <span className="ml-auto rounded-full bg-k-primary px-2 py-0.5 text-[11px] font-semibold text-k-white">
+                    {unread}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -156,7 +180,7 @@ export default function StudentLayout({
 
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-k-gray-200 bg-k-white px-1 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 md:hidden">
-        <div className="grid grid-cols-5 gap-1 px-1">
+        <div className="flex items-center gap-1 overflow-x-auto px-1">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active =
             pathname === href ||
@@ -165,12 +189,19 @@ export default function StudentLayout({
             <Link
               key={href}
               href={href}
-              className={`flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 no-underline transition-colors duration-150 ${
+              className={`flex min-w-[74px] flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 no-underline transition-colors duration-150 ${
                 active ? "text-k-primary" : "text-k-gray-400"
               }`}
             >
-              <Icon size={17} />
-              <span className="truncate text-[10px] font-medium">{label}</span>
+              <span className="relative">
+                <Icon size={18} />
+                {href === "/student/messages" && unread > 0 && (
+                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-k-primary px-1 text-[9px] font-bold text-k-white">
+                    {unread}
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] font-medium">{label}</span>
             </Link>
           );
         })}

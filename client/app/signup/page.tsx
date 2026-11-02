@@ -9,6 +9,7 @@ import { useSignUp, useAuth as useClerkAuth } from "@clerk/nextjs";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { ROLE_DASHBOARD, normalizeRole, type UserRole } from "@/lib/auth-context";
+import RequiredMark from "@/components/RequiredMark";
 
 interface RoleOption {
   id: string;
@@ -303,7 +304,7 @@ export default function SignupPage() {
                       htmlFor="name"
                       className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600"
                     >
-                      Full name
+                      Full name<RequiredMark />
                     </label>
                     <input
                       id="name"
@@ -323,7 +324,7 @@ export default function SignupPage() {
                       htmlFor="signup-email"
                       className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600"
                     >
-                      Email address
+                      Email address<RequiredMark />
                     </label>
                     <input
                       id="signup-email"
@@ -343,7 +344,7 @@ export default function SignupPage() {
                       htmlFor="signup-password"
                       className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600"
                     >
-                      Password
+                      Password<RequiredMark />
                     </label>
                     <div className="relative">
                       <input
@@ -373,7 +374,7 @@ export default function SignupPage() {
                       htmlFor="confirm-password"
                       className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600"
                     >
-                      Confirm password
+                      Confirm password<RequiredMark />
                     </label>
                     <div className="relative">
                       <input
@@ -445,7 +446,7 @@ export default function SignupPage() {
                       htmlFor="otp-code"
                       className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600"
                     >
-                      Verification code
+                      Verification code<RequiredMark />
                     </label>
                     <input
                       id="otp-code"

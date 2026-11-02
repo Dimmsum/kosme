@@ -9,6 +9,7 @@ import { useSignIn, useAuth as useClerkAuth } from "@clerk/nextjs";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import { useAuth, ROLE_DASHBOARD } from "@/lib/auth-context";
+import RequiredMark from "@/components/RequiredMark";
 
 type ForgotStep = "idle" | "send" | "reset";
 
@@ -288,7 +289,7 @@ export default function LoginPage() {
                 <form onSubmit={handleForgotSend} className="flex flex-col gap-4" noValidate>
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="reset-email" className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600">
-                      Email address
+                      Email address<RequiredMark />
                     </label>
                     <input
                       id="reset-email"
@@ -340,7 +341,7 @@ export default function LoginPage() {
                 <form onSubmit={handleForgotReset} className="flex flex-col gap-4" noValidate>
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="reset-code" className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600">
-                      Reset code
+                      Reset code<RequiredMark />
                     </label>
                     <input
                       id="reset-code"
@@ -357,7 +358,7 @@ export default function LoginPage() {
 
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="new-password" className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600">
-                      New password
+                      New password<RequiredMark />
                     </label>
                     <div className="relative">
                       <input
@@ -420,7 +421,7 @@ export default function LoginPage() {
                 <form onSubmit={handleDeviceCode} className="flex flex-col gap-4" noValidate>
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="device-code" className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600">
-                      Verification code
+                      Verification code<RequiredMark />
                     </label>
                     <input
                       id="device-code"
@@ -483,7 +484,7 @@ export default function LoginPage() {
                   {/* Email */}
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="email" className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600">
-                      Email address
+                      Email address<RequiredMark />
                     </label>
                     <input
                       id="email"
@@ -501,7 +502,7 @@ export default function LoginPage() {
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
                       <label htmlFor="password" className="text-xs font-medium uppercase tracking-[0.1em] text-k-gray-600">
-                        Password
+                        Password<RequiredMark />
                       </label>
                       <button
                         type="button"

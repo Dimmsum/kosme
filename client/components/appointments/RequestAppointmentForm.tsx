@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiErrorMessage, apiGet, apiPost } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { AvailabilityWindow, nowLocalInput, withinAvailability } from "@/lib/appointments";
+import RequiredMark from "@/components/RequiredMark";
 
 interface Category {
   id: string;
@@ -113,7 +114,10 @@ export default function RequestAppointmentForm({
     <form onSubmit={submit} className="flex flex-col gap-3 rounded-2xl border border-k-primary/20 bg-k-white p-5">
       <h3 className="font-serif text-base text-k-black">Request an appointment</h3>
       <label className={label}>
-        Category
+        <span>
+          Category
+          <RequiredMark />
+        </span>
         <select
           value={category}
           onChange={(e) => {
@@ -153,12 +157,18 @@ export default function RequestAppointmentForm({
         </label>
       )}
       <label className={label}>
-        Service name
+        <span>
+          Service name
+          <RequiredMark />
+        </span>
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={255} className={field} />
       </label>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className={label}>
-          Date and time
+          <span>
+            Date and time
+            <RequiredMark />
+          </span>
           <input
             type="datetime-local"
             value={startsAt}
@@ -174,7 +184,10 @@ export default function RequestAppointmentForm({
           )}
         </label>
         <label className={label}>
-          Estimated duration
+          <span>
+            Estimated duration
+            <RequiredMark />
+          </span>
           <select value={duration} onChange={(e) => setDuration(Number(e.target.value))} className={field}>
             {DURATIONS.map((d) => (
               <option key={d} value={d}>
@@ -185,7 +198,10 @@ export default function RequestAppointmentForm({
         </label>
       </div>
       <label className={label}>
-        Location
+        <span>
+          Location
+          <RequiredMark />
+        </span>
         <input
           value={location}
           onChange={(e) => setLocation(e.target.value)}

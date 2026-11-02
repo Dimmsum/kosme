@@ -1040,6 +1040,7 @@ Extends `server/src/routes/client-signup.ts`, `server/src/routes/volunteer-reque
     Supabase directly. The accepted-request card now offers "Message" instead
     of the volunteer's phone number, and `/incoming` no longer returns it.
     **Not built:** an unread badge in the nav (`/unread-count` exists for it).
+    Students now have one (**CON-7**); clients still don't.
     **Needs `0029` applied live.**
 
 - [x] **CON-6** — Start a service from a booking
@@ -1055,6 +1056,20 @@ Extends `server/src/routes/client-signup.ts`, `server/src/routes/volunteer-reque
     the service marks the appointment `completed`; the service continues
     through the existing client confirmation and educator verification.
     Photo consent defaults to unchecked and can be set on the service page.
+
+- [x] **CON-7** — Student Messages page
+  - **Depends on:** **CON-5**
+  - **Files:** `client/app/student/messages/page.tsx`,
+    `client/app/student/layout.tsx`, `client/app/student/volunteers/page.tsx`.
+  - **Done:** Students get a top-level Messages page (`/student/messages`,
+    `?with=<id>` opens a thread), the same `MessagesPanel` the volunteer
+    Messages page uses, listing every conversation with who it's from, the
+    last message and an unread count. The student nav has a Messages item
+    with an unread badge from `/api/messages/unread-count`, refreshed on
+    navigation and every 30s while the tab is visible. The Messages tab on
+    the Volunteers page is gone; its Message buttons (directory, schedule,
+    accepted requests) now open the new page. The mobile bottom nav scrolls
+    horizontally like the volunteer one, since seven items don't fit a grid.
 
 ---
 

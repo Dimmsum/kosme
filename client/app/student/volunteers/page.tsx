@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   HandHeart,
   CheckCircle2,
@@ -12,7 +13,6 @@ import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { Appointment, PAST_STATUSES, UPCOMING_STATUSES, needsMyReply } from "@/lib/appointments";
 import { useTimer } from "@/components/student/TimerProvider";
 import AppointmentList from "@/components/appointments/AppointmentList";
-import MessagesPanel from "@/components/appointments/MessagesPanel";
 import VolunteerDirectory from "@/components/appointments/VolunteerDirectory";
 
 type RequestStatus = "pending" | "accepted" | "declined";
@@ -45,18 +45,17 @@ function initials(name: string | null | undefined): string {
 const STATUS_TABS = ["All", "Pending", "Accepted", "Declined"] as const;
 type Tab = (typeof STATUS_TABS)[number];
 
-type Section = "find" | "schedule" | "messages" | "requests";
+type Section = "find" | "schedule" | "requests";
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "find", label: "Find volunteers" },
   { key: "schedule", label: "Schedule" },
-  { key: "messages", label: "Messages" },
   { key: "requests", label: "Requests" },
 ];
 
 export default function VolunteersPage() {
   const timer = useTimer();
+  const router = useRouter();
   const [section, setSection] = useState<Section>("find");
-  const [thread, setThread] = useState<{ id: string; name: string | null } | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   const loadAppointments = () =>
@@ -68,9 +67,8 @@ export default function VolunteersPage() {
     loadAppointments();
   }, []);
 
-  function openThread(id: string, name: string | null) {
-    setThread({ id, name });
-    setSection("messages");
+  function openThread(id: string) {
+    router.push(`/student/messages?with=${id}`);
   }
 
   // CON-6: begin the timer from a confirmed booking. The server checks the
@@ -198,14 +196,6 @@ export default function VolunteersPage() {
         </div>
       )}
 
-      {section === "messages" && (
-        <MessagesPanel
-          openWith={thread?.id}
-          openWithName={thread?.name}
-          onClose={() => setThread(null)}
-        />
-      )}
-
       {section === "requests" && (
       <>
       {/* Header */}
@@ -317,7 +307,7 @@ export default function VolunteersPage() {
                   {/* Contact stays inside Kosmè — message instead of sharing a number */}
                   {req.status === "accepted" && req.volunteer && (
                     <button
-                      onClick={() => openThread(req.volunteer!.id, req.volunteer!.full_name)}
+                      onClick={() => openThread(req.volunteer!.id)}
                       className="mt-3 inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
                     >
                       <MessageSquare size={13} />

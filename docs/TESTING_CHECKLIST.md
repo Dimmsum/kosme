@@ -52,9 +52,9 @@ RESULT:
 
 - [x] Open a service, select 1 photo → appears under "Ready to upload"
 - [x] Click "Upload 1 photo" → succeeds, photo appears in the evidence gallery
-- [FAIL] Select and upload 3+ photos with before/during/after stage tags → all upload, stages shown correctly
-- [] Upload a wrong file type (e.g. `.pdf`) → friendly error, no crash
-- [ ] Upload an oversized image → friendly error or accepted, no crash
+- [x] Select and upload 3+ photos with before/during/after stage tags → all upload, stages shown correctly
+- [x] Upload a wrong file type (e.g. `.pdf`) → friendly error, no crash
+- [] Upload an oversized image → friendly error or accepted, no crash
 - [x] After the service is verified, uploads are locked (no upload control)
 
 ### 2.3 Timer — Start / Stop service
@@ -62,10 +62,10 @@ RESULT:
 - [x] Click Start Service → **immediately** button becomes "Stop Service"
 - [x] Toast/status message: "Timer started — <service name> is now being recorded"
 - [x] Live running time shown on the page (e.g. "Service in progress — 00:14:37"), updates every second
-- [FAIL] Navigate to Dashboard, Progress, Portfolio, Profile → a persistent timer bar stays visible on every student page
+- [x] Navigate to Dashboard, Progress, Portfolio, Profile → a persistent timer bar stays visible on every student page
 - [x] The bar names the service being timed
 - [x] The bar has a working Stop Service action
-- [ ] Try to start a second service while one is running → blocked or warned
+- [x] Try to start a second service while one is running → blocked or warned
 - [x] Refresh the browser mid-timer → timer restores with the correct elapsed time (from server start time)
 - [x] Log out, log back in → timer still running with correct elapsed time
 - [x] Stop the timer → bar disappears, duration saved, duration tag (shorter/typical/longer) shown on the service
@@ -75,39 +75,39 @@ RESULT:
 
 - [x] Overall total shown (e.g. 4/63) and category cards (Blow-dry 1/8, Braiding 1/5…)
 - [x] Category cards show their configured category colour
-- [FAIL] Clicking a category card (e.g. Braiding) opens/expands that category's full requirement list
-- [ ] Each required service listed with its status (Completed / Outstanding / Awaiting client / Awaiting verification)
-- [ ] An "all required practicals" view exists showing all 63 across every category
-- [ ] Filter tabs: All | Outstanding | In Progress | Awaiting Verification | Completed
-- [ ] Each filter shows only the matching services; counts add up to the total
-- [ ] Per-category progress (x/y) matches the number of Completed rows in it
-- [ ] Services awaiting client confirmation are visibly distinct from those awaiting educator verification
+- [x] Clicking a category card (e.g. Braiding) opens/expands that category's full requirement list
+- [x] Each required service listed with its status (Completed / Outstanding / Awaiting client / Awaiting verification)
+- [x] An "all required practicals" view exists showing all 63 across every category
+- [x] Filter tabs: All | Outstanding | In Progress | Awaiting Verification | Completed
+- [x] Each filter shows only the matching services; counts add up to the total
+- [x] Per-category progress (x/y) matches the number of Completed rows in it
+- [x] Services awaiting client confirmation are visibly distinct from those awaiting educator verification
 
 ### 2.5 Find a client & book an appointment (`/student/volunteers`)
 
-- [ ] Page lists volunteer clients (not just a flat listing)
-- [ ] Open a volunteer's profile → shows bio, services they are willing to receive, location
-- [ ] Availability days/times visible
-- [ ] Send an in-app message to the volunteer → appears in the thread
-- [ ] Request an appointment: pick a required practical/service, date, time, location, estimated duration → submits
-- [ ] Appointment shows status **Pending Client Response**
-- [ ] Phone numbers / emails are not exposed anywhere in this flow
+- [x] Page lists volunteer clients (not just a flat listing)
+- [x] Open a volunteer's profile → shows bio, services they are willing to receive, location
+- [x] Availability days/times visible
+- [x] Send an in-app message to the volunteer → appears in the thread
+- [x] Request an appointment: pick a required practical/service, date, time, location, estimated duration → submits
+- [x] Appointment shows status **Pending Client Response**
+- [x] Phone numbers / emails are not exposed anywhere in this flow
 
 ### 2.6 Student side of appointments
 
-- [ ] Upcoming Appointments/Schedule area lists confirmed appointments
-- [ ] Statuses display correctly: Pending Client Response, Pending Student Response, Confirmed, Reschedule Requested, Cancelled, Awaiting Client Confirmation, Service Completed
-- [ ] From a confirmed appointment: Message works
-- [ ] From a confirmed appointment: Reschedule works
+- [x] Upcoming Appointments/Schedule area lists confirmed appointments
+- [x] Statuses display correctly: Pending Client Response, Pending Student Response, Confirmed, Reschedule Requested, Cancelled, Awaiting Client Confirmation, Service Completed
+- [x] From a confirmed appointment: Message works
+- [x] From a confirmed appointment: Reschedule works
 - [ ] On the appointment date, open the booking → "Start Service" starts the timer pre-linked to that booking and service
 - [ ] After Stop, booking moves to **Awaiting Client Confirmation**
 
 ### 2.7 Add My Client (`/student/clients`)
 
-- [ ] Add a client by name/email → client record created
-- [ ] A shareable invite link is generated; copy button works
-- [ ] Create an appointment for that client → status **Pending Client Response**
-- [ ] (Client side) open the invite link in another browser → `/invite` flow claims the student, client sees the booking
+- [x] Add a client by name/email → client record created
+- [x] A shareable invite link is generated; copy button works
+- [x] Create an appointment for that client → status **Pending Client Response**
+- [x] (Client side) open the invite link in another browser → `/invite` flow claims the student, client sees the booking
 - [ ] Client confirms the booking → becomes Confirmed and appears under the student's schedule
 
 ### 2.8 Fix a flagged entry (item 6)
@@ -118,8 +118,8 @@ RESULT:
 
 ### 2.9 "Awaiting client" navigation (item 7)
 
-- [ ] Click an "Awaiting client" item on the dashboard/progress list → opens **that** service (not "my recent service")
-- [ ] Browser Back returns to where you came from
+- [x] Click an "Awaiting client" item on the dashboard/progress list → opens **that** service (not "my recent service")
+- [x] Browser Back returns to where you came from
 
 ---
 
@@ -127,24 +127,24 @@ RESULT:
 
 ### 3.1 Dashboard leads with the journey
 
-- [ ] `/volunteer/dashboard` primary action is **Find a Service / Student** (not services already received)
-- [ ] Upcoming Services shown next; History is not the main focus
-- [ ] Past services live under History (`/volunteer/history`)
+- [x] `/volunteer/dashboard` primary action is **Find a Service / Student** (not services already received)
+- [x] Upcoming Services shown next; History is not the main focus
+- [x] Past services live under History (`/volunteer/history`)
 
 ### 3.2 Find a student (`/volunteer/browse`)
 
-- [ ] Search students/services by text
-- [ ] Filters work: service, location, availability, institution
-- [ ] Combining filters narrows results; clearing resets
-- [ ] Empty state is friendly when nothing matches
-- [ ] Open a student → profile at `/volunteer/browse/[studentId]`
-- [ ] Student's **verified** portfolio visible before requesting (only approved work, no unverified services)
-- [ ] Student availability visible
+- [x] Search students/services by text
+- [x] Filters work: service, location, availability, institution
+- [x] Combining filters narrows results; clearing resets
+- [x] Empty state is friendly when nothing matches
+- [x] Open a student → profile at `/volunteer/browse/[studentId]`
+- [x] Student's **verified** portfolio visible before requesting (only approved work, no unverified services)
+- [x] Student availability visible
 
 ### 3.3 Request an appointment
 
-- [ ] Request a service from a student profile (service, date, time, location, notes)
-- [ ] Booking shows **Pending Student Response**
+- [x] Request a service from a student profile (service, date, time, location, notes)
+- [] Booking shows **Pending Student Response**
 - [ ] Student account sees it and can Accept / Decline / Suggest another time
 - [ ] Student accepts → status **Confirmed** on both sides, appears under Upcoming Services for both
 - [ ] Student suggests another time → **Reschedule Requested**; client can accept or counter

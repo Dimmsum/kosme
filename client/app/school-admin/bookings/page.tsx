@@ -6,6 +6,7 @@ import { apiErrorMessage, apiGet, apiPost } from "@/lib/api";
 import AdminHeader from "@/components/admin/AdminHeader";
 import { LoadingCard, EmptyCard, ErrorBanner } from "@/components/admin/DataStates";
 import { APPOINTMENT_STATUS, AppointmentStatus, formatWhen } from "@/lib/appointments";
+import RequiredMark from "@/components/RequiredMark";
 
 interface Booking {
   id: string;
@@ -119,7 +120,11 @@ export default function SchoolAdminBookings() {
                 </div>
                 {flagging === b.id && (
                   <div className="mt-3 flex flex-col gap-2">
+                    <label htmlFor={`flag-reason-${b.id}`} className="text-xs font-medium text-k-gray-600">
+                      Reason<RequiredMark />
+                    </label>
                     <textarea
+                      id={`flag-reason-${b.id}`}
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
                       maxLength={1000}

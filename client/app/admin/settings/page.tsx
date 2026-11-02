@@ -176,10 +176,10 @@ function SettingForm({ edit, onClose, onSaved }: { edit: Setting | null; onClose
     <Modal open title={edit ? `Edit "${edit.key}"` : "New Setting"} onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Key">
+        <Field label="Key" required>
           <TextInput value={key} onChange={(e) => setKey(e.target.value)} required disabled={!!edit} maxLength={128} />
         </Field>
-        <Field label="Value (JSON)" hint='e.g. true, 30, "text", or {"limit": 5}'>
+        <Field label="Value (JSON)" hint='e.g. true, 30, "text", or {"limit": 5}' required>
           <TextArea value={valueText} onChange={(e) => setValueText(e.target.value)} className="font-mono" />
         </Field>
         <FormActions onCancel={onClose} busy={busy} disabled={!key.trim()} />

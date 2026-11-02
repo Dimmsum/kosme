@@ -12,6 +12,7 @@ import {
   UserX,
 } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
+import RequiredMark from "@/components/RequiredMark";
 
 type VerifyStatus =
   | "All"
@@ -818,7 +819,14 @@ function VerifyQueue() {
 
                   {openPanel[item.serviceId] === "corrections" && (
                     <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+                      <label
+                        htmlFor={`correction-${item.serviceId}`}
+                        className="mb-1.5 block text-xs font-medium text-k-gray-600"
+                      >
+                        What needs fixing<RequiredMark />
+                      </label>
                       <textarea
+                        id={`correction-${item.serviceId}`}
                         value={correctionDrafts[item.serviceId] ?? ""}
                         onChange={(e) =>
                           setCorrectionDrafts((prev) => ({
@@ -845,7 +853,14 @@ function VerifyQueue() {
 
                   {openPanel[item.serviceId] === "flag" && (
                     <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                      <label
+                        htmlFor={`flag-${item.serviceId}`}
+                        className="mb-1.5 block text-xs font-medium text-k-gray-600"
+                      >
+                        Reason for flag<RequiredMark />
+                      </label>
                       <textarea
+                        id={`flag-${item.serviceId}`}
                         value={flagDrafts[item.serviceId] ?? ""}
                         onChange={(e) =>
                           setFlagDrafts((prev) => ({

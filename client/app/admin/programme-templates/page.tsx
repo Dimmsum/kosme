@@ -9,6 +9,7 @@ import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { Field, TextInput, TextArea, FormActions } from "@/components/admin/FormControls";
 import { LoadingCard, EmptyCard, ErrorBanner } from "@/components/admin/DataStates";
 import RequirementsEditor, { type ReqRow } from "@/components/admin/RequirementsEditor";
+import RequiredMark from "@/components/RequiredMark";
 
 interface Template {
   id: string;
@@ -187,7 +188,7 @@ function TemplateForm({ template, onClose, onSaved }: { template: Template | nul
     <Modal open title={template ? "Edit Template" : "New Template"} onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Name">
+        <Field label="Name" required>
           <TextInput value={name} onChange={(e) => setName(e.target.value)} required maxLength={255} />
         </Field>
         <Field label="Description">
@@ -259,11 +260,13 @@ function ApplyForm({ template, onClose, onApplied }: { template: Template; onClo
     <Modal open title={`Apply "${template.name}"`} onClose={onClose}>
       <form onSubmit={submit}>
         {err && <ErrorBanner message={err} />}
-        <Field label="Effective from" hint="Cohorts that started before this date keep their current requirements.">
+        <Field label="Effective from" required hint="Cohorts that started before this date keep their current requirements.">
           <TextInput type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} required />
         </Field>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-medium uppercase tracking-wide text-k-gray-400">Programmes</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-k-gray-400">
+            Programmes<RequiredMark />
+          </span>
           <button type="button" className="text-xs font-medium text-k-primary hover:underline" onClick={() => setPicked(new Set(linked))} disabled={linked.length === 0}>
             Select all using this template ({linked.length})
           </button>

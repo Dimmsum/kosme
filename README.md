@@ -138,6 +138,12 @@ npm run seed:test
 | Client | `test-client+clerk_test@kosme.app` |
 | Employer | `test-employer+clerk_test@kosme.app` |
 | Super Admin | `test-admin+clerk_test@kosme.app` |
+| Client (extra volunteers) | `test-volunteer-{priya,jordan,maya,leon}+clerk_test@kosme.app` |
+
+The extra volunteers use `TEST_PASSWORD_CLIENT`. Every client has a listed
+volunteer profile, and the test student has appointments with them in every
+booking status (requests both ways, confirmed, reschedule requested,
+cancelled, awaiting client confirmation and completed).
 
 Passwords are not in the repo. The script reads them from
 `TEST_PASSWORD_STUDENT`, `TEST_PASSWORD_EDUCATOR`, `TEST_PASSWORD_CLIENT`,

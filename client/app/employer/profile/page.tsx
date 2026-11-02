@@ -16,6 +16,7 @@ import {
   Camera,
 } from "lucide-react";
 import { apiGet, apiPatch } from "@/lib/api";
+import RequiredMark from "@/components/RequiredMark";
 import { useAuth } from "@/lib/auth-context";
 import BusinessDetailsCard from "@/components/employer/BusinessDetailsCard";
 
@@ -156,6 +157,7 @@ export default function EmployerProfilePage() {
               <div className="flex-1">
                 <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-k-gray-400">
                   Full Name
+                  {editing && <RequiredMark />}
                 </p>
                 {editing ? (
                   <input
